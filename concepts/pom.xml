@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>opencmw</artifactId>
+        <groupId>io.opencmw</groupId>
+        <version>${revision}${sha1}${changelist}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>concepts</artifactId>
+    <description>
+        Module for experimental features which will be moved to more appropriate modules once they become stable.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.opencmw</groupId>
+            <artifactId>core</artifactId>
+            <version>${revision}${sha1}${changelist}</version>
+        </dependency>
+        <dependency>
+            <groupId>de.gsi.dataset</groupId>
+            <artifactId>chartfx-dataset</artifactId>
+            <version>${version.chartfx}</version>
+        </dependency>
+        <dependency> <!-- somehow needed for both compiling and running the tests. -->
+            <groupId>it.unimi.dsi</groupId>
+            <artifactId>fastutil</artifactId>
+            <version>${version.fastutil}</version>
+        </dependency>
+    </dependencies>
+</project>

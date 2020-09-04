@@ -1,0 +1,9 @@
+#* @implicitly included * #
+#* @vtlvariable name = "msg" type = "io.opencmw.server.rest.util.MessageBundle" * #
+#* @vtlvariable name = "users" type = "java.lang.Iterable<io.opencmw.server.rest.user.RestUser>" * #
+#* @vtlvariable name = "currentUser" type = "java.lang.String" * #
+#* @vtlvariable name = "currentRoles" type = "java.lang.List<io.opencmw.server.rest.RestRole>" * #
+#* @vtlvariable name = "loggedOut" type = "java.lang.String" * #
+#* @vtlvariable name = "authenticationFailed" type = "java.lang.String" * #
+#* @vtlvariable name = "authenticationSucceeded" type = "java.lang.String" * #
+#* @vtlvariable name = "loginRedirect" type = "java.lang.String" * #
