@@ -1,4 +1,4 @@
-package de.gsi.microservice.concepts.aggregate.filter;
+package de.gsi.microservice.filter;
 
 import java.text.SimpleDateFormat;
 import java.util.Objects;
@@ -6,9 +6,9 @@ import java.util.function.Predicate;
 
 import org.apache.commons.lang3.StringUtils;
 
-import de.gsi.microservice.concepts.aggregate.Filter;
+import de.gsi.microservice.Filter;
 
-public class CtxFilter implements Filter {
+public class TimingCtx implements Filter {
     public static final String WILD_CARD = "ALL";
     public static final int WILD_CARD_VALUE = -1;
     public static final String SELECTOR_PREFIX = "FAIR.SELECTOR.";
@@ -28,7 +28,7 @@ public class CtxFilter implements Filter {
     public String ctxName;
     protected int hashCode = 0; // cached hash code
 
-    public CtxFilter() {
+    public TimingCtx() {
         clear(); // NOPMD -- called during initialisation
     }
 
@@ -46,10 +46,10 @@ public class CtxFilter implements Filter {
 
     @Override
     public void copyTo(final Filter other) {
-        if (!(other instanceof CtxFilter)) {
+        if (!(other instanceof TimingCtx)) {
             return;
         }
-        final CtxFilter otherCtx = (CtxFilter) other;
+        final TimingCtx otherCtx = (TimingCtx) other;
         otherCtx.selector = this.selector;
         otherCtx.cid = this.cid;
         otherCtx.sid = this.sid;
@@ -69,7 +69,7 @@ public class CtxFilter implements Filter {
             return false;
         }
 
-        final CtxFilter otherCtx = (CtxFilter) o;
+        final TimingCtx otherCtx = (TimingCtx) o;
         if (hashCode != otherCtx.hashCode() || cid != otherCtx.cid || sid != otherCtx.sid || pid != otherCtx.pid || gid != otherCtx.gid || bpcts != otherCtx.bpcts) {
             return false;
         }
@@ -91,14 +91,18 @@ public class CtxFilter implements Filter {
         return hashCode;
     }
 
-    public Predicate<CtxFilter> matches(final CtxFilter other) {
+    public Predicate<TimingCtx> matches(final TimingCtx other) {
         return t -> this.equals(other);
     }
 
     public void setSelector(final String selector, final long bpcts) {
+        if (selector == null) {
+            throw new IllegalArgumentException("selector string must not be null");
+        }
+        if (bpcts <= 0) {
+            throw new IllegalArgumentException("BPCTS time stamp <= 0 :" + bpcts);
+        }
         try {
-            assert selector != null : "selector string must not be null";
-            assert bpcts > 0 : "BPCTS time stamp <= 0 :" + bpcts;
             clear();
             this.selector = selector;
             this.bpcts = bpcts;
@@ -115,7 +119,7 @@ public class CtxFilter implements Filter {
 
             for (String tag : identifiers) {
                 final String[] splitSubComponent = tag.split("=");
-                assert splitSubComponent.length == 2 : "invalid selector: " + selector;
+                assert splitSubComponent.length == 2 : "invalid selector: " + selector; // NOPMD NOSONAR assert only while debugging
                 final int value = splitSubComponent[1].equals(WILD_CARD) ? -1 : Integer.parseInt(splitSubComponent[1]);
                 switch (splitSubComponent[0]) {
                 case "C":
@@ -135,7 +139,7 @@ public class CtxFilter implements Filter {
                     throw new IllegalArgumentException("cannot parse selector: '" + selector + "' sub-tag: " + tag);
                 }
             }
-        } catch (Throwable t) {
+        } catch (Throwable t) { // NOPMD NOSONAR should catch Throwable
             clear();
             throw new IllegalArgumentException("cannot parse selector: '" + selector + "'", t);
         }
@@ -143,38 +147,38 @@ public class CtxFilter implements Filter {
 
     public String toString() {
         final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-        return '[' + CtxFilter.class.getSimpleName() + ": bpcts=" + bpcts + " (\"" + sdf.format(bpcts / 1000) + "\"), selector='" + selector + "', cid=" + cid + ", sid=" + sid + ", pid=" + pid + ", gid=" + gid + ']';
+        return '[' + TimingCtx.class.getSimpleName() + ": bpcts=" + bpcts + " (\"" + sdf.format(bpcts / 1000) + "\"), selector='" + selector + "', cid=" + cid + ", sid=" + sid + ", pid=" + pid + ", gid=" + gid + ']';
     }
 
-    public static Predicate<CtxFilter> matches(final int cid, final int sid, final int pid, final long bpcts) {
+    public static Predicate<TimingCtx> matches(final int cid, final int sid, final int pid, final long bpcts) {
         return t -> t.bpcts == bpcts && t.cid == cid && wildCardMatch(t.sid, sid) && wildCardMatch(t.pid, pid);
     }
 
-    public static Predicate<CtxFilter> matches(final int cid, final int sid, final long bpcts) {
+    public static Predicate<TimingCtx> matches(final int cid, final int sid, final long bpcts) {
         return t -> t.bpcts == bpcts && wildCardMatch(t.cid, cid) && wildCardMatch(t.sid, sid);
     }
 
-    public static Predicate<CtxFilter> matches(final int cid, final long bpcts) {
+    public static Predicate<TimingCtx> matches(final int cid, final long bpcts) {
         return t -> t.bpcts == bpcts && wildCardMatch(t.cid, cid);
     }
 
-    public static Predicate<CtxFilter> matches(final int cid, final int sid, final int pid) {
+    public static Predicate<TimingCtx> matches(final int cid, final int sid, final int pid) {
         return t -> wildCardMatch(t.cid, cid) && wildCardMatch(t.sid, sid) && wildCardMatch(t.pid, pid);
     }
 
-    public static Predicate<CtxFilter> matches(final int cid, final int sid) {
+    public static Predicate<TimingCtx> matches(final int cid, final int sid) {
         return t -> wildCardMatch(t.cid, cid) && wildCardMatch(t.sid, sid);
     }
 
-    public static Predicate<CtxFilter> matchesBpcts(final long bpcts) {
+    public static Predicate<TimingCtx> matchesBpcts(final long bpcts) {
         return t -> t.bpcts == bpcts;
     }
 
-    public static Predicate<CtxFilter> isOlderBpcts(final long bpcts) {
+    public static Predicate<TimingCtx> isOlderBpcts(final long bpcts) {
         return t -> t.bpcts < bpcts;
     }
 
-    public static Predicate<CtxFilter> isNewerBpcts(final long bpcts) {
+    public static Predicate<TimingCtx> isNewerBpcts(final long bpcts) {
         return t -> t.bpcts > bpcts;
     }
 

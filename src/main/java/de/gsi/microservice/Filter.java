@@ -1,4 +1,4 @@
-package de.gsi.microservice.concepts.aggregate;
+package de.gsi.microservice;
 
 /**
  * Basic filter interface description

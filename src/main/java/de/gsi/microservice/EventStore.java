@@ -1,6 +1,5 @@
-package de.gsi.microservice.concepts.aggregate;
+package de.gsi.microservice;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -12,12 +11,12 @@ import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.spi.LoggingEventBuilder;
 
 import com.lmax.disruptor.BlockingWaitStrategy;
 import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.TimeoutBlockingWaitStrategy;
+import com.lmax.disruptor.WaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.EventHandlerGroup;
 import com.lmax.disruptor.dsl.ProducerType;
@@ -25,9 +24,7 @@ import com.lmax.disruptor.util.Util;
 
 import de.gsi.dataset.utils.Cache;
 import de.gsi.dataset.utils.NoDuplicatesList;
-import de.gsi.microservice.concepts.aggregate.filter.CtxFilter;
 import de.gsi.microservice.utils.LimitedArrayList;
-import de.gsi.microservice.utils.SharedPointer;
 import de.gsi.microservice.utils.WorkerThreadFactory;
 
 /**
@@ -37,61 +34,37 @@ import de.gsi.microservice.utils.WorkerThreadFactory;
  *
  * The multiplexing-context for the secondary ring buffers is controlled via the 'Function&lt;RingBufferEvent, String&gt; muxCtxFunction'
  * function that produces a unique string hash for a given ring buffer event, e.g.:
- * {@code Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(CtxFilter.class).cid;}
+ * {@code Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(TimingCtx.class).cid;}
  *
- * See {@link EventStoreTest} for usage and API examples.
+ * See EventStoreTest in the teest directory for usage and API examples.
  *
  * @author rstein
  */
 public class EventStore {
-    private final static Logger LOGGER = LoggerFactory.getLogger(EventStore.class);
-    private final static boolean IS_SINGLE_PRODUCER = false;
-    private final static int N_THREAD_MAX = 4;
-    private final static int N_RINGBUFFER_SIZE = Util.ceilingNextPowerOfTwo(1000); // should equal to 1024 ;-)
-    private final static int N_HISTORY = 10;
-
-    /**
-     * list of known filters. N.B. this
-     */
-    public final Filter[] filters;
-    public final WorkerThreadFactory threadFactory = new WorkerThreadFactory(EventStore.class.getSimpleName() + "Worker", N_THREAD_MAX);
-    public final ArrayList<LocalEventHandlerGroup> listener = new ArrayList<>();
-    public final Disruptor<RingBufferEvent> disruptor;
-    public final List<EventHandler<RingBufferEvent>> allEventHandlers = new NoDuplicatesList<>();
-    public final List<Function<RingBufferEvent, String>> muxCtxFunctions = new NoDuplicatesList<>();
-    private final Class<? extends Filter>[] filterConfig;
-    public final Cache<String, Disruptor<RingBufferEvent>> eventStreams;
-    protected Function<String, Disruptor<RingBufferEvent>> ctxMappingFunction = ctx -> {
-        // mux contexts -> create copy into separate disruptor/ringbuffer if necessary
-        // N.B. only single writer ... no further post-processors (all done in main eventStream)
-        final Disruptor<RingBufferEvent> ld = new Disruptor<>(() -> new RingBufferEvent(EventStore.this.filterConfig), N_RINGBUFFER_SIZE, threadFactory, ProducerType.SINGLE, new BlockingWaitStrategy());
-        ld.start();
-        return ld;
-    };
+    private static final Logger LOGGER = LoggerFactory.getLogger(EventStore.class);
+    private static final String NOT_FOUND_FOR_MULTIPLEXING_CONTEXT = "disruptor not found for multiplexing context = ";
+    protected final WorkerThreadFactory threadFactory;
+    protected final List<LocalEventHandlerGroup> listener = new NoDuplicatesList<>();
+    protected final List<EventHandler<RingBufferEvent>> allEventHandlers = new NoDuplicatesList<>();
+    protected final List<Function<RingBufferEvent, String>> muxCtxFunctions = new NoDuplicatesList<>();
+    protected final Cache<String, Disruptor<RingBufferEvent>> eventStreams;
+    protected final Disruptor<RingBufferEvent> disruptor;
+    protected final int lengthHistoryBuffer;
+    protected Function<String, Disruptor<RingBufferEvent>> ctxMappingFunction;
 
     /**
      *
      * @param filterConfig static filter configuration
      */
     @SafeVarargs
-    public EventStore(final Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> muxBuilder, final Function<RingBufferEvent, String> muxCtxFunction, final Class<? extends Filter>... filterConfig) {
+    protected EventStore(final Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> muxBuilder, final Function<RingBufferEvent, String> muxCtxFunction, final int ringBufferSize, final int lengthHistoryBuffer, final int maxThreadNumber, final boolean isSingleProducer, final WaitStrategy waitStrategy, final Class<? extends Filter>... filterConfig) { // NOPMD NOSONAR - handled by factory
         assert filterConfig != null;
         if (muxCtxFunction != null) {
-            muxCtxFunctions.add(muxCtxFunction);
+            this.muxCtxFunctions.add(muxCtxFunction);
         }
-        this.filterConfig = filterConfig;
-        this.filters = new Filter[filterConfig.length];
-
-        for (int i = 0; i < filters.length; i++) {
-            try {
-                filters[i] = filterConfig[i].getConstructor().newInstance();
-            } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-                LOGGER.atError().setCause(e).addArgument(Arrays.asList(filterConfig)).log("caught error while configuring ring buffer filters: {} ");
-                throw new IllegalArgumentException("filter initialisations error - could not instantiate class:" + filterConfig[i], e);
-            }
-        }
-
-        disruptor = new Disruptor<>(() -> new RingBufferEvent(filterConfig), N_RINGBUFFER_SIZE, threadFactory, IS_SINGLE_PRODUCER ? ProducerType.SINGLE : ProducerType.MULTI, new TimeoutBlockingWaitStrategy(100, TimeUnit.MILLISECONDS));
+        this.lengthHistoryBuffer = lengthHistoryBuffer;
+        this.threadFactory = new WorkerThreadFactory(EventStore.class.getSimpleName() + "Worker", maxThreadNumber);
+        this.disruptor = new Disruptor<>(() -> new RingBufferEvent(filterConfig), ringBufferSize, threadFactory, isSingleProducer ? ProducerType.SINGLE : ProducerType.MULTI, waitStrategy);
         final BiConsumer<String, Disruptor<RingBufferEvent>> clearCacheElement = (muxCtx, d) -> {
             d.shutdown();
             final RingBuffer<RingBufferEvent> rb = d.getRingBuffer();
@@ -99,7 +72,19 @@ public class EventStore {
                 rb.get(i).clear();
             }
         };
-        eventStreams = muxBuilder != null ? muxBuilder.build() : Cache.<String, Disruptor<RingBufferEvent>>builder().withPostListener(clearCacheElement).build();
+        this.eventStreams = muxBuilder != null ? muxBuilder.build() : Cache.<String, Disruptor<RingBufferEvent>>builder().withPostListener(clearCacheElement).build();
+
+        this.ctxMappingFunction = ctx -> {
+            // mux contexts -> create copy into separate disruptor/ringbuffer if necessary
+            // N.B. only single writer ... no further post-processors (all done in main eventStream)
+            final Disruptor<RingBufferEvent> ld = new Disruptor<>(() -> new RingBufferEvent(filterConfig), ringBufferSize, threadFactory, ProducerType.SINGLE, new BlockingWaitStrategy());
+            ld.start();
+            return ld;
+        };
+    }
+
+    public Disruptor<RingBufferEvent> getDisruptor() {
+        return disruptor;
     }
 
     public List<RingBufferEvent> getHistory(final String muxCtx, final Predicate<RingBufferEvent> predicate, final int nHistory) {
@@ -111,7 +96,7 @@ public class EventStore {
         assert sequence >= 0 : "sequence = " + sequence;
         assert nHistory > 0 : "nHistory = " + nHistory;
         final Disruptor<RingBufferEvent> localDisruptor = eventStreams.computeIfAbsent(muxCtx, ctxMappingFunction);
-        assert localDisruptor != null : "disruptor not found for multiplexing context = " + muxCtx;
+        assert localDisruptor != null : NOT_FOUND_FOR_MULTIPLEXING_CONTEXT + muxCtx;
         final RingBuffer<RingBufferEvent> ringBuffer = localDisruptor.getRingBuffer();
 
         // simple consistency checks
@@ -139,7 +124,7 @@ public class EventStore {
     public Optional<RingBufferEvent> getLast(final String muxCtx, final Predicate<RingBufferEvent> predicate, final long sequence) {
         assert muxCtx != null && !muxCtx.isBlank();
         final Disruptor<RingBufferEvent> localDisruptor = eventStreams.computeIfAbsent(muxCtx, ctxMappingFunction);
-        assert localDisruptor != null : "disruptor not found for multiplexing context = " + muxCtx;
+        assert localDisruptor != null : NOT_FOUND_FOR_MULTIPLEXING_CONTEXT + muxCtx;
         final RingBuffer<RingBufferEvent> ringBuffer = localDisruptor.getRingBuffer();
         assert ringBuffer.getCursor() > 0 : "uninitialised cursor: " + ringBuffer.getCursor();
 
@@ -158,26 +143,15 @@ public class EventStore {
         return disruptor.getRingBuffer();
     }
 
-    public void publish(final LoggingEventBuilder logger, final String payLoad, final int beamProcess) {
-        getRingBuffer().publishEvent((event, sequence, buffer) -> {
-            event.arrivalTimeStamp = System.currentTimeMillis() * 1000;
-            event.parentSequenceNumber = sequence;
-            event.getFilter(CtxFilter.class).setSelector("FAIR.SELECTOR.C=0:S=0:P=" + beamProcess, event.arrivalTimeStamp);
-            event.payload = new SharedPointer<>();
-            event.payload.set("pid=" + beamProcess + ": " + payLoad);
-            logger.addArgument(sequence).addArgument(event.payload.get()).addArgument(buffer).log("publish Seq:{} - event:'{}' buffer:'{}'");
-        });
-    }
-
     @SafeVarargs
     public final LocalEventHandlerGroup register(final EventHandler<RingBufferEvent>... eventHandler) {
-        final LocalEventHandlerGroup group = new LocalEventHandlerGroup(eventHandler);
+        final LocalEventHandlerGroup group = new LocalEventHandlerGroup(lengthHistoryBuffer, eventHandler);
         listener.add(group);
         return group;
     }
 
     public final LocalEventHandlerGroup register(final Predicate<RingBufferEvent> filter, Function<RingBufferEvent, String> muxCtxFunction, final HistoryEventHandler... eventHandler) {
-        final LocalEventHandlerGroup group = new LocalEventHandlerGroup(filter, muxCtxFunction, eventHandler);
+        final LocalEventHandlerGroup group = new LocalEventHandlerGroup(lengthHistoryBuffer, filter, muxCtxFunction, eventHandler);
         listener.add(group);
         return group;
     }
@@ -189,7 +163,7 @@ public class EventStore {
                 final String muxCtx = muxCtxFunc.apply(evt);
                 // only single writer ... no further post-processors (all done in main eventStream)
                 final Disruptor<RingBufferEvent> localDisruptor = eventStreams.computeIfAbsent(muxCtx, ctxMappingFunction);
-                assert localDisruptor != null : "disruptor not found for multiplexing context = " + muxCtx;
+                assert localDisruptor != null : NOT_FOUND_FOR_MULTIPLEXING_CONTEXT + muxCtx;
 
                 if (!localDisruptor.getRingBuffer().tryPublishEvent((event, sequence) -> {
                         if (event.payload != null && event.payload.getReferenceCount() > 0) {
@@ -211,7 +185,7 @@ public class EventStore {
 
         assert handlerGroup != null;
         @SuppressWarnings("unchecked")
-        EventHandler<RingBufferEvent>[] eventHanders = (EventHandler<RingBufferEvent>[]) allEventHandlers.toArray(new EventHandler[0]);
+        EventHandler<RingBufferEvent>[] eventHanders = allEventHandlers.toArray(new EventHandler[0]);
         if (startReaper) {
             // start the reaper thread for this given ring buffer
             disruptor.after(eventHanders).then(new RingBufferEvent.ClearEventHandler());
@@ -238,7 +212,7 @@ public class EventStore {
     protected EventHandlerGroup<RingBufferEvent> attachHandler(final Disruptor<RingBufferEvent> disruptor, final EventHandlerGroup<RingBufferEvent> parentGroup, final LocalEventHandlerGroup localHandlerGroup) {
         EventHandlerGroup<RingBufferEvent> handlerGroup;
         @SuppressWarnings("unchecked")
-        EventHandler<RingBufferEvent>[] eventHanders = (EventHandler<RingBufferEvent>[]) localHandlerGroup.handler.toArray(new EventHandler[0]);
+        EventHandler<RingBufferEvent>[] eventHanders = localHandlerGroup.handler.toArray(new EventHandler[0]);
         allEventHandlers.addAll(localHandlerGroup.handler);
         if (parentGroup == null) {
             handlerGroup = disruptor.handleEventsWith(eventHanders);
@@ -253,20 +227,27 @@ public class EventStore {
         return handlerGroup;
     }
 
+    public static EventStoreFactory getFactory() {
+        return new EventStoreFactory();
+    }
+
     protected static class LocalEventHandlerGroup {
-        public final List<EventHandler<RingBufferEvent>> handler = new NoDuplicatesList<>();
-        public LocalEventHandlerGroup dependent;
+        protected final List<EventHandler<RingBufferEvent>> handler = new NoDuplicatesList<>();
+        protected final int lengthHistoryBuffer;
+        protected LocalEventHandlerGroup dependent;
 
         @SafeVarargs
-        private LocalEventHandlerGroup(final EventHandler<RingBufferEvent>... eventHandler) {
+        private LocalEventHandlerGroup(final int lengthHistoryBuffer, final EventHandler<RingBufferEvent>... eventHandler) {
             assert eventHandler != null;
+            this.lengthHistoryBuffer = lengthHistoryBuffer;
             handler.addAll(Arrays.asList(eventHandler));
         }
 
-        private LocalEventHandlerGroup(final Predicate<RingBufferEvent> filter, Function<RingBufferEvent, String> muxCtxFunction, final HistoryEventHandler... eventHandlerCallbacks) {
+        private LocalEventHandlerGroup(final int lengthHistoryBuffer, final Predicate<RingBufferEvent> filter, Function<RingBufferEvent, String> muxCtxFunction, final HistoryEventHandler... eventHandlerCallbacks) {
             assert eventHandlerCallbacks != null;
+            this.lengthHistoryBuffer = lengthHistoryBuffer;
             for (final HistoryEventHandler callback : eventHandlerCallbacks) {
-                handler.add(new DefaultHistoryEventHandler(null, filter, muxCtxFunction, callback));
+                handler.add(new DefaultHistoryEventHandler(null, filter, muxCtxFunction, lengthHistoryBuffer, callback));
             }
         }
 
@@ -280,30 +261,139 @@ public class EventStore {
         public final LocalEventHandlerGroup and(final Predicate<RingBufferEvent> filter, Function<RingBufferEvent, String> muxCtxFunction, final HistoryEventHandler... eventHandlerCallbacks) {
             assert eventHandlerCallbacks != null;
             for (final HistoryEventHandler callback : eventHandlerCallbacks) {
-                handler.add(new DefaultHistoryEventHandler(null, filter, muxCtxFunction, callback));
+                handler.add(new DefaultHistoryEventHandler(null, filter, muxCtxFunction, lengthHistoryBuffer, callback));
             }
             return this;
         }
 
         @SafeVarargs
         public final LocalEventHandlerGroup then(final EventHandler<RingBufferEvent>... eventHandler) {
-            return (dependent = new LocalEventHandlerGroup(eventHandler));
+            return (dependent = new LocalEventHandlerGroup(lengthHistoryBuffer, eventHandler)); // NOPMD NOSONAR
         }
 
         public final LocalEventHandlerGroup then(final Predicate<RingBufferEvent> filter, Function<RingBufferEvent, String> muxCtxFunction, final HistoryEventHandler... eventHandlerCallbacks) {
-            return (dependent = new LocalEventHandlerGroup(filter, muxCtxFunction, eventHandlerCallbacks));
+            return (dependent = new LocalEventHandlerGroup(lengthHistoryBuffer, filter, muxCtxFunction, eventHandlerCallbacks)); // NOPMD NOSONAR
+        }
+    }
+
+    public static class EventStoreFactory {
+        private boolean isSingleProducer = false;
+        private int maxThreadNumber = 4;
+        private int ringbufferSize = 64;
+        private int lengthHistoryBuffer = 10;
+        private Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> muxBuilder;
+        private Function<RingBufferEvent, String> muxCtxFunction;
+        private WaitStrategy waitStrategy = new TimeoutBlockingWaitStrategy(100, TimeUnit.MILLISECONDS);
+        @SuppressWarnings("unchecked")
+        private Class<? extends Filter>[] filterConfig = new Class[0];
+
+        public EventStore build() {
+            if (muxBuilder == null) {
+                muxBuilder = Cache.<String, Disruptor<RingBufferEvent>>builder().withLimit(lengthHistoryBuffer);
+            }
+            return new EventStore(muxBuilder, muxCtxFunction, ringbufferSize, lengthHistoryBuffer, maxThreadNumber, isSingleProducer, waitStrategy, filterConfig);
+        }
+
+        public Class<? extends Filter>[] getFilterConfig() {
+            return filterConfig;
+        }
+
+        @SafeVarargs
+        public final EventStoreFactory setFilterConfig(final Class<? extends Filter>... filterConfig) {
+            if (filterConfig == null) {
+                throw new IllegalArgumentException("filterConfig is null");
+            }
+            this.filterConfig = filterConfig;
+            return this;
+        }
+
+        public int getLengthHistoryBuffer() {
+            return lengthHistoryBuffer;
+        }
+
+        public EventStoreFactory setLengthHistoryBuffer(final int lengthHistoryBuffer) {
+            if (lengthHistoryBuffer < 0) {
+                throw new IllegalArgumentException("lengthHistoryBuffer < 0: " + lengthHistoryBuffer);
+            }
+
+            this.lengthHistoryBuffer = lengthHistoryBuffer;
+            return this;
+        }
+
+        public int getMaxThreadNumber() {
+            return maxThreadNumber;
+        }
+
+        public EventStoreFactory setMaxThreadNumber(final int maxThreadNumber) {
+            this.maxThreadNumber = maxThreadNumber;
+            return this;
+        }
+
+        public Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> getMuxBuilder() {
+            return muxBuilder;
+        }
+
+        public EventStoreFactory setMuxBuilder(final Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> muxBuilder) {
+            this.muxBuilder = muxBuilder;
+            return this;
+        }
+
+        public Function<RingBufferEvent, String> getMuxCtxFunction() {
+            return muxCtxFunction;
+        }
+
+        public EventStoreFactory setMuxCtxFunction(final Function<RingBufferEvent, String> muxCtxFunction) {
+            this.muxCtxFunction = muxCtxFunction;
+            return this;
+        }
+
+        public int getRingbufferSize() {
+            return ringbufferSize;
+        }
+
+        public EventStoreFactory setRingbufferSize(final int ringbufferSize) {
+            if (ringbufferSize < 0) {
+                throw new IllegalArgumentException("lengthHistoryBuffer < 0: " + ringbufferSize);
+            }
+            final int rounded = Util.ceilingNextPowerOfTwo(ringbufferSize - 1);
+            if (ringbufferSize != rounded) {
+                LOGGER.atWarn().addArgument(ringbufferSize).addArgument(rounded).log("setRingbufferSize({}) is not a power of two setting to next power of two: {}");
+                this.ringbufferSize = rounded;
+                return this;
+            }
+
+            this.ringbufferSize = ringbufferSize;
+            return this;
+        }
+
+        public WaitStrategy getWaitStrategy() {
+            return waitStrategy;
+        }
+
+        public EventStoreFactory setWaitStrategy(final WaitStrategy waitStrategy) {
+            this.waitStrategy = waitStrategy;
+            return this;
+        }
+
+        public boolean isSingleProducer() {
+            return isSingleProducer;
+        }
+
+        public EventStoreFactory setSingleProducer(final boolean singleProducer) {
+            isSingleProducer = singleProducer;
+            return this;
         }
     }
 
     protected static class DefaultHistoryEventHandler implements EventHandler<RingBufferEvent> {
-        private EventStore eventStore;
         private final Predicate<RingBufferEvent> filter;
         private final Function<RingBufferEvent, String> muxCtxFunction;
-        private Cache<String, LimitedArrayList<RingBufferEvent>> historyCache;
-        //private final LimitedArrayList<RingBufferEvent> history = new LimitedArrayList<>(N_HISTORY);
         private final HistoryEventHandler callback;
+        private final int lengthHistoryBuffer;
+        private EventStore eventStore;
+        private Cache<String, LimitedArrayList<RingBufferEvent>> historyCache;
 
-        DefaultHistoryEventHandler(final EventStore eventStore, final Predicate<RingBufferEvent> filter, Function<RingBufferEvent, String> muxCtxFunction, final HistoryEventHandler callback) {
+        DefaultHistoryEventHandler(final EventStore eventStore, final Predicate<RingBufferEvent> filter, Function<RingBufferEvent, String> muxCtxFunction, final int lengthHistoryBuffer, final HistoryEventHandler callback) {
             assert filter != null : "filter predicate is null";
             assert muxCtxFunction != null : "muxCtxFunction hash function is null";
             assert callback != null : "callback function must not be null";
@@ -311,15 +401,8 @@ public class EventStore {
             this.eventStore = eventStore;
             this.filter = filter;
             this.muxCtxFunction = muxCtxFunction;
+            this.lengthHistoryBuffer = lengthHistoryBuffer;
             this.callback = callback;
-        }
-
-        private void setEventStore(final EventStore eventStore) {
-            this.eventStore = eventStore;
-            // allocate cache
-            final BiConsumer<String, LimitedArrayList<RingBufferEvent>> clearCacheElement = (muxCtx, history) -> history.forEach(RingBufferEvent::clear);
-            final Cache<?, ?> c = eventStore.eventStreams; // re-use existing config limits
-            historyCache = Cache.<String, LimitedArrayList<RingBufferEvent>>builder().withLimit((int) c.getLimit()).withTimeout(c.getTimeout(), c.getTimeUnit()).withPostListener(clearCacheElement).build();
         }
 
         public void onEvent(final RingBufferEvent event, final long sequence, final boolean endOfBatch) {
@@ -327,7 +410,7 @@ public class EventStore {
                 return;
             }
             final String muxCtx = muxCtxFunction.apply(event);
-            final LimitedArrayList<RingBufferEvent> history = historyCache.computeIfAbsent(muxCtx, ctx -> new LimitedArrayList<>(N_HISTORY));
+            final LimitedArrayList<RingBufferEvent> history = historyCache.computeIfAbsent(muxCtx, ctx -> new LimitedArrayList<>(lengthHistoryBuffer));
 
             final RingBufferEvent eventCopy = event.clone();
             if (history.size() == history.getLimit()) {
@@ -338,7 +421,6 @@ public class EventStore {
 
             final RingBufferEvent result;
             try {
-                //result = callback.onEvent(historyAlt, eventStore, sequence, endOfBatch);
                 result = callback.onEvent(history, eventStore, sequence, endOfBatch);
             } catch (Exception e) {
                 LOGGER.atError().setCause(e).addArgument(history.size()).addArgument(sequence).addArgument(endOfBatch) //
@@ -353,6 +435,14 @@ public class EventStore {
                 result.copyTo(newEvent);
                 newEvent.parentSequenceNumber = newSequence;
             });
+        }
+
+        private void setEventStore(final EventStore eventStore) {
+            this.eventStore = eventStore;
+            // allocate cache
+            final BiConsumer<String, LimitedArrayList<RingBufferEvent>> clearCacheElement = (muxCtx, history) -> history.forEach(RingBufferEvent::clear);
+            final Cache<?, ?> c = eventStore.eventStreams; // re-use existing config limits
+            historyCache = Cache.<String, LimitedArrayList<RingBufferEvent>>builder().withLimit((int) c.getLimit()).withTimeout(c.getTimeout(), c.getTimeUnit()).withPostListener(clearCacheElement).build();
         }
     }
 }

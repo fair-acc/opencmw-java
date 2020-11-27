@@ -5,8 +5,12 @@ import static java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 
-public class SystemProperties { // NOPMD -- nomen est omen
+public final class SystemProperties { // NOPMD -- nomen est omen
     private static final Properties SYSTEM_PROPERTIES = System.getProperties();
+
+    private SystemProperties() {
+        // utility class
+    }
 
     public static String getProperty(final String key) {
         return SYSTEM_PROPERTIES.getProperty(key);

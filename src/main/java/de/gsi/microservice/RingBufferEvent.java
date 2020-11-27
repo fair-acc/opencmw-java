@@ -1,4 +1,4 @@
-package de.gsi.microservice.concepts.aggregate;
+package de.gsi.microservice;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -32,7 +32,6 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
      * list of known filters. N.B. this
      */
     public final Filter[] filters;
-    private final Class<? extends Filter>[] filterConfig;
 
     /**
      * domain object carried by this ring buffer event
@@ -51,7 +50,6 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
     @SafeVarargs
     public RingBufferEvent(final Class<? extends Filter>... filterConfig) {
         assert filterConfig != null;
-        this.filterConfig = filterConfig;
         this.filters = new Filter[filterConfig.length];
         for (int i = 0; i < filters.length; i++) {
             try {
@@ -65,7 +63,7 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
 
     @Override
     public RingBufferEvent clone() { // NOSONAR NOPMD we do not want to call super (would be kind of stupid)
-        final RingBufferEvent retVal = new RingBufferEvent(this.filterConfig);
+        final RingBufferEvent retVal = new RingBufferEvent(Arrays.stream(filters).map(f -> f.getClass()).toArray(Class[]::new));
         this.copyTo(retVal);
         return retVal;
     }
@@ -98,7 +96,7 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
     }
 
     public <T extends Filter> boolean matches(Class<T> filterType, final Predicate<T> predicate) {
-        return predicate.test(filterType.cast(getFilter(filterType)));
+        return predicate.test(getFilter(filterType));
     }
 
     /**
@@ -200,9 +198,6 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
         if (!Arrays.equals(filters, other.filters)) {
             return false;
         }
-        if (!Arrays.equals(filterConfig, other.filterConfig)) {
-            return false;
-        }
         if (payload != null ? !payload.equals(other.payload) : other.payload != null) {
             return false;
         }
@@ -214,7 +209,6 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
         int result = (int) (arrivalTimeStamp ^ (arrivalTimeStamp >>> 32));
         result = 31 * result + (int) (parentSequenceNumber ^ (parentSequenceNumber >>> 32));
         result = 31 * result + Arrays.hashCode(filters);
-        result = 31 * result + Arrays.hashCode(filterConfig);
         result = 31 * result + (payload != null ? payload.hashCode() : 0);
         result = 31 * result + throwables.hashCode();
         return result;

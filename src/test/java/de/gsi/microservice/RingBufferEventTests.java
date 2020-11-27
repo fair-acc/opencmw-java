@@ -1,4 +1,4 @@
-package de.gsi.microservice.concepts.aggregate;
+package de.gsi.microservice;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -10,17 +10,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import de.gsi.microservice.concepts.aggregate.filter.CtxFilter;
-import de.gsi.microservice.concepts.aggregate.filter.EvtTypeFilter;
+import de.gsi.microservice.filter.EvtTypeFilter;
+import de.gsi.microservice.filter.TimingCtx;
 import de.gsi.microservice.utils.SharedPointer;
 
 class RingBufferEventTests {
     @Test
     void basicTests() {
-        assertDoesNotThrow(() -> new RingBufferEvent(CtxFilter.class));
-        assertThrows(IllegalArgumentException.class, () -> new RingBufferEvent(CtxFilter.class, BogusFilter.class));
+        assertDoesNotThrow(() -> new RingBufferEvent(TimingCtx.class));
+        assertThrows(IllegalArgumentException.class, () -> new RingBufferEvent(TimingCtx.class, BogusFilter.class));
 
-        final RingBufferEvent evt = new RingBufferEvent(CtxFilter.class);
+        final RingBufferEvent evt = new RingBufferEvent(TimingCtx.class);
         assertFalse(evt.matches(String.class));
         evt.payload = new SharedPointer<>();
         assertFalse(evt.matches(String.class));
@@ -31,7 +31,7 @@ class RingBufferEventTests {
 
         // assert copy/clone interfaces
         assertEquals(evt, evt.clone());
-        final RingBufferEvent evt2 = new RingBufferEvent(CtxFilter.class);
+        final RingBufferEvent evt2 = new RingBufferEvent(TimingCtx.class);
         evt.copyTo(evt2);
         assertEquals(evt, evt2);
 
@@ -40,7 +40,7 @@ class RingBufferEventTests {
         assertEquals(0, evt.arrivalTimeStamp);
 
         final long timeNowMicros = System.currentTimeMillis() * 1000;
-        final CtxFilter ctxFilter = evt.getFilter(CtxFilter.class);
+        final TimingCtx ctxFilter = evt.getFilter(TimingCtx.class);
         assertNotNull(ctxFilter);
         assertThrows(IllegalArgumentException.class, () -> evt.getFilter(BogusFilter.class));
 
@@ -49,22 +49,22 @@ class RingBufferEventTests {
         // assert copy/clone interfaces for cleared evt
         evt.clear();
         assertEquals(evt, evt.clone());
-        final RingBufferEvent evt3 = new RingBufferEvent(CtxFilter.class);
+        final RingBufferEvent evt3 = new RingBufferEvent(TimingCtx.class);
         evt.copyTo(evt3);
         assertEquals(evt, evt3);
     }
 
     @Test
     void basicUsageTests() {
-        final RingBufferEvent evt = new RingBufferEvent(CtxFilter.class, EvtTypeFilter.class);
+        final RingBufferEvent evt = new RingBufferEvent(TimingCtx.class, EvtTypeFilter.class);
         assertNotNull(evt);
         final long timeNowMicros = System.currentTimeMillis() * 1000;
         evt.arrivalTimeStamp = timeNowMicros;
-        evt.getFilter(EvtTypeFilter.class).evtType = EvtTypeFilter.EvtType.DEVICE_DATA;
+        evt.getFilter(EvtTypeFilter.class).evtType = EvtTypeFilter.DataType.DEVICE_DATA;
         evt.getFilter(EvtTypeFilter.class).typeName = "MyDevice";
-        evt.getFilter(CtxFilter.class).setSelector("FAIR.SELECTOR.C=3:S=2", timeNowMicros);
+        evt.getFilter(TimingCtx.class).setSelector("FAIR.SELECTOR.C=3:S=2", timeNowMicros);
 
-        evt.matches(CtxFilter.class, ctx -> {
+        evt.matches(TimingCtx.class, ctx -> {
             System.err.println("received ctx = " + ctx);
             return true;
         });
@@ -72,20 +72,20 @@ class RingBufferEventTests {
         // fall-back filter: the whole RingBufferEvent, all Filters etc are accessible
         assertTrue(evt.matches(e -> e.arrivalTimeStamp == timeNowMicros));
 
-        // filter only on given filter trait - here CtxFilter
-        assertTrue(evt.matches(CtxFilter.class, CtxFilter.matches(3, 2)));
-        evt.test(CtxFilter.class, CtxFilter.matches(3, 2));
+        // filter only on given filter trait - here TimingCtx
+        assertTrue(evt.matches(TimingCtx.class, TimingCtx.matches(3, 2)));
+        evt.test(TimingCtx.class, TimingCtx.matches(3, 2));
 
         // combination of filter traits
-        assertTrue(evt.test(CtxFilter.class, CtxFilter.matches(3, 2)) && evt.test(EvtTypeFilter.class, dataType -> dataType.evtType == EvtTypeFilter.EvtType.DEVICE_DATA));
-        assertTrue(evt.test(CtxFilter.class, CtxFilter.matches(3, 2)) && evt.test(EvtTypeFilter.class, EvtTypeFilter.isDeviceData("MyDevice")));
-        assertTrue(evt.test(CtxFilter.class, CtxFilter.matches(3, 2).and(CtxFilter.isNewerBpcts(timeNowMicros - 1L))));
+        assertTrue(evt.test(TimingCtx.class, TimingCtx.matches(3, 2)) && evt.test(EvtTypeFilter.class, dataType -> dataType.evtType == EvtTypeFilter.DataType.DEVICE_DATA));
+        assertTrue(evt.test(TimingCtx.class, TimingCtx.matches(3, 2)) && evt.test(EvtTypeFilter.class, EvtTypeFilter.isDeviceData("MyDevice")));
+        assertTrue(evt.test(TimingCtx.class, TimingCtx.matches(3, 2).and(TimingCtx.isNewerBpcts(timeNowMicros - 1L))));
     }
 
     @Test
     void equalsTests() {
-        final RingBufferEvent evt1 = new RingBufferEvent(CtxFilter.class);
-        final RingBufferEvent evt2 = new RingBufferEvent(CtxFilter.class);
+        final RingBufferEvent evt1 = new RingBufferEvent(TimingCtx.class);
+        final RingBufferEvent evt2 = new RingBufferEvent(TimingCtx.class);
 
         assertEquals(evt1, evt1, "equals identity");
         assertNotEquals(null, evt1, "equals null");
@@ -96,7 +96,7 @@ class RingBufferEventTests {
 
     @Test
     void testClearEventHandler() {
-        final RingBufferEvent evt = new RingBufferEvent(CtxFilter.class, EvtTypeFilter.class);
+        final RingBufferEvent evt = new RingBufferEvent(TimingCtx.class, EvtTypeFilter.class);
         assertNotNull(evt);
         final long timeNowMicros = System.currentTimeMillis() * 1000;
         evt.arrivalTimeStamp = timeNowMicros;

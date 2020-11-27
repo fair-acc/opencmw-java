@@ -1,8 +1,10 @@
-package de.gsi.microservice.concepts.aggregate;
+package de.gsi.microservice;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -19,31 +21,76 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.spi.LoggingEventBuilder;
 
 import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.LifecycleAware;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.TimeoutHandler;
+import com.lmax.disruptor.WaitStrategy;
+import com.lmax.disruptor.YieldingWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
 
 import de.gsi.dataset.utils.Cache;
-import de.gsi.microservice.concepts.aggregate.filter.CtxFilter;
-import de.gsi.microservice.concepts.aggregate.filter.EvtTypeFilter;
+import de.gsi.microservice.filter.EvtTypeFilter;
+import de.gsi.microservice.filter.TimingCtx;
+import de.gsi.microservice.utils.SharedPointer;
 
 class EventStoreTest {
     private final static Logger LOGGER = LoggerFactory.getLogger(EventStoreTest.class);
     private final static boolean IN_ORDER = true;
 
     @Test
-    void basicTest() {
-        assertDoesNotThrow(() -> new EventStore(null, null, CtxFilter.class, EvtTypeFilter.class));
+    void testFactory() {
+        assertDoesNotThrow(EventStore::getFactory);
 
-        // global multiplexing context function -> generate new EventStream per detected context, here: multiplexed on {@see CtxFilter#cid}
-        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(CtxFilter.class).cid;
+        final EventStore.EventStoreFactory factory = EventStore.getFactory();
+        assertDoesNotThrow(factory::build);
+
+        assertEquals(0, factory.getFilterConfig().length);
+        factory.setFilterConfig(TimingCtx.class, EvtTypeFilter.class);
+        assertArrayEquals(new Class[] { TimingCtx.class, EvtTypeFilter.class }, factory.getFilterConfig());
+
+        factory.setLengthHistoryBuffer(42);
+        assertEquals(42, factory.getLengthHistoryBuffer());
+
+        factory.setMaxThreadNumber(7);
+        assertEquals(7, factory.getMaxThreadNumber());
+
+        factory.setRingbufferSize(128);
+        assertEquals(128, factory.getRingbufferSize());
+        factory.setRingbufferSize(42);
+        assertEquals(64, factory.getRingbufferSize());
+
+        factory.setSingleProducer(true);
+        assertTrue(factory.isSingleProducer());
+        factory.setSingleProducer(false);
+        assertFalse(factory.isSingleProducer());
+
+        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(TimingCtx.class).cid;
+        assertNotEquals(muxCtx, factory.getMuxCtxFunction());
+        factory.setMuxCtxFunction(muxCtx);
+        assertEquals(muxCtx, factory.getMuxCtxFunction());
+
         final Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> ctxCacheBuilder = Cache.<String, Disruptor<RingBufferEvent>>builder().withLimit(100);
-        final EventStore es = new EventStore(ctxCacheBuilder, muxCtx, CtxFilter.class, EvtTypeFilter.class);
+        final WaitStrategy customWaitStrategy = new YieldingWaitStrategy();
+        assertNotEquals(ctxCacheBuilder, factory.getMuxBuilder());
+        assertNotEquals(customWaitStrategy, factory.getWaitStrategy());
+        factory.setWaitStrategy(customWaitStrategy).setMuxBuilder(ctxCacheBuilder);
+        assertEquals(customWaitStrategy, factory.getWaitStrategy());
+        assertEquals(ctxCacheBuilder, factory.getMuxBuilder());
+    }
 
-        Predicate<RingBufferEvent> filterBp1 = evt -> evt.test(CtxFilter.class, CtxFilter.matches(-1, -1, 1));
+    @Test
+    void basicTest() {
+        assertDoesNotThrow(() -> EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build());
+
+        // global multiplexing context function -> generate new EventStream per detected context, here: multiplexed on {@see TimingCtx#cid}
+        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(TimingCtx.class).cid;
+        final Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> ctxCacheBuilder = Cache.<String, Disruptor<RingBufferEvent>>builder().withLimit(100);
+        final EventStore es = EventStore.getFactory().setMuxCtxFunction(muxCtx).setMuxBuilder(ctxCacheBuilder).setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
+
+        Predicate<RingBufferEvent> filterBp1 = evt -> evt.test(TimingCtx.class, TimingCtx.matches(-1, -1, 1));
 
         es.register(filterBp1, muxCtx, (evts, evtStore, seq, eob) -> {
               LOGGER.atTrace().addArgument(evts.get(0).payload.get()).log("SequencedFilteredTask 1.0: received cid == 1 : payload = {}");
@@ -68,7 +115,7 @@ class EventStoreTest {
             return null;
         });
 
-        Predicate<RingBufferEvent> filterBp0 = evt -> evt.test(CtxFilter.class, CtxFilter.matches(-1, -1, 0));
+        Predicate<RingBufferEvent> filterBp0 = evt -> evt.test(TimingCtx.class, TimingCtx.matches(-1, -1, 0));
         es.register(filterBp0, muxCtx, (evts, evtStore, seq, eob) -> {
             final String history = evts.stream().map(b -> (String) b.payload.get()).collect(Collectors.joining(", ", "(", ")"));
             final String historyAlt = es.getHistory(muxCtx.apply(evts.get(0)), filterBp0, seq, 30).stream().map(b -> (String) b.payload.get()).collect(Collectors.joining(", ", "(", ")"));
@@ -83,12 +130,12 @@ class EventStoreTest {
         assertNotNull(es.getRingBuffer());
 
         es.start();
-        es.publish(LOGGER.atTrace(), "message A", 0);
-        es.publish(LOGGER.atTrace(), "message B", 0);
-        es.publish(LOGGER.atTrace(), "message C", 0);
-        es.publish(LOGGER.atTrace(), "message A", 1);
-        es.publish(LOGGER.atTrace(), "message D", 0);
-        es.publish(LOGGER.atTrace(), "message E", 0);
+        testPublish(es, LOGGER.atTrace(), "message A", 0);
+        testPublish(es, LOGGER.atTrace(), "message B", 0);
+        testPublish(es, LOGGER.atTrace(), "message C", 0);
+        testPublish(es, LOGGER.atTrace(), "message A", 1);
+        testPublish(es, LOGGER.atTrace(), "message D", 0);
+        testPublish(es, LOGGER.atTrace(), "message E", 0);
 
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100)); // give a bit of time until all workers are finished
         es.stop();
@@ -97,8 +144,8 @@ class EventStoreTest {
     @Test
     void attachEventHandlerTest() {
         final Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> ctxCacheBuilder = Cache.<String, Disruptor<RingBufferEvent>>builder().withLimit(100);
-        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(CtxFilter.class).cid;
-        final EventStore es = new EventStore(ctxCacheBuilder, muxCtx, CtxFilter.class, EvtTypeFilter.class);
+        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(TimingCtx.class).cid;
+        final EventStore es = EventStore.getFactory().setMuxCtxFunction(muxCtx).setMuxBuilder(ctxCacheBuilder).setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
 
         final AtomicInteger handlerCount1 = new AtomicInteger();
         final AtomicInteger handlerCount2 = new AtomicInteger();
@@ -112,12 +159,12 @@ class EventStoreTest {
                 });
 
         es.start();
-        es.publish(LOGGER.atTrace(), "A", 0);
-        es.publish(LOGGER.atTrace(), "B", 0);
-        es.publish(LOGGER.atTrace(), "C", 0);
-        es.publish(LOGGER.atTrace(), "A", 1);
-        es.publish(LOGGER.atTrace(), "D", 0);
-        es.publish(LOGGER.atTrace(), "E", 0);
+        testPublish(es, LOGGER.atTrace(), "A", 0);
+        testPublish(es, LOGGER.atTrace(), "B", 0);
+        testPublish(es, LOGGER.atTrace(), "C", 0);
+        testPublish(es, LOGGER.atTrace(), "A", 1);
+        testPublish(es, LOGGER.atTrace(), "D", 0);
+        testPublish(es, LOGGER.atTrace(), "E", 0);
         Awaitility.await().atMost(200, TimeUnit.MILLISECONDS).until(() -> {
             es.stop();
             return true; });
@@ -130,13 +177,13 @@ class EventStoreTest {
     @Test
     void attachHistoryEventHandlerTest() {
         final Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> ctxCacheBuilder = Cache.<String, Disruptor<RingBufferEvent>>builder().withLimit(100);
-        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(CtxFilter.class).cid;
-        final EventStore es = new EventStore(ctxCacheBuilder, muxCtx, CtxFilter.class, EvtTypeFilter.class);
+        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(TimingCtx.class).cid;
+        final EventStore es = EventStore.getFactory().setMuxCtxFunction(muxCtx).setMuxBuilder(ctxCacheBuilder).setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
 
         final AtomicInteger handlerCount1 = new AtomicInteger();
         final AtomicInteger handlerCount2 = new AtomicInteger();
         final AtomicInteger handlerCount3 = new AtomicInteger();
-        Predicate<RingBufferEvent> filterBp1 = evt -> evt.test(CtxFilter.class, CtxFilter.matches(-1, -1, 0));
+        Predicate<RingBufferEvent> filterBp1 = evt -> evt.test(TimingCtx.class, TimingCtx.matches(-1, -1, 0));
         es.register(filterBp1, muxCtx, (evts, evtStore, seq, eob) -> {
               handlerCount1.incrementAndGet();
               return null;
@@ -151,12 +198,12 @@ class EventStoreTest {
         });
 
         es.start();
-        es.publish(LOGGER.atTrace(), "A", 0);
-        es.publish(LOGGER.atTrace(), "B", 0);
-        es.publish(LOGGER.atTrace(), "C", 0);
-        es.publish(LOGGER.atTrace(), "A", 1);
-        es.publish(LOGGER.atTrace(), "D", 0);
-        es.publish(LOGGER.atTrace(), "E", 0);
+        testPublish(es, LOGGER.atTrace(), "A", 0);
+        testPublish(es, LOGGER.atTrace(), "B", 0);
+        testPublish(es, LOGGER.atTrace(), "C", 0);
+        testPublish(es, LOGGER.atTrace(), "A", 1);
+        testPublish(es, LOGGER.atTrace(), "D", 0);
+        testPublish(es, LOGGER.atTrace(), "E", 0);
         Awaitility.await().atMost(200, TimeUnit.MILLISECONDS).until(() -> {
             es.stop();
             return true; });
@@ -169,23 +216,24 @@ class EventStoreTest {
     @Test
     void historyTest() {
         final Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> ctxCacheBuilder = Cache.<String, Disruptor<RingBufferEvent>>builder().withLimit(100);
-        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(CtxFilter.class).cid;
-        final EventStore es = new EventStore(ctxCacheBuilder, muxCtx, CtxFilter.class, EvtTypeFilter.class);
+        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(TimingCtx.class).cid;
+        final EventStore es = EventStore.getFactory().setMuxCtxFunction(muxCtx).setMuxBuilder(ctxCacheBuilder).setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
+
         es.start();
-        es.publish(LOGGER.atTrace(), "A", 0);
-        es.publish(LOGGER.atTrace(), "B", 0);
-        es.publish(LOGGER.atTrace(), "C", 0);
-        es.publish(LOGGER.atTrace(), "A", 1);
-        es.publish(LOGGER.atTrace(), "D", 0);
-        es.publish(LOGGER.atTrace(), "E", 0);
+        testPublish(es, LOGGER.atTrace(), "A", 0);
+        testPublish(es, LOGGER.atTrace(), "B", 0);
+        testPublish(es, LOGGER.atTrace(), "C", 0);
+        testPublish(es, LOGGER.atTrace(), "A", 1);
+        testPublish(es, LOGGER.atTrace(), "D", 0);
+        testPublish(es, LOGGER.atTrace(), "E", 0);
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100)); // give a bit of time until all workers are finished
 
         final Optional<RingBufferEvent> lastEvent = es.getLast("cid=0", evt -> true);
         assertTrue(lastEvent.isPresent());
-        assertFalse(es.getLast("cid=0", evt -> evt.matches(CtxFilter.class, CtxFilter.matches(-1, -1, 2))).isPresent());
+        assertFalse(es.getLast("cid=0", evt -> evt.matches(TimingCtx.class, TimingCtx.matches(-1, -1, 2))).isPresent());
         LOGGER.atTrace().addArgument(lastEvent.get().payload.get(String.class)).log("retrieved last event  = {}");
 
-        final List<RingBufferEvent> eventHistory = es.getHistory("cid=0", evt -> evt.matches(String.class) && evt.matches(CtxFilter.class, CtxFilter.matches(-1, -1, 0)), 4);
+        final List<RingBufferEvent> eventHistory = es.getHistory("cid=0", evt -> evt.matches(String.class) && evt.matches(TimingCtx.class, TimingCtx.matches(-1, -1, 0)), 4);
         final String history = eventHistory.stream().map(b -> b.payload.get(String.class)).collect(Collectors.joining(", ", "(", ")"));
         LOGGER.atTrace().addArgument(history).log("retrieved last events = {}");
 
@@ -193,10 +241,10 @@ class EventStoreTest {
     }
 
     public static void main(final String[] args) {
-        // global multiplexing context function -> generate new EventStream per detected context, here: multiplexed on {@see CtxFilter#cid}
-        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(CtxFilter.class).cid;
+        // global multiplexing context function -> generate new EventStream per detected context, here: multiplexed on {@see TimingCtx#cid}
+        final Function<RingBufferEvent, String> muxCtx = evt -> "cid=" + evt.getFilter(TimingCtx.class).cid;
         final Cache.CacheBuilder<String, Disruptor<RingBufferEvent>> ctxCacheBuilder = Cache.<String, Disruptor<RingBufferEvent>>builder().withLimit(100);
-        final EventStore es = new EventStore(ctxCacheBuilder, muxCtx, CtxFilter.class, EvtTypeFilter.class);
+        final EventStore es = EventStore.getFactory().setMuxCtxFunction(muxCtx).setMuxBuilder(ctxCacheBuilder).setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
 
         final MyHandler handler1 = new MyHandler("Handler1", es.getRingBuffer());
         MyHandler handler2 = new MyHandler("Handler2", es.getRingBuffer());
@@ -211,7 +259,7 @@ class EventStoreTest {
             es.register(handler1).and(handler2).and(lambdaEventHandler);
         }
 
-        Predicate<RingBufferEvent> filterBp1 = evt -> evt.test(CtxFilter.class, CtxFilter.matches(-1, -1, 1));
+        Predicate<RingBufferEvent> filterBp1 = evt -> evt.test(TimingCtx.class, TimingCtx.matches(-1, -1, 1));
         es.register(filterBp1, muxCtx, (evts, evtStore, seq, eob) -> {
               LOGGER.atInfo().addArgument(evts.get(0).payload.get()).log("SequencedFilteredTask 1.0: received cid == 1 : payload = {}");
               return null;
@@ -245,7 +293,7 @@ class EventStoreTest {
 
         es.register(printEndHandler);
 
-        Predicate<RingBufferEvent> filterBp0 = evt -> evt.test(CtxFilter.class, CtxFilter.matches(-1, -1, 0));
+        Predicate<RingBufferEvent> filterBp0 = evt -> evt.test(TimingCtx.class, TimingCtx.matches(-1, -1, 0));
         es.register(filterBp0, muxCtx, (evts, evtStore, seq, eob) -> {
             final String history = evts.stream().map(b -> (String) b.payload.get()).collect(Collectors.joining(", ", "(", ")"));
             final String historyAlt = es.getHistory(muxCtx.apply(evts.get(0)), filterBp0, seq, 30).stream().map(b -> (String) b.payload.get()).collect(Collectors.joining(", ", "(", ")"));
@@ -256,14 +304,25 @@ class EventStoreTest {
 
         es.start();
 
-        es.publish(LOGGER.atInfo(), "message A", 0);
-        es.publish(LOGGER.atInfo(), "message B", 0);
-        es.publish(LOGGER.atInfo(), "message C", 0);
-        es.publish(LOGGER.atInfo(), "message A", 1);
-        es.publish(LOGGER.atInfo(), "message D", 0);
-        es.publish(LOGGER.atInfo(), "message E", 0);
+        testPublish(es, LOGGER.atInfo(), "message A", 0);
+        testPublish(es, LOGGER.atInfo(), "message B", 0);
+        testPublish(es, LOGGER.atInfo(), "message C", 0);
+        testPublish(es, LOGGER.atInfo(), "message A", 1);
+        testPublish(es, LOGGER.atInfo(), "message D", 0);
+        testPublish(es, LOGGER.atInfo(), "message E", 0);
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100)); // give a bit of time until all workers are finished
         es.stop();
+    }
+
+    protected static void testPublish(EventStore eventStore, final LoggingEventBuilder logger, final String payLoad, final int beamProcess) {
+        eventStore.getRingBuffer().publishEvent((event, sequence, buffer) -> {
+            event.arrivalTimeStamp = System.currentTimeMillis() * 1000;
+            event.parentSequenceNumber = sequence;
+            event.getFilter(TimingCtx.class).setSelector("FAIR.SELECTOR.C=0:S=0:P=" + beamProcess, event.arrivalTimeStamp);
+            event.payload = new SharedPointer<>();
+            event.payload.set("pid=" + beamProcess + ": " + payLoad);
+            logger.addArgument(sequence).addArgument(event.payload.get()).addArgument(buffer).log("publish Seq:{} - event:'{}' buffer:'{}'");
+        });
     }
 
     public static class MyHandler implements EventHandler<RingBufferEvent>, TimeoutHandler, LifecycleAware {

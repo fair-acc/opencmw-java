@@ -1,19 +1,21 @@
-package de.gsi.microservice.concepts.aggregate.filter;
+package de.gsi.microservice.filter;
 
 import java.util.Objects;
 import java.util.function.Predicate;
 
-import de.gsi.microservice.concepts.aggregate.Filter;
+import de.gsi.microservice.Filter;
 
 public class EvtTypeFilter implements Filter {
-    public EvtType evtType = EvtType.UNKNOWN;
+    public DataType evtType = DataType.UNKNOWN;
+    public UpdateType updateType = UpdateType.UNKNOWN;
     public String typeName = null;
     protected int hashCode = 0;
 
     @Override
     public void clear() {
         hashCode = 0;
-        evtType = EvtType.UNKNOWN;
+        evtType = DataType.UNKNOWN;
+        updateType = UpdateType.UNKNOWN;
         typeName = null;
     }
 
@@ -25,6 +27,7 @@ public class EvtTypeFilter implements Filter {
         ((EvtTypeFilter) other).hashCode = this.hashCode;
         ((EvtTypeFilter) other).evtType = this.evtType;
         ((EvtTypeFilter) other).typeName = this.typeName;
+        ((EvtTypeFilter) other).updateType = this.updateType;
     }
 
     @Override
@@ -36,21 +39,22 @@ public class EvtTypeFilter implements Filter {
             return false;
         }
         final EvtTypeFilter other = (EvtTypeFilter) obj;
-        return evtType == other.evtType && Objects.equals(typeName, other.typeName);
+        return evtType == other.evtType && updateType == other.updateType && Objects.equals(typeName, other.typeName);
     }
 
     @Override
     public int hashCode() {
-        return hashCode == 0 ? hashCode = Objects.hash(evtType, typeName) : hashCode;
+        return hashCode == 0 ? hashCode = Objects.hash(evtType, updateType, typeName) : hashCode;
     }
 
     @Override
     public String toString() {
-        return '[' + EvtTypeFilter.class.getSimpleName() + ": evtType=" + evtType + " typeName='" + typeName + "'";
+        return '[' + EvtTypeFilter.class.getSimpleName() + ": evtType=" + evtType + " typeName='" + typeName + "']";
     }
 
-    public enum EvtType {
+    public enum DataType {
         TIMING_EVENT,
+        AGGREGATE_DATA,
         DEVICE_DATA,
         SETTING_SUPPLY_DATA,
         PROCESSED_DATA,
@@ -58,27 +62,35 @@ public class EvtTypeFilter implements Filter {
         UNKNOWN
     }
 
+    public enum UpdateType {
+        EMPTY,
+        PARTIAL,
+        COMPLETE,
+        OTHER,
+        UNKNOWN
+    }
+
     public static Predicate<EvtTypeFilter> isTimingData() {
-        return t -> t.evtType == EvtType.TIMING_EVENT;
+        return t -> t.evtType == DataType.TIMING_EVENT;
     }
 
     public static Predicate<EvtTypeFilter> isTimingData(final String typeName) {
-        return t -> t.evtType == EvtType.TIMING_EVENT && Objects.equals(t.typeName, typeName);
+        return t -> t.evtType == DataType.TIMING_EVENT && Objects.equals(t.typeName, typeName);
     }
 
     public static Predicate<EvtTypeFilter> isDeviceData() {
-        return t -> t.evtType == EvtType.DEVICE_DATA;
+        return t -> t.evtType == DataType.DEVICE_DATA;
     }
 
     public static Predicate<EvtTypeFilter> isDeviceData(final String typeName) {
-        return t -> t.evtType == EvtType.DEVICE_DATA && Objects.equals(t.typeName, typeName);
+        return t -> t.evtType == DataType.DEVICE_DATA && Objects.equals(t.typeName, typeName);
     }
 
     public static Predicate<EvtTypeFilter> isSettingsData() {
-        return t -> t.evtType == EvtType.SETTING_SUPPLY_DATA;
+        return t -> t.evtType == DataType.SETTING_SUPPLY_DATA;
     }
 
     public static Predicate<EvtTypeFilter> isSettingsData(final String typeName) {
-        return t -> t.evtType == EvtType.SETTING_SUPPLY_DATA && Objects.equals(t.typeName, typeName);
+        return t -> t.evtType == DataType.SETTING_SUPPLY_DATA && Objects.equals(t.typeName, typeName);
     }
 }
