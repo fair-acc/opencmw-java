@@ -217,7 +217,7 @@ public class MajordomoWorker extends Thread {
                 }
                 liveness = HEARTBEAT_LIVENESS;
                 // Don't try to handle errors, just assert noisily
-                assert msg.payload.length > 0 : "MdpWorkerMessage payload is null";
+                assert msg.payload.length > 0 : "MdpWorkerMessage payload is equal or less than zero: " + msg.payload.length;
                 if (!(msg instanceof MdpWorkerMessage)) {
                     assert false : "msg is not instance of MdpWorkerMessage";
                     continue;
@@ -270,6 +270,8 @@ public class MajordomoWorker extends Thread {
             workerSocket.close();
         }
         workerSocket = ctx.createSocket(SocketType.DEALER);
+        assert workerSocket != null : "worker socket is null";
+        assert workerSocket.getSocketType() == SocketType.DEALER : "worker socket type is " + workerSocket.getSocketType() + " instead of " + SocketType.DEALER;
         workerSocket.setHWM(0);
         workerSocket.connect(brokerAddress);
         LOGGER.atDebug().addArgument(uniqueID).addArgument(brokerAddress).log("worker '{}' connecting to broker at '{}'");

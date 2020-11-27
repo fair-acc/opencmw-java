@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.zeromq.SocketType;
 import org.zeromq.Utils;
 import org.zeromq.ZMQ;
