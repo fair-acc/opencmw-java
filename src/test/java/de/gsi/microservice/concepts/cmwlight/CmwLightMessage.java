@@ -286,6 +286,7 @@ public class CmwLightMessage {
             default:
                 throw new IllegalStateException("unknown client request message type: " + messageType);
             }
+            break;
         default:
             throw new IllegalStateException("unknown message type: " + messageType);
         }
