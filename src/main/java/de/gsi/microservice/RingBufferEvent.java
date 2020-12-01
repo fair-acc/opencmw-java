@@ -50,7 +50,7 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
     @SafeVarargs
     public RingBufferEvent(final Class<? extends Filter>... filterConfig) {
         assert filterConfig != null;
-        this.filters = new Filter[filterConfig.length];
+        this.filters = new Filter[filterConfig == null ? 0 : filterConfig.length];
         for (int i = 0; i < filters.length; i++) {
             try {
                 filters[i] = filterConfig[i].getConstructor().newInstance();
