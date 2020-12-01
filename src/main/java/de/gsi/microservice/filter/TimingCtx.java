@@ -24,7 +24,7 @@ public class TimingCtx implements Filter {
     public int gid;
     /** Beam-Production-Chain-Time-Stamp - UTC in [us] since 1.1.1980 */
     public long bpcts;
-    /** stores the settings-supply relatex ctx name */
+    /** stores the settings-supply related ctx name */
     public String ctxName;
     protected int hashCode = 0; // cached hash code
 
@@ -147,7 +147,7 @@ public class TimingCtx implements Filter {
 
     public String toString() {
         final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-        return '[' + TimingCtx.class.getSimpleName() + ": bpcts=" + bpcts + " (\"" + sdf.format(bpcts / 1000) + "\"), selector='" + selector + "', cid=" + cid + ", sid=" + sid + ", pid=" + pid + ", gid=" + gid + ']';
+        return '[' + TimingCtx.class.getSimpleName() + ": bpcts=" + bpcts + " (\"" + sdf.format(bpcts / 1000000) + "\"), selector='" + selector + "', cid=" + cid + ", sid=" + sid + ", pid=" + pid + ", gid=" + gid + ']';
     }
 
     public static Predicate<TimingCtx> matches(final int cid, final int sid, final int pid, final long bpcts) {

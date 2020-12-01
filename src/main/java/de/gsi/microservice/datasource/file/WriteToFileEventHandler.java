@@ -13,14 +13,14 @@ import java.nio.file.Path;
 /**
  * An event store processor, which safes every event to file.
  *
- * The contents of this directory can then be used by the {@link FileDataSource} for replay/testing/analysis.
+ * The contents of this directory can then be used by the FileDataSource for replay/testing/analysis.
  */
-public class WriteToFileProcessor implements EventHandler<RingBufferEvent> {
+public class WriteToFileEventHandler implements EventHandler<RingBufferEvent> {
     private static final int BUFFER_SIZE = 5000000;
     final IoClassSerialiser serialiser = new IoClassSerialiser(new FastByteBuffer(BUFFER_SIZE));
     final String path;
 
-    public WriteToFileProcessor(final String path) {
+    public WriteToFileEventHandler(final String path) {
         this.path = path;
     }
 

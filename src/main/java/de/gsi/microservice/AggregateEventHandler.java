@@ -280,7 +280,7 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
             if (evtType == null) {
                 throw new IllegalArgumentException("cannot aggregate events without ring buffer containing EvtTypeFilter");
             }
-            if (!deviceList.contains(evtType.typeName) && evtTypeFilter.stream().noneMatch(filter -> filter.test(event))) {
+            if ((!deviceList.isEmpty() && !deviceList.contains(evtType.typeName)) || (!evtTypeFilter.isEmpty() && evtTypeFilter.stream().noneMatch(filter -> filter.test(event)))) {
                 return;
             }
 
