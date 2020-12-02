@@ -68,7 +68,7 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
         numberOfEventsToAggregate = deviceList.size() + evtTypeFilter.size();
     }
 
-    protected InternalAggregationHandler[] getAggregationHander() {
+    public InternalAggregationHandler[] getAggregationHander() {
         return aggregationHandler;
     }
 
