@@ -10,6 +10,7 @@ public class DataSourceFilter implements Filter {
     public String device;
     public String property;
     public DataSourcePublisher.ThePromisedFuture<?> future;
+    public String context;
 
     @Override
     public void clear() {
@@ -17,6 +18,7 @@ public class DataSourceFilter implements Filter {
         device = "UNKNOWN";
         property = "UNKNOWN";
         future = null;
+        context = "";
     }
 
     @Override
@@ -27,6 +29,7 @@ public class DataSourceFilter implements Filter {
             otherDSF.device = device;
             otherDSF.property = property;
             otherDSF.future = future;
+            otherDSF.context = context;
         }
     }
 

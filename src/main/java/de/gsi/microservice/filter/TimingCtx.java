@@ -99,8 +99,8 @@ public class TimingCtx implements Filter {
         if (selector == null) {
             throw new IllegalArgumentException("selector string must not be null");
         }
-        if (bpcts <= 0) {
-            throw new IllegalArgumentException("BPCTS time stamp <= 0 :" + bpcts);
+        if (bpcts < 0) {
+            throw new IllegalArgumentException("BPCTS time stamp < 0 :" + bpcts);
         }
         try {
             clear();
@@ -141,7 +141,7 @@ public class TimingCtx implements Filter {
             }
         } catch (Throwable t) { // NOPMD NOSONAR should catch Throwable
             clear();
-            throw new IllegalArgumentException("cannot parse selector: '" + selector + "'", t);
+            throw new IllegalArgumentException("Invalid selector or bpcts", t);
         }
     }
 

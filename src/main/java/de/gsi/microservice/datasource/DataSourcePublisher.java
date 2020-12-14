@@ -96,7 +96,11 @@ public class DataSourcePublisher implements Runnable {
                         publishEvent.arrivalTimeStamp = event.arrivalTimeStamp;
                         publishEvent.payload = new SharedPointer<>();
                         publishEvent.payload.set(obj);
-                        // contextFilter.setSelector(msg.dataContext.cycleName, msg.dataContext.cycleStamp);
+                        try {
+                            contextFilter.setSelector(dataSourceFilter.context, 0);
+                        } catch (Exception e) {
+                            LOGGER.atError().setCause(e).addArgument(dataSourceFilter.context).log("No valid context: {}");
+                        }
                         // contextFilter.acqts = msg.dataContext.acqStamp; // needs to be added?
                         // contextFilter.ctxName = // what should go here?
                         evtTypeFilter.evtType = EvtTypeFilter.DataType.DEVICE_DATA;
@@ -385,7 +389,7 @@ public class DataSourcePublisher implements Runnable {
                     assert returnFuture.getInternalRequestID().equals(reqId) : "requestID mismatch";
                     requestFutureMap.remove(reqId);
                 }
-                final String endpoint = reply.pollFirst().getString(Charset.defaultCharset());
+                final Endpoint endpoint = new Endpoint(reply.pollFirst().getString(Charset.defaultCharset()));
                 final byte[] dataBody = reply.pollFirst().getData();
                 event.arrivalTimeStamp = System.currentTimeMillis();
                 event.payload = new SharedPointer<>();
@@ -393,9 +397,9 @@ public class DataSourcePublisher implements Runnable {
                 final DataSourceFilter dataSourceFilter = event.getFilter(DataSourceFilter.class);
                 dataSourceFilter.future = returnFuture;
                 dataSourceFilter.eventType = DataSourceFilter.ReplyType.SUBSCRIBE;
-                final String[] ap = endpoint.split("\\?", 2)[0].split("/");
-                dataSourceFilter.device = ap[ap.length - 2];
-                dataSourceFilter.property = ap[ap.length - 1];
+                dataSourceFilter.device = endpoint.getDevice();
+                dataSourceFilter.property = endpoint.getProperty();
+                dataSourceFilter.context = endpoint.getSelector();
             });
         }
         return dataAvailable;

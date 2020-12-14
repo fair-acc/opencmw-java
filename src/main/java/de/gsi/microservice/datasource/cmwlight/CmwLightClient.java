@@ -1,10 +1,9 @@
 package de.gsi.microservice.datasource.cmwlight;
 
 import de.gsi.microservice.datasource.DataSource;
-import de.gsi.serializer.IoClassSerialiser;
+import de.gsi.microservice.datasource.Endpoint;
 import de.gsi.serializer.IoSerialiser;
 import de.gsi.serializer.spi.BinarySerialiser;
-import de.gsi.serializer.spi.FastByteBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
@@ -47,17 +46,12 @@ public class CmwLightClient extends DataSource {
             return new CmwLightClient(context, endpoint, timeout, clientId, filters);
         }
     };
-    {
-        DataSource.register(FACTORY);
-    }
-    public static final String DEFAULT_CONTEXT = "FAIR.SELECTOR.ALL";
     protected final AtomicInteger channelId = new AtomicInteger(0); // connection local counter incremented for each channel
     protected final ZContext context;
     protected final ZMQ.Socket socket;
     protected final AtomicReference<ConnectionState> connectionState = new AtomicReference<>(ConnectionState.DISCONNECTED);
-    protected final String endpoint;
+    protected final Endpoint endpoint;
     private final byte[] filterMap;
-    private final String clientId;
     protected String sessionId;
     protected long connectionId;
     protected final Map<Long, Subscription> subscriptions = Collections.synchronizedMap(new HashMap<>()); // all subscriptions added to the server
@@ -67,6 +61,17 @@ public class CmwLightClient extends DataSource {
     protected static final int heartbeatAllowedMisses = 3; // number of heartbeats which can be missed before resetting the conection
     protected static final long subscriptionTimeout = 1000; // maximum time after which a connection should be reconnected
     protected int backOff = 20;
+
+    public CmwLightClient(final ZContext context, final String endpoint, final Duration timeout, final String clientId, final byte[] filters) {
+        super(context, endpoint, timeout, clientId, filters);
+        LOGGER.atTrace().addArgument(endpoint).log("connecting to: {}");
+        this.context = context;
+        socket = context.createSocket(SocketType.DEALER);
+        socket.setIdentity(getIdentity().getBytes()); // hostname/process/id/channel
+        this.sessionId = getSessionId(clientId);
+        this.endpoint = new Endpoint(endpoint);
+        this.filterMap = filters; // todo correctly handle preserialised filters
+    }
 
     public void unsubscribe(final Subscription subscription) throws CmwLightProtocol.RdaLightException {
         subscriptions.remove(subscription.id);
@@ -84,10 +89,9 @@ public class CmwLightClient extends DataSource {
         }
         if (reply.requestType.equals(CmwLightProtocol.RequestType.NOTIFICATION_DATA)) {
             final ZMsg result = new ZMsg();
-            // todo: introduce hashmap for this mapping
             final Subscription subscription = subscriptions.values().stream().filter(s -> s.updateId == reply.id).findAny().orElseThrow();
             result.add(subscription.idString);
-            result.add(endpoint);
+            result.add(endpoint.getEndpointForContext(reply.dataContext.cycleName));
             result.add(reply.bodyData);
             return result;
         } else if (reply.requestType.equals(CmwLightProtocol.RequestType.REPLY)) {
@@ -103,42 +107,14 @@ public class CmwLightClient extends DataSource {
         CONNECTED
     }
 
-    public CmwLightClient(final ZContext context, final String endpoint, final Duration timeout, final String clientId, final byte[] filters) {
-        super(context, endpoint, timeout, clientId, filters);
-        LOGGER.atTrace().addArgument(endpoint).log("connecting to: {}");
-        this.context = context;
-        socket = context.createSocket(SocketType.DEALER);
-        socket.setIdentity(getIdentity().getBytes()); // hostname/process/id/channel
-        this.endpoint = endpoint;
-        this.clientId = clientId;
-        this.sessionId = getSessionId();
-        this.filterMap = filters;
-    }
-
     @Override
     public String getEndpoint() {
-        return endpoint;
+        return endpoint.toString();
     }
 
     @Override
     public void get(final String requestId, final String filterPattern, final byte[] filters1, final byte[] data, final byte[] rbacToken) {
-        final String[] tmp = filterPattern.split("\\?");
-        final String[] adp = tmp[0].split("/");
-        String device;
-        String property;
-        if (adp.length == 2) {
-            device = adp[0];
-            property = adp[1];
-        } else if (adp.length == 3) {
-            device = adp[1];
-            property = adp[2];
-        } else {
-            throw new IllegalArgumentException("could not parse endpoint " + filterPattern);
-        }
-        final Map<String, Object> filters = new HashMap<>();
-        String context = tmp.length > 1 ? parseUrlParams(tmp[1], filters, DEFAULT_CONTEXT) : DEFAULT_CONTEXT;
         throw new UnsupportedOperationException("not yet implemented");
-        // get(device, property, context, filters, requestId);
     }
 
     @Override
@@ -148,42 +124,10 @@ public class CmwLightClient extends DataSource {
 
     @Override
     public void subscribe(final String reqId, final byte[] rbacToken) {
-        final String[] tmp = endpoint.split("\\?", 2); // split into address/dev/prop and sel+filters part
-        final String[] adp = tmp[0].split("/"); // split access point into parts
-        String device= adp[adp.length - 2]; // get device name from access point
-        String property = adp[adp.length - 1]; // get property name from access point
-        Map<String, Object> filters = new HashMap<>();
-        if (filterMap != null && filterMap.length > 0) { // read binary filter map if present
-            filters.putAll((Map<String, Object>) new IoClassSerialiser(FastByteBuffer.wrap(filterMap)).deserialiseObject(filters));
-        }
-        final String context = tmp.length > 1 ? parseUrlParams(tmp[1], filters, DEFAULT_CONTEXT) : DEFAULT_CONTEXT;
-        final Subscription sub = new Subscription(device, property, context, filters);
+        final Subscription sub = new Subscription(endpoint.getDevice(), endpoint.getProperty(), endpoint.getSelector(), endpoint.getFilters());
         sub.idString = reqId;
         LOGGER.atDebug().addArgument(sub).log("subscribing: {}");
         subscribe(sub);
-    }
-
-    private String parseUrlParams(final String paramString, final Map<String, Object> outMap, final String defaultContext) {
-        String context = defaultContext;
-        final String[] kvpairs = paramString.split("\\&"); // split into individual key/value pairs
-        for (final String pair : kvpairs) {
-            String[] splitpair = pair.split("=", 2); // split at first equal sign
-            if (splitpair.length != 2) {
-                continue;
-            }
-            if (splitpair[0].equals("ctx")) {
-                context = splitpair[1];
-            } else {
-                if (splitpair[1].startsWith("int:")) {
-                    outMap.put(splitpair[0], Integer.valueOf(splitpair[1].substring("int:".length())));
-                } else if (splitpair[1].startsWith("long:")) {
-                    outMap.put(splitpair[0], Long.valueOf(splitpair[1].substring("long:".length())));
-                } else {
-                    outMap.put(splitpair[0], splitpair[1]);
-                }
-            }
-        }
-        return context;
     }
 
     @Override
@@ -226,8 +170,8 @@ public class CmwLightClient extends DataSource {
         return hostname + '/' + processId + '/' + connectionId + '/' + chId;
     }
 
-    private String getSessionId() {
-        return "cmwLightClient" + ProcessHandle.current().pid() + '/' + connectionId; // Todo: create identification string, cmw uses string with user/app name, pid, etc
+    private String getSessionId(final String clientId) {
+        return "cmwLightClient{pid=" + ProcessHandle.current().pid() + ", conn=" + connectionId + ", clientId=" + clientId + '}'; // Todo: create identification string, cmw uses string with user/app name, pid, etc
     }
 
     public void connect() {
@@ -235,7 +179,7 @@ public class CmwLightClient extends DataSource {
         if (connectionState.getAndSet(ConnectionState.CONNECTING) != ConnectionState.DISCONNECTED) {
             return;
         }
-        final String address = "tcp://" + endpoint.replace("rda3://", "").split("/")[0];
+        final String address = endpoint.getAddress().replace("rda3://", "tcp://");
         socket.connect(address);
         try {
             CmwLightProtocol.serialiseMsg(CmwLightMessage.connect("1.0.0")).send(socket);
@@ -256,7 +200,7 @@ public class CmwLightClient extends DataSource {
     private void disconnect() {
         LOGGER.atDebug().addArgument(endpoint).log("disconnecting {}");
         connectionState.set(ConnectionState.DISCONNECTED);
-        socket.disconnect(endpoint);
+        socket.disconnect(endpoint.getAddress().replace("rda3://", "tcp://"));
         // disconnect/reset subscriptions
     }
 
