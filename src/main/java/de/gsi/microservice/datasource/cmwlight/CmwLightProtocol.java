@@ -27,7 +27,8 @@ public class CmwLightProtocol {
     private static final IoBuffer outBuffer = new FastByteBuffer(MAX_MSG_SIZE);
     private static final CmwLightSerialiser serialiser = new CmwLightSerialiser(outBuffer);
     private static final IoClassSerialiser classSerialiser = new IoClassSerialiser(outBuffer);
-    private static final String VERSION = "1.0.0"; // Protocol version used if msg.version is null or empty
+    public static final String VERSION = "1.0.0"; // Protocol version used if msg.version is null or empty
+    private static final int SERIALISER_QUIRK = 100; // there seems to be a bug in the serialiser which does not update the buffer position correctly, so send more
 
     /**
      * The message specified by the byte contained in the first frame of a message defines what type of message is present
@@ -323,7 +324,7 @@ public class CmwLightProtocol {
         serialiser.put("Message", exceptionMessage.message);
         serialiser.put("Type", exceptionMessage.type);
         outBuffer.flip();
-        return new ZFrame(Arrays.copyOfRange(outBuffer.elements(), 0, outBuffer.limit()));
+        return new ZFrame(Arrays.copyOfRange(outBuffer.elements(), 0, outBuffer.limit() + SERIALISER_QUIRK));
     }
 
     private static void addDescriptor(final ZMsg result, final FrameType... frametypes) {
@@ -348,7 +349,7 @@ public class CmwLightProtocol {
         // StartMarker marks start of Data Object
         putMap(serialiser, FieldName.OPTIONS_TAG.value(), msg.options);
         outBuffer.flip();
-        return new ZFrame(Arrays.copyOfRange(outBuffer.elements(), 0, outBuffer.limit()));
+        return new ZFrame(Arrays.copyOfRange(outBuffer.elements(), 0, outBuffer.limit() + SERIALISER_QUIRK));
     }
 
     private static ZFrame serialiseRequestContext(final CmwLightMessage.RequestContext requestContext) throws RdaLightException {
@@ -358,7 +359,7 @@ public class CmwLightProtocol {
         putMap(serialiser, FieldName.FILTERS_TAG.value(), requestContext.filters);
         putMap(serialiser, FieldName.DATA_TAG.value(), requestContext.data);
         outBuffer.flip();
-        return new ZFrame(Arrays.copyOfRange(outBuffer.elements(), 0, outBuffer.limit()));
+        return new ZFrame(Arrays.copyOfRange(outBuffer.elements(), 0, outBuffer.limit() + SERIALISER_QUIRK));
     }
 
     private static ZFrame serialiseDataContext(final CmwLightMessage.DataContext dataContext) throws RdaLightException {
@@ -369,7 +370,7 @@ public class CmwLightProtocol {
         serialiser.put(FieldName.ACQ_STAMP_TAG.value(), dataContext.acqStamp);
         putMap(serialiser, FieldName.DATA_TAG.value(), dataContext.data);
         outBuffer.flip();
-        return new ZFrame(Arrays.copyOfRange(outBuffer.elements(), 0, outBuffer.limit()));
+        return new ZFrame(Arrays.copyOfRange(outBuffer.elements(), 0, outBuffer.limit() + SERIALISER_QUIRK));
     }
 
     private static void putMap(final CmwLightSerialiser serialiser, final String fieldName, final Map<String, Object> map) throws RdaLightException {
