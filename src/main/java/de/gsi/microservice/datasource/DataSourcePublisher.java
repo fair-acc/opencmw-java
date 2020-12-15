@@ -76,26 +76,35 @@ public class DataSourcePublisher implements Runnable {
         }
     };
     private final String clientId;
-    private RbacProvider rbacProvider;
+    private final RbacProvider rbacProvider;
 
-    public DataSourcePublisher(final EventStore publicationTarget, final String... clientId) {
-        this(clientId);
+    public DataSourcePublisher(final RbacProvider rbacProvider, final EventStore publicationTarget, final String... clientId) {
+        this(rbacProvider, clientId);
         eventStore.register((event, sequence, endOfBatch) -> {
             final DataSourceFilter dataSourceFilter = event.getFilter(DataSourceFilter.class);
             if (dataSourceFilter.eventType.equals(DataSourceFilter.ReplyType.SUBSCRIBE)) {
                 final ThePromisedFuture<?> future = dataSourceFilter.future;
                 if (future.replyType == DataSourceFilter.ReplyType.SUBSCRIBE) {
                     final Class<?> domainClass = future.getRequestedDomainObjType();
-                    final byte[] cmwMsg = event.payload.get(byte[].class);
-                    ioClassSerialiser.setDataBuffer(FastByteBuffer.wrap(cmwMsg));
-                    final Object domainObj = ioClassSerialiser.deserialiseObject(domainClass);
-                    ioClassSerialiser.setDataBuffer(byteBuffer); // allow received byte array to be released
+                    final ZMsg cmwMsg = event.payload.get(ZMsg.class);
+                    final String header = cmwMsg.poll().getString(Charset.defaultCharset());
+                    final byte[] body = cmwMsg.poll().getData();
+                    final String exc = cmwMsg.poll().getString(Charset.defaultCharset());
+                    Object domainObj = null;
+                    if (body != null && body.length != 0) {
+                        ioClassSerialiser.setDataBuffer(FastByteBuffer.wrap(body));
+                        domainObj = ioClassSerialiser.deserialiseObject(domainClass);
+                        ioClassSerialiser.setDataBuffer(byteBuffer); // allow received byte array to be released
+                    }
                     publicationTarget.getRingBuffer().publishEvent((publishEvent, seq, obj, msg) -> {
                         final TimingCtx contextFilter = publishEvent.getFilter(TimingCtx.class);
                         final EvtTypeFilter evtTypeFilter = publishEvent.getFilter(EvtTypeFilter.class);
                         publishEvent.arrivalTimeStamp = event.arrivalTimeStamp;
                         publishEvent.payload = new SharedPointer<>();
                         publishEvent.payload.set(obj);
+                        if (exc != null && !exc.isBlank()) {
+                            publishEvent.throwables.add(new Exception(exc));
+                        }
                         try {
                             contextFilter.setSelector(dataSourceFilter.context, 0);
                         } catch (Exception e) {
@@ -108,9 +117,13 @@ public class DataSourcePublisher implements Runnable {
                         evtTypeFilter.updateType = EvtTypeFilter.UpdateType.COMPLETE;
                     }, domainObj, cmwMsg);
                 } else if (future.replyType == DataSourceFilter.ReplyType.GET) {
-                    final byte[] cmwMsg = event.payload.get(byte[].class);
-                    ioClassSerialiser.setDataBuffer(FastByteBuffer.wrap(cmwMsg));
+                    final ZMsg cmwMsg = event.payload.get(ZMsg.class);
+                    final String header = cmwMsg.poll().getString(Charset.defaultCharset());
+                    final byte[] body = cmwMsg.poll().getData();
+                    final String exc = cmwMsg.poll().getString(Charset.defaultCharset());
+                    ioClassSerialiser.setDataBuffer(FastByteBuffer.wrap(body));
                     final Object obj = ioClassSerialiser.deserialiseObject(future.getRequestedDomainObjType());
+                    // todo: set exception for future
                     future.setReply(future.getRequestedDomainObjType().cast(obj));
                     ioClassSerialiser.setDataBuffer(byteBuffer); // allow received byte array to be released
                 } else {
@@ -123,12 +136,12 @@ public class DataSourcePublisher implements Runnable {
         });
     }
 
-    public DataSourcePublisher(final EventHandler<RingBufferEvent> eventHandler, final String... clientId) {
-        this(clientId);
+    public DataSourcePublisher(final RbacProvider rbacProvider, final EventHandler<RingBufferEvent> eventHandler, final String... clientId) {
+        this(rbacProvider, clientId);
         eventStore.register(eventHandler);
     }
 
-    public DataSourcePublisher(final String... clientId) {
+    public DataSourcePublisher(final RbacProvider rbacProvider, final String... clientId) {
         poller = context.createPoller(1);
         // control socket for adding subscriptions / triggering requests from other threads
         controlSocket = context.createSocket(SocketType.DEALER);
@@ -140,6 +153,7 @@ public class DataSourcePublisher implements Runnable {
         DataSource.register(CmwLightClient.FACTORY);
         DataSource.register(RestDataSource.FACTORY);
         this.clientId = clientId.length == 1 ? clientId[0] : DataSourcePublisher.class.getName();
+        this.rbacProvider = rbacProvider;
     }
 
     public ZContext getContext() {
@@ -194,6 +208,8 @@ public class DataSourcePublisher implements Runnable {
         }
         // RBAC
         if (rbacProvider.length > 0 || this.rbacProvider != null) {
+            final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
+            // rbac.sign(msg);
             // todo: sign message and add rbac token and signature
         } else {
             msg.add(EMPTY_FRAME);
@@ -234,6 +250,8 @@ public class DataSourcePublisher implements Runnable {
         }
         // RBAC
         if (rbacProvider.length > 0 || this.rbacProvider != null) {
+            final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
+            // rbac.sign(msg);
             // todo: sign message and add rbac token and signature
         } else {
             msg.add(EMPTY_FRAME);
@@ -275,6 +293,8 @@ public class DataSourcePublisher implements Runnable {
         }
         // RBAC
         if (rbacProvider.length > 0 || this.rbacProvider != null) {
+            final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
+            // rbac.sign(msg);
             // todo: sign message and add rbac token and signature
         } else {
             msg.add(EMPTY_FRAME);
@@ -336,15 +356,13 @@ public class DataSourcePublisher implements Runnable {
     protected boolean handleControlSocket() {
         boolean dataAvailable = false;
         final ZMsg controlMsg = ZMsg.recvMsg(controlSocket, false);
-        final DataSourceFilter.ReplyType msgType = DataSourceFilter.ReplyType.valueOf(controlMsg.pollFirst().getData()[0]);
-        final ZFrame reqIdFrame = controlMsg.pollFirst();
-        final ZFrame endpointFrame = controlMsg.pollFirst();
-        if (reqIdFrame == null || endpointFrame == null) {
+        if (controlMsg.size() < 3) { // msgType, requestId and endpoint have to be always present
             LOGGER.atDebug().log("ignoring invalid message");
             return true; // ignore invalid partial message
         }
-        final String requestId = reqIdFrame.getString(Charset.defaultCharset());
-        final String endpoint = endpointFrame.getString(Charset.defaultCharset());
+        final DataSourceFilter.ReplyType msgType = DataSourceFilter.ReplyType.valueOf(controlMsg.pollFirst().getData()[0]);
+        final String requestId = controlMsg.pollFirst().getString(Charset.defaultCharset());
+        final String endpoint = controlMsg.pollFirst().getString(Charset.defaultCharset());
         final byte[] filters = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
         final byte[] data = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
         final byte[] rbacToken = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
@@ -382,6 +400,7 @@ public class DataSourcePublisher implements Runnable {
             if (reply.isEmpty()) {
                 continue; // there was data received, but only used for internal state of the client
             }
+            // the received data consists of the following frames: replyType(byte), reqId(string), endpoint(string), dataBody(byte[])
             eventStore.getRingBuffer().publishEvent((event, sequence) -> {
                 final String reqId = reply.pollFirst().getString(Charset.defaultCharset());
                 final ThePromisedFuture<?> returnFuture = requestFutureMap.get(reqId);
@@ -390,10 +409,9 @@ public class DataSourcePublisher implements Runnable {
                     requestFutureMap.remove(reqId);
                 }
                 final Endpoint endpoint = new Endpoint(reply.pollFirst().getString(Charset.defaultCharset()));
-                final byte[] dataBody = reply.pollFirst().getData();
                 event.arrivalTimeStamp = System.currentTimeMillis();
                 event.payload = new SharedPointer<>();
-                event.payload.set(dataBody);
+                event.payload.set(reply); // ZMsg containing header, body and exception frame
                 final DataSourceFilter dataSourceFilter = event.getFilter(DataSourceFilter.class);
                 dataSourceFilter.future = returnFuture;
                 dataSourceFilter.eventType = DataSourceFilter.ReplyType.SUBSCRIBE;

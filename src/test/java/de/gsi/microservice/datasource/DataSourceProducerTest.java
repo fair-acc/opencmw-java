@@ -89,10 +89,12 @@ class DataSourceProducerTest {
                     final ZMsg msg = new ZMsg();
                     msg.add(subscriptionId);
                     msg.add(endpoint);
+                    msg.add(new byte[0]); // header
                     ioClassSerialiser.getDataBuffer().reset();
                     ioClassSerialiser.serialiseObject(testObject.get());
                     // todo: the serialiser does not report the correct position after serialisation
                     msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position() + 100));
+                    msg.add(new byte[0]); // exception
                     msg.send(internalSocket);
                 }
                 if (!requestId.isEmpty() && testObject.get() != null) { // answer to get requests
@@ -103,10 +105,12 @@ class DataSourceProducerTest {
                     final ZMsg msg = new ZMsg();
                     msg.add(requestId);
                     msg.add(endpoint);
+                    msg.add(new byte[0]); // header
                     ioClassSerialiser.getDataBuffer().reset();
                     ioClassSerialiser.serialiseObject(testObject.get());
                     // todo: the serialiser does not report the correct position after serialisation
                     msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position() + 100));
+                    msg.add(new byte[0]); // exception
                     msg.send(internalSocket);
                 }
                 nextHousekeeping = currentTime + 200;
@@ -208,7 +212,7 @@ class DataSourceProducerTest {
             eventReceived.set(true);
         });
 
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore);
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore);
 
         eventStore.start();
         new Thread(dataSourcePublisher).start();
@@ -227,7 +231,7 @@ class DataSourceProducerTest {
 
         final EventStore eventStore = EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
 
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore);
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore);
 
         eventStore.start();
         new Thread(dataSourcePublisher).start();
@@ -246,7 +250,7 @@ class DataSourceProducerTest {
 
         final EventStore eventStore = EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
 
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore);
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore);
 
         eventStore.start();
         new Thread(dataSourcePublisher).start();

@@ -6,10 +6,7 @@ import de.gsi.serializer.IoSerialiser;
 import de.gsi.serializer.spi.BinarySerialiser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zeromq.SocketType;
-import org.zeromq.ZContext;
-import org.zeromq.ZMQ;
-import org.zeromq.ZMsg;
+import org.zeromq.*;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -92,7 +89,26 @@ public class CmwLightClient extends DataSource {
             final Subscription subscription = subscriptions.values().stream().filter(s -> s.updateId == reply.id).findAny().orElseThrow();
             result.add(subscription.idString);
             result.add(endpoint.getEndpointForContext(reply.dataContext.cycleName));
-            result.add(reply.bodyData);
+            result.add(new ZFrame(new byte[0])); // header
+            result.add(reply.bodyData); // body
+            result.add(new ZFrame(new byte[0])); // exception
+            return result;
+        } else if (reply.requestType.equals(CmwLightProtocol.RequestType.EXCEPTION) || reply.requestType.equals(CmwLightProtocol.RequestType.NOTIFICATION_EXC) || reply.requestType.equals(CmwLightProtocol.RequestType.SUBSCRIBE_EXCEPTION)) {
+            // forward errors
+            final ZMsg result = new ZMsg();
+            if (reply.requestType.equals(CmwLightProtocol.RequestType.NOTIFICATION_EXC)) { // error for this update
+                final Subscription subscription = subscriptions.values().stream().filter(s -> s.updateId == reply.id).findAny().orElseThrow();
+                result.add(subscription.idString);
+            } else if (reply.requestType.equals(CmwLightProtocol.RequestType.SUBSCRIBE_EXCEPTION)) { // error setting up the subscription
+                final Subscription subscription = subscriptions.values().stream().filter(s -> s.id == reply.id).findAny().orElseThrow();
+                result.add(subscription.idString);
+            } else { // error for get or other requests
+                result.add(Long.toString(reply.id)); // todo: get correct id from list of running requests
+            }
+            result.add(endpoint.toString());
+            result.add(new ZFrame(new byte[0])); // header
+            result.add(new ZFrame(new byte[0])); // body
+            result.add(reply.exceptionMessage.message); // exception
             return result;
         } else if (reply.requestType.equals(CmwLightProtocol.RequestType.REPLY)) {
             return new ZMsg();

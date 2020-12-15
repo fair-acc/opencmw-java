@@ -141,7 +141,7 @@ public class TimingCtx implements Filter {
             }
         } catch (Throwable t) { // NOPMD NOSONAR should catch Throwable
             clear();
-            throw new IllegalArgumentException("Invalid selector or bpcts", t);
+            throw new IllegalArgumentException("Invalid selector or bpcts: " + selector, t);
         }
     }
 
