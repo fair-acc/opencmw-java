@@ -210,7 +210,6 @@ public class CmwLightClient extends DataSource {
 
     private void resetConnection() {
         disconnect();
-        connect();
     }
 
     private void disconnect() {
@@ -218,6 +217,9 @@ public class CmwLightClient extends DataSource {
         connectionState.set(ConnectionState.DISCONNECTED);
         socket.disconnect(endpoint.getAddress().replace("rda3://", "tcp://"));
         // disconnect/reset subscriptions
+        for (Subscription sub: subscriptions.values()) {
+            sub.subscriptionState = SubscriptionState.UNSUBSCRIBED;
+        }
     }
 
     public CmwLightMessage receiveData() {
