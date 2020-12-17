@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,10 +28,11 @@ public class CmwLightClient extends DataSource {
     private static final Logger LOGGER = LoggerFactory.getLogger(CmwLightClient.class);
     private static final AtomicLong connectionIdGenerator = new AtomicLong(0); // global counter incremented for each connection
     private static final AtomicInteger requestIdGenerator = new AtomicInteger(0);
+    public static final String RDA_3_PROTOCOL = "rda3://";
     public static final Factory FACTORY = new Factory() {
         @Override
         public boolean matches(final String endpoint) {
-            return endpoint.startsWith("rda3://");
+            return endpoint.startsWith(RDA_3_PROTOCOL);
         }
 
         @Override
@@ -43,12 +45,14 @@ public class CmwLightClient extends DataSource {
             return new CmwLightClient(context, endpoint, timeout, clientId, filters);
         }
     };
+    private static DirectoryLightClient directoryLightClient;
     protected final AtomicInteger channelId = new AtomicInteger(0); // connection local counter incremented for each channel
     protected final ZContext context;
     protected final ZMQ.Socket socket;
     protected final AtomicReference<ConnectionState> connectionState = new AtomicReference<>(ConnectionState.DISCONNECTED);
     protected final Endpoint endpoint;
     private final byte[] filterMap;
+    private String address;
     protected String sessionId;
     protected long connectionId;
     protected final Map<Long, Subscription> subscriptions = Collections.synchronizedMap(new HashMap<>()); // all subscriptions added to the server
@@ -63,11 +67,19 @@ public class CmwLightClient extends DataSource {
         super(context, endpoint, timeout, clientId, filters);
         LOGGER.atTrace().addArgument(endpoint).log("connecting to: {}");
         this.context = context;
-        socket = context.createSocket(SocketType.DEALER);
-        socket.setIdentity(getIdentity().getBytes()); // hostname/process/id/channel
+        this.socket = context.createSocket(SocketType.DEALER);
         this.sessionId = getSessionId(clientId);
         this.endpoint = new Endpoint(endpoint);
+        this.address = this.endpoint.getAddress().replace(RDA_3_PROTOCOL, "tcp://");
         this.filterMap = filters; // todo correctly handle preserialised filters
+    }
+
+    public static DirectoryLightClient getDirectoryLightClient() {
+        return directoryLightClient;
+    }
+
+    public static void setDirectoryLightClient(final DirectoryLightClient directoryLightClient) {
+        CmwLightClient.directoryLightClient = directoryLightClient;
     }
 
     public void unsubscribe(final Subscription subscription) throws CmwLightProtocol.RdaLightException {
@@ -191,31 +203,38 @@ public class CmwLightClient extends DataSource {
     }
 
     public void connect() {
-        LOGGER.atDebug().addArgument(endpoint).log("connecting to {}");
         if (connectionState.getAndSet(ConnectionState.CONNECTING) != ConnectionState.DISCONNECTED) {
-            return;
+            return; // already connected
         }
-        final String address = endpoint.getAddress().replace("rda3://", "tcp://");
-        socket.connect(address);
         try {
-            CmwLightProtocol.serialiseMsg(CmwLightMessage.connect("1.0.0")).send(socket);
-            connectionState.set(ConnectionState.CONNECTING);
-            lastHbReceived = System.currentTimeMillis();
-        } catch (CmwLightProtocol.RdaLightException e) {
+            DirectoryLightClient.Device device = directoryLightClient.getDeviceInfo(Collections.singletonList(endpoint.getDevice())).get(0);
+            LOGGER.atTrace().addArgument(endpoint.getDevice()).addArgument(device).log("resolved address for device {}: {}");
+            address = device.servers.stream().findFirst().orElse(Map.of("Address:", address)).get("Address:");
+        } catch (NullPointerException | NoSuchElementException | DirectoryLightClient.DirectoryClientException e) {
+            LOGGER.atDebug().addArgument(e.getMessage()).log("Error resolving device from nameserver, using address from endpoint. Error was: {}");
+        }
+        lastHbSent = System.currentTimeMillis();
+        try {
+            final String identity = getIdentity();
+            LOGGER.atDebug().addArgument(address).addArgument(identity).log("connecting to: {} with identity {}");
+            socket.setIdentity(identity.getBytes()); // hostname/process/id/channel
+            socket.connect(address);
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.connect(CmwLightProtocol.VERSION));
+        } catch (ZMQException | CmwLightProtocol.RdaLightException e) {
             LOGGER.atDebug().setCause(e).log("failed to connect: ");
             backOff = backOff * 2;
-            resetConnection();
+            disconnect();
         }
-    }
-
-    private void resetConnection() {
-        disconnect();
     }
 
     private void disconnect() {
         LOGGER.atDebug().addArgument(endpoint).log("disconnecting {}");
         connectionState.set(ConnectionState.DISCONNECTED);
-        socket.disconnect(endpoint.getAddress().replace("rda3://", "tcp://"));
+        try {
+            socket.disconnect(address);
+        } catch (ZMQException e) {
+            LOGGER.atTrace().setCause(e).log("Failed to disconnect socket");
+        }
         // disconnect/reset subscriptions
         for (Subscription sub: subscriptions.values()) {
             sub.subscriptionState = SubscriptionState.UNSUBSCRIBED;
@@ -231,6 +250,7 @@ public class CmwLightClient extends DataSource {
                 return null;
             final CmwLightMessage reply = CmwLightProtocol.parseMsg(data);
             if (connectionState.get().equals(ConnectionState.CONNECTING) && reply.messageType == CmwLightProtocol.MessageType.SERVER_CONNECT_ACK) {
+                LOGGER.atTrace().addArgument(endpoint.getAddress()).log("Connected to server: {}");
                 connectionState.set(ConnectionState.CONNECTED);
                 lastHbReceived = currentTime;
                 backOff = 20; // reset back-off time
@@ -239,7 +259,7 @@ public class CmwLightClient extends DataSource {
             if (connectionState.get() != ConnectionState.CONNECTED) {
                 LOGGER.atWarn().addArgument(reply).log("received data before connection established: {}");
             }
-            if (reply.requestType == CmwLightProtocol.RequestType.SUBSCRIBE_EXCEPTION) {
+            if (reply.requestType == CmwLightProtocol.RequestType.SUBSCRIBE_EXCEPTION) { // subscription failed
                 final long id = reply.id;
                 final Subscription sub = subscriptions.get(id);
                 sub.subscriptionState = SubscriptionState.UNSUBSCRIBED;
@@ -247,7 +267,7 @@ public class CmwLightClient extends DataSource {
                 sub.backOff *= 2;
                 LOGGER.atDebug().addArgument(sub.device).addArgument(sub.property).log("exception during subscription, retrying: {}/{}");
             }
-            if (reply.requestType == CmwLightProtocol.RequestType.SUBSCRIBE) {
+            if (reply.requestType == CmwLightProtocol.RequestType.SUBSCRIBE) { // subscription successful
                 final long id = reply.id;
                 final Subscription sub = subscriptions.get(id);
                 sub.updateId = (long) reply.options.get(CmwLightProtocol.FieldName.SOURCE_ID_TAG.value());
@@ -269,15 +289,18 @@ public class CmwLightClient extends DataSource {
         switch (connectionState.get()) {
         case DISCONNECTED: // reconnect after adequate back off
             if (currentTime > lastHbSent + backOff) {
+                LOGGER.atTrace().addArgument(endpoint.getAddress()).log("Connecting to {}");
                 connect();
             }
             return lastHbSent + backOff;
         case CONNECTING:
-            if (currentTime > lastHbReceived + heartbeatInterval * heartbeatAllowedMisses) { // connect timed out -> increase back of and retry
+            if (currentTime > lastHbSent + heartbeatInterval * heartbeatAllowedMisses) { // connect timed out -> increase back of and retry
                 backOff = backOff * 2;
-                resetConnection();
+                lastHbSent = currentTime;
+                LOGGER.atTrace().addArgument(endpoint.getAddress()).addArgument(backOff).log("Connection timed out for {}, retrying in {} ms");
+                disconnect();
             }
-            return lastHbReceived + heartbeatInterval * heartbeatAllowedMisses;
+            return lastHbSent + heartbeatInterval * heartbeatAllowedMisses;
         case CONNECTED:
             if (currentTime > lastHbSent + heartbeatInterval) { // check for heartbeat interval
                 // send Heartbeats
@@ -285,8 +308,8 @@ public class CmwLightClient extends DataSource {
                 lastHbSent = currentTime;
                 // check if heartbeat was received
                 if (lastHbReceived + heartbeatInterval * heartbeatAllowedMisses < currentTime) {
-                    LOGGER.atInfo().log("Connection timed out, reconnecting");
-                    resetConnection();
+                    LOGGER.atDebug().addArgument(backOff).log("Connection timed out, reconnecting in {} ms");
+                    disconnect();
                     return heartbeatInterval;
                 }
                 // check timeouts of connection/subscription requests
