@@ -231,7 +231,7 @@ public class EventStore {
         return new EventStoreFactory();
     }
 
-    protected static class LocalEventHandlerGroup {
+    public static class LocalEventHandlerGroup {
         protected final List<EventHandler<RingBufferEvent>> handler = new NoDuplicatesList<>();
         protected final int lengthHistoryBuffer;
         protected LocalEventHandlerGroup dependent;
