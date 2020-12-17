@@ -281,9 +281,13 @@ public class CmwLightProtocol {
                 break;
             case GET:
             case SUBSCRIBE:
-                AssertUtils.notNull("requestContext", msg.requestContext);
-                result.add(serialiseRequestContext(msg.requestContext));
-                addDescriptor(result, FrameType.HEADER, FrameType.BODY_REQUEST_CONTEXT);
+                if (msg.messageType == MessageType.CLIENT_REQ) {
+                    AssertUtils.notNull("requestContext", msg.requestContext);
+                    result.add(serialiseRequestContext(msg.requestContext));
+                    addDescriptor(result, FrameType.HEADER, FrameType.BODY_REQUEST_CONTEXT);
+                } else {
+                    addDescriptor(result, FrameType.HEADER);
+                }
                 break;
             case SET:
                 AssertUtils.notNull("bodyData", msg.bodyData);

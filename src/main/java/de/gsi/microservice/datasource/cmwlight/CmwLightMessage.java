@@ -65,6 +65,16 @@ public class CmwLightMessage {
         msg.updateType = updateType;
         return msg;
     }
+    public static CmwLightMessage subscribeReply(String sessionId, long id, String device, String property, final Map<String, Object> options) {
+        final CmwLightMessage msg = new CmwLightMessage(CmwLightProtocol.MessageType.SERVER_REP);
+        msg.requestType = CmwLightProtocol.RequestType.SUBSCRIBE;
+        msg.id = id;
+        msg.options = options;
+        msg.sessionId = sessionId;
+        msg.deviceName = device;
+        msg.propertyName = property;
+        return msg;
+    }
     public static CmwLightMessage unsubscribeRequest(String sessionId, long id, String device, String property, final Map<String, Object> options, CmwLightProtocol.UpdateType updateType) {
         final CmwLightMessage msg = new CmwLightMessage(CmwLightProtocol.MessageType.CLIENT_REQ);
         msg.requestType = CmwLightProtocol.RequestType.UNSUBSCRIBE;

@@ -35,7 +35,7 @@ public class CmwLightClient extends DataSource {
 
         @Override
         public Class<? extends IoSerialiser> getMatchingSerialiserType(final String endpoint) {
-            return BinarySerialiser.class; // Binarary serialiser, because we unpack it internaly anyway for now
+            return BinarySerialiser.class; // Binary serialiser, because we unpack it internally anyway for now
         }
 
         @Override
@@ -76,7 +76,7 @@ public class CmwLightClient extends DataSource {
     }
 
     @Override
-    public ZMsg getMessage() { // return maintaninance objects instead of replies
+    public ZMsg getMessage() { // return maintenance objects instead of replies
         CmwLightMessage reply = receiveData();
         if (reply == null) {
             return null;
@@ -232,6 +232,7 @@ public class CmwLightClient extends DataSource {
             final CmwLightMessage reply = CmwLightProtocol.parseMsg(data);
             if (connectionState.get().equals(ConnectionState.CONNECTING) && reply.messageType == CmwLightProtocol.MessageType.SERVER_CONNECT_ACK) {
                 connectionState.set(ConnectionState.CONNECTED);
+                lastHbReceived = currentTime;
                 backOff = 20; // reset back-off time
                 return reply;
             }
@@ -251,7 +252,7 @@ public class CmwLightClient extends DataSource {
                 final Subscription sub = subscriptions.get(id);
                 sub.updateId = (long) reply.options.get(CmwLightProtocol.FieldName.SOURCE_ID_TAG.value());
                 sub.subscriptionState = SubscriptionState.SUBSCRIBED;
-                LOGGER.atDebug().addArgument(sub.device).addArgument(sub.property).log("subscription sucessful: {}/{}");
+                LOGGER.atDebug().addArgument(sub.device).addArgument(sub.property).log("subscription successful: {}/{}");
                 sub.backOff = 20;
             }
             lastHbReceived = currentTime;
@@ -286,6 +287,7 @@ public class CmwLightClient extends DataSource {
                 if (lastHbReceived + heartbeatInterval * heartbeatAllowedMisses < currentTime) {
                     LOGGER.atInfo().log("Connection timed out, reconnecting");
                     resetConnection();
+                    return heartbeatInterval;
                 }
                 // check timeouts of connection/subscription requests
                 for (Subscription sub : subscriptions.values()) {
