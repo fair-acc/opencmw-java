@@ -325,7 +325,8 @@ public class DataSourcePublisher implements Runnable {
         running.set(true);
         long nextHousekeeping = System.currentTimeMillis(); // immediately perform first housekeeping
         while (!Thread.interrupted() && running.get()) {
-            final int result = poller.poll(nextHousekeeping - System.currentTimeMillis());
+            final long tout = nextHousekeeping - System.currentTimeMillis();
+            final int result = poller.poll(tout > 0 ? tout : 0);
             if (result < 0) {
                 // loop needs to be terminated
                 LOGGER.atDebug().addArgument(result).addArgument(clients).log("poller returned {} - abort run() - clients = {}");
