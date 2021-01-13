@@ -324,30 +324,20 @@ public class DataSourcePublisher implements Runnable {
         // event loop polling all data sources and performing regular housekeeping jobs
         running.set(true);
         long nextHousekeeping = System.currentTimeMillis(); // immediately perform first housekeeping
-        while (!Thread.interrupted() && running.get()) {
-            final long tout = nextHousekeeping - System.currentTimeMillis();
-            final int result = poller.poll(tout > 0 ? tout : 0);
-            if (result < 0) {
-                // loop needs to be terminated
-                LOGGER.atDebug().addArgument(result).addArgument(clients).log("poller returned {} - abort run() - clients = {}");
-                break;
-            }
-
-            if (result > 0) {
-                // get data from clients
-                boolean dataAvailable = true;
-                while (dataAvailable && System.currentTimeMillis() < nextHousekeeping && running.get()) {
-                    dataAvailable = handleDataSourceSockets();
-
-                    // check specificaly for control socket
-                    if (poller.pollin(CONTROL_SOCKET_INDEX)) {
-                        dataAvailable |= handleControlSocket();
-                    }
-                }
+        long tout = 0L;
+        while (!Thread.interrupted() && running.get() && (tout <= 0 || -1 != poller.poll(tout))) {
+            // get data from clients
+            boolean dataAvailable = true;
+            while (dataAvailable && System.currentTimeMillis() < nextHousekeeping && running.get()) {
+                dataAvailable = handleDataSourceSockets();
+                // check specificaly for control socket
+                dataAvailable |= handleControlSocket();
             }
 
             nextHousekeeping = clients.stream().mapToLong(DataSource::housekeeping).min().orElse(System.currentTimeMillis() + 1000);
+            tout = nextHousekeeping - System.currentTimeMillis();
         }
+        LOGGER.atDebug().addArgument(clients).log("poller returned negative value - abort run() - clients = {}");
     }
 
     public void start() {
@@ -357,6 +347,9 @@ public class DataSourcePublisher implements Runnable {
     protected boolean handleControlSocket() {
         boolean dataAvailable = false;
         final ZMsg controlMsg = ZMsg.recvMsg(controlSocket, false);
+        if (controlMsg == null) {
+            return false; // no more data available on control socket
+        }
         if (controlMsg.size() < 3) { // msgType, requestId and endpoint have to be always present
             LOGGER.atDebug().log("ignoring invalid message");
             return true; // ignore invalid partial message
