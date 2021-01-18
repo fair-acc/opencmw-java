@@ -1,177 +1,256 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+    <groupId>io.opencmw</groupId>
+    <artifactId>opencmw</artifactId>
 
-    <parent>
-        <groupId>de.gsi</groupId>
-        <artifactId>chartfx</artifactId>
-        <version>${revision}${sha1}${changelist}</version>
-        <relativePath>..</relativePath>
-    </parent>
-
-    <artifactId>microservice</artifactId>
-
+    <version>${revision}${sha1}${changelist}</version>
+    <packaging>pom</packaging>
+    <name>opencmw</name>
     <description>
-        ZeroMQ and REST-based micro-service and IoSerialiser implementation.
+        Microservice middleware framework for beam-based feedback systems at the FAIR particle accelerator.
     </description>
 
+    <modules>
+        <module>serialiser</module>
+        <module>microservice-core</module>
+        <module>microservice-server</module>
+        <module>microservice-client</module>
+        <module>concepts</module>
+    </modules>
+
     <properties>
-        <javalin.version>3.9.0</javalin.version>
-        <jetty.version>9.4.29.v20200521</jetty.version> <!-- always update version with Javalin -->
-        <micrometer.version>1.5.1</micrometer.version>
-        <velocity.version>2.0</velocity.version>
-        <okHttp3.version>4.8.1</okHttp3.version>
-        <project.moduleName>de.gsi.microservice</project.moduleName>
+        <revision>master</revision>
+        <changelist>-SNAPSHOT</changelist>
+        <sha1></sha1>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <versions.slf4j>2.0.0-alpha0</versions.slf4j>
+        <versions.jupiter>5.7.0</versions.jupiter>
+        <versions.surefire>2.22.2</versions.surefire>
+        <versions.jacoco>0.8.6</versions.jacoco>
+        <versions.chartfx>11.2.3</versions.chartfx>
     </properties>
+
+    <licenses>
+        <license>
+            <name>LGPLv3</name>
+            <url>https://www.gnu.org/licenses/lgpl-3.0.html</url>
+        </license>
+    </licenses>
+
+    <organization>
+        <name>GSI Helmholtzzentrum für Schwerionenforschung GmbH</name>
+        <url>http://www.gsi.de</url>
+    </organization>
+
+    <url>https://github.com/FAIR-ACC/opencmw-java</url>
+
+    <developers>
+        <developer>
+            <id>rstein</id>
+            <name>Ralph J. Steinhagen</name>
+            <email>R.Steinhagen@gsi.de</email>
+            <url>https://fair-wiki.gsi.de/FC2WG</url>
+            <timezone>+1</timezone>
+            <roles>
+                <role>owner</role>
+                <role>architect</role>
+                <role>developer</role>
+            </roles>
+        </developer>
+        <developer>
+            <id>akrimm</id>
+            <name>Alexander Krimm</name>
+            <email>A.Krimm@gsi.de</email>
+            <timezone>+1</timezone>
+            <roles>
+                <role>developer</role>
+            </roles>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/FAIR-ACC/opencmw-java</connection>
+        <developerConnection>scm:git:git@github.com:FAIR-ACC/opencmw-java</developerConnection>
+        <url>https://github.com/FAIR-ACC/opencmw-java</url>
+    </scm>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.1.0</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${versions.surefire}</version>
+                <configuration>
+                    <!-- Jacoco prepare-agent builds some command-line params without which jacoco will not instrument. Hence it is important to add those command-line params here (${argLine} holds those params) -->
+                    <argLine>${argLine} -Duser.language=en -Duser.country=US -Xms256m -Xmx2048m -XX:G1HeapRegionSize=32m -Djava.awt.headless=true -Dtestfx.robot=glass -Dtestfx.headless=true -Dprism.order=sw</argLine>
+                    <forkCount>1</forkCount>
+                    <rerunFailingTestsCount>2</rerunFailingTestsCount>
+                    <runOrder>random</runOrder>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${versions.jacoco}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 
     <dependencies>
         <dependency>
-            <groupId>de.gsi.dataset</groupId>
-            <artifactId>chartfx-dataset</artifactId>
-            <version>${project.version}</version>
-            <optional>true</optional>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${versions.slf4j}</version>
         </dependency>
-        <!-- micro-benchmarking framework -->
         <dependency>
-            <groupId>org.openjdk.jmh</groupId>
-            <artifactId>jmh-core</artifactId>
-            <version>1.23</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>${versions.slf4j}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.openjdk.jmh</groupId>
-            <artifactId>jmh-generator-annprocess</artifactId>
-            <version>1.23</version>
-            <scope>test</scope>
-        </dependency>
-
-        <!-- micro-service dependencies -->
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-core</artifactId>
-            <version>${micrometer.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.zeromq</groupId>
-            <artifactId>jeromq</artifactId>
-            <version>0.5.2</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.lmax</groupId>
-            <artifactId>disruptor</artifactId>
-            <version>3.4.2</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.eclipse.jetty.http2</groupId>
-            <artifactId>http2-server</artifactId>
-            <version>${jetty.version}</version>
-        </dependency>
-        <!-- for HTTP/2 ALPN (application layer protocol negotiation) -->
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-alpn-conscrypt-server</artifactId>
-            <version>${jetty.version}</version>
-        </dependency>
-
-        <!-- HTTP template engine-->
-        <dependency>
-            <groupId>org.apache.velocity</groupId>
-            <artifactId>velocity-engine-core</artifactId>
-            <version>${velocity.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.mindrot</groupId>
-            <artifactId>jbcrypt</artifactId>
-            <version>0.4</version>
-        </dependency>
-
-
-
-        <!-- alternate Javalin dependency injection - add all and remove those not necessary -->
-        <dependency>
-            <groupId>io.javalin</groupId>
-            <artifactId>javalin-bundle</artifactId>
-            <version>${javalin.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.jetbrains.kotlin</groupId>
-                    <artifactId>kotlin-stdlib-jdk8</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>cc.vileda</groupId>
-                    <artifactId>kotlin-openapi3-dsl</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.github.classgraph</groupId>
-                    <artifactId>classgraph</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>ch.qos.logback</groupId>
-                    <artifactId>logback-classic</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <!-- HTTP/REST client dependencies-->
-        <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>okhttp</artifactId>
-            <version>${okHttp3.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>okhttp-sse</artifactId>
-            <version>${okHttp3.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>mockwebserver</artifactId>
-            <version>${okHttp3.version}</version>
-            <scope>test</scope>
-        </dependency>
-
-        <!-- serialiser dependencies -->
-        <dependency>
-            <groupId>com.jsoniter</groupId>
-            <artifactId>jsoniter</artifactId>
-            <version>0.9.23</version>
-        </dependency>
-        <dependency>
-            <groupId>org.javassist</groupId>
-            <artifactId>javassist</artifactId>
-            <version>3.27.0-GA</version>
-        </dependency>
-
-        <!-- serialiser test dependencies for comparisons only-->
-        <dependency>
-            <groupId>com.google.flatbuffers</groupId>
-            <artifactId>flatbuffers-java</artifactId>
-            <version>1.12.0</version>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>${versions.jupiter}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.9.10.5</version>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${versions.jupiter}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-            <version>2.8.6</version>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <version>${versions.jupiter}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>fastjson</artifactId>
-            <version>1.2.73</version>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>4.0.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>de.sandec</groupId>
+            <artifactId>JMemoryBuddy</artifactId>
+            <version>0.2.6</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
 
+    <profiles>
+        <profile>
+            <id>release</id>
+            <activation>
+                <property>
+                    <name>release</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>1.6</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.plugins</groupId>
+                        <artifactId>nexus-staging-maven-plugin</artifactId>
+                        <version>1.6.4</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <serverId>ossrh</serverId>
+                            <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                            <autoReleaseAfterClose>true</autoReleaseAfterClose>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
