@@ -13,6 +13,9 @@ public class Endpoint {
     private static final String DEFAULT_SELECTOR = "";
     public static final String FILTER_TYPE_LONG = "long:";
     public static final String FILTER_TYPE_INT = "int:";
+    public static final String FILTER_TYPE_BOOL = "bool:";
+    public static final String FILTER_TYPE_DOUBLE = "double:";
+    public static final String FILTER_TYPE_FLOAT = "float:";
     private final String value;
     private String protocol;
     private String address;
@@ -100,6 +103,12 @@ public class Endpoint {
                     filters.put(splitpair[0], Integer.valueOf(splitpair[1].substring(FILTER_TYPE_INT.length())));
                 } else if (splitpair[1].startsWith(FILTER_TYPE_LONG)) {
                     filters.put(splitpair[0], Long.valueOf(splitpair[1].substring(FILTER_TYPE_LONG.length())));
+                } else if (splitpair[1].startsWith(FILTER_TYPE_BOOL)) {
+                    filters.put(splitpair[0], Boolean.valueOf(splitpair[1].substring(FILTER_TYPE_BOOL.length())));
+                } else if (splitpair[1].startsWith(FILTER_TYPE_DOUBLE)) {
+                    filters.put(splitpair[0], Double.valueOf(splitpair[1].substring(FILTER_TYPE_DOUBLE.length())));
+                } else if (splitpair[1].startsWith(FILTER_TYPE_FLOAT)) {
+                    filters.put(splitpair[0], Float.valueOf(splitpair[1].substring(FILTER_TYPE_FLOAT.length())));
                 } else {
                     filters.put(splitpair[0], splitpair[1]);
                 }
