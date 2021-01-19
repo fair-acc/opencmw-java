@@ -7,6 +7,8 @@ module io.opencmw.client {
     requires okhttp3;
     requires okhttp3.sse;
     requires disruptor;
+    requires de.gsi.chartfx.dataset;
+    requires validation.api;
 
     exports io.opencmw.client;
     exports io.opencmw.client.cmwlight;

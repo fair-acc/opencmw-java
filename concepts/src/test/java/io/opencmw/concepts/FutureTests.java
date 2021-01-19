@@ -13,7 +13,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.jetbrains.annotations.NotNull;
+import javax.validation.constraints.NotNull;
 
 public class FutureTests { // NOPMD NOSONAR -- nomen est omen
     private static final int N_ITERATIONS = 100_000;

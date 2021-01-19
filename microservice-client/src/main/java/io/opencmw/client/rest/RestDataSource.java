@@ -20,11 +20,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
+import javax.validation.constraints.NotNull;
 
+import de.gsi.dataset.remote.MimeType;
 import io.opencmw.core.datasource.DataSource;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.JsonSerialiser;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.spi.LoggingEventBuilder;
