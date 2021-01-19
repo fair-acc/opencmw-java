@@ -16,7 +16,7 @@ import org.zeromq.ZMsg;
 
 /**
  * Majordomo Protocol Client API, asynchronous Java version. Implements the
- * MajordomoProtocol/Worker spec at http://rfc.zeromq.org/spec:7.
+ * OpenCmwProtocol/Worker spec at http://rfc.zeromq.org/spec:7.
  */
 public class MajordomoClientV2 {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoClientV2.class);
@@ -80,7 +80,7 @@ public class MajordomoClientV2 {
      * Send request to broker and get reply by hook or crook Takes ownership of request message and destroys it when sent.
      *
      * @param service UTF-8 encoded service name byte array
-     * @param msgs message(s) to be sent to MajordomoProtocol broker (if more than one, than the last is assumed to be a RBAC-token
+     * @param msgs message(s) to be sent to OpenCmwProtocol broker (if more than one, than the last is assumed to be a RBAC-token
      */
     public boolean send(final byte[] service, final byte[]... msgs) {
         return sendClientMessage(clientSocket, MdpClientCommand.C_UNKNOWN, null, service, msgs);
@@ -90,7 +90,7 @@ public class MajordomoClientV2 {
      * Send request to broker and get reply by hook or crook Takes ownership of request message and destroys it when sent.
      *
      * @param service UTF-8 encoded service name byte array
-     * @param msgs message(s) to be sent to MajordomoProtocol broker (if more than one, than the last is assumed to be a RBAC-token
+     * @param msgs message(s) to be sent to OpenCmwProtocol broker (if more than one, than the last is assumed to be a RBAC-token
      */
     public boolean send(final String service, final byte[]... msgs) {
         return send(service.getBytes(StandardCharsets.UTF_8), msgs);

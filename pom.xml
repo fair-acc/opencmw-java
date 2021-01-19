@@ -14,22 +14,38 @@
 
     <modules>
         <module>serialiser</module>
-        <module>microservice-core</module>
-        <module>microservice-server</module>
-        <module>microservice-client</module>
+        <module>core</module>
+        <module>server</module>
+        <module>server-rest</module>
+        <module>client</module>
         <module>concepts</module>
     </modules>
 
     <properties>
         <revision>0.0.1</revision>
         <changelist>-SNAPSHOT</changelist>
-        <sha1></sha1>
+        <sha1/>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
-        <versions.slf4j>2.0.0-alpha0</versions.slf4j>
-        <versions.jupiter>5.7.0</versions.jupiter>
-        <versions.chartfx>master-SNAPSHOT</versions.chartfx>
+        <version.slf4j>2.0.0-alpha0</version.slf4j>
+        <version.jeromq>0.5.2</version.jeromq>
+        <versions.lmax.disruptor>3.4.2</versions.lmax.disruptor>
+        <version.validation-api>2.0.1.Final</version.validation-api>
+        <version.javalin>3.13.0</version.javalin>
+        <version.jetty>9.4.35.v20201120</version.jetty> <!-- N.B. needs to be synchronised with Javalin version -->
+        <version.jsoniter>0.9.23</version.jsoniter>
+        <version.fastutil>8.3.1</version.fastutil>
+        <version.javassist>3.27.0-GA</version.javassist>
+        <version.okHttp3>4.9.0</version.okHttp3>
+        <version.commons-lang3>3.9</version.commons-lang3>
+        <version.jupiter>5.7.0</version.jupiter>
+        <version.awaitility>4.0.3</version.awaitility>
+        <version.JMemoryBuddy>0.2.6</version.JMemoryBuddy>
+        <version.jmh>1.27</version.jmh>
+        <version.micrometer>1.6.3</version.micrometer>
+        <version.velocity>2.0</version.velocity>
+        <version.chartfx>master-SNAPSHOT</version.chartfx>
     </properties>
 
     <licenses>
@@ -65,15 +81,17 @@
             <email>A.Krimm@gsi.de</email>
             <timezone>+1</timezone>
             <roles>
+                <role>owner</role>
+                <role>architect</role>
                 <role>developer</role>
             </roles>
         </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/FAIR-ACC/opencmw-java</connection>
-        <developerConnection>scm:git:git@github.com:FAIR-ACC/opencmw-java</developerConnection>
-        <url>https://github.com/FAIR-ACC/opencmw-java</url>
+        <connection>scm:git:https://github.com/fair-acc/opencmw-java</connection>
+        <developerConnection>scm:git:git@github.com:fair-acc/opencmw-java</developerConnection>
+        <url>https://github.com/fair-acc/opencmw-java</url>
     </scm>
 
     <build>
@@ -194,42 +212,60 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>${versions.slf4j}</version>
+            <version>${version.slf4j}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>${versions.slf4j}</version>
+            <version>${version.slf4j}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>javax.validation</groupId>
+            <artifactId>validation-api</artifactId>
+            <version>${version.validation-api}</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
-            <version>${versions.jupiter}</version>
+            <version>${version.jupiter}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
-            <version>${versions.jupiter}</version>
+            <version>${version.jupiter}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-params</artifactId>
-            <version>${versions.jupiter}</version>
+            <version>${version.jupiter}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.awaitility</groupId>
             <artifactId>awaitility</artifactId>
-            <version>4.0.3</version>
+            <version>${version.awaitility}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>de.sandec</groupId>
             <artifactId>JMemoryBuddy</artifactId>
-            <version>0.2.6</version>
+            <version>${version.JMemoryBuddy}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- micro-benchmarking framework -->
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <version>${version.jmh}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-generator-annprocess</artifactId>
+            <version>${version.jmh}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -261,7 +297,7 @@
                     <plugin>
                         <groupId>org.sonatype.plugins</groupId>
                         <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>1.6.4</version>
+                        <version>1.6.8</version>
                         <extensions>true</extensions>
                         <configuration>
                             <serverId>ossrh</serverId>

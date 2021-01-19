@@ -9,7 +9,7 @@ import org.zeromq.ZMQ;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 
-import io.opencmw.core.utils.WorkerThreadFactory;
+import io.opencmw.utils.WorkerThreadFactory;
 
 /**
  * Sample implementation for subscription to multiple cmw servers and properties and publishing the

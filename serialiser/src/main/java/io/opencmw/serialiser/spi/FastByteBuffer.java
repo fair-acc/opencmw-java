@@ -13,9 +13,8 @@ import java.lang.reflect.Field;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import de.gsi.dataset.utils.AssertUtils;
 import io.opencmw.serialiser.IoBuffer;
-
+import io.opencmw.serialiser.utils.AssertUtils;
 import sun.misc.Unsafe;
 
 // import static jdk.internal.misc.Unsafe; // NOPMD by rstein TODO replaces sun in JDK11

@@ -12,7 +12,7 @@ import com.lmax.disruptor.Sequence;
 import com.lmax.disruptor.SequenceReportingEventHandler;
 import com.lmax.disruptor.TimeoutHandler;
 
-import io.opencmw.core.utils.Cache;
+import io.opencmw.utils.Cache;
 
 /**
  * Dispatches aggregation workers upon seeing new values for a specified event field.

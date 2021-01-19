@@ -6,7 +6,7 @@ import org.zeromq.ZMsg;
 
 /**
  * Majordomo Protocol client example, asynchronous. Uses the mdcli API to hide
- * all MajordomoProtocol aspects
+ * all OpenCmwProtocol aspects
  */
 
 public class ClientSampleV2 {

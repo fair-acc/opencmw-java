@@ -5,7 +5,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import io.opencmw.core.utils.AssertUtils;
+import io.opencmw.utils.AssertUtils;
 import io.opencmw.serialiser.DataType;
 import io.opencmw.serialiser.FieldDescription;
 import io.opencmw.serialiser.IoBuffer;

@@ -16,13 +16,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import io.opencmw.serialiser.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import de.gsi.dataset.utils.AssertUtils;
-import de.gsi.dataset.utils.GenericsHelper;
+import io.opencmw.serialiser.*;
+import io.opencmw.serialiser.utils.AssertUtils;
 import io.opencmw.serialiser.utils.ClassUtils;
+import io.opencmw.serialiser.utils.GenericsHelper;
 
 /**
  * YaS -- Yet another Serialiser implementation
