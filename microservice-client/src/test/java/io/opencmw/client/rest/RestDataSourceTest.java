@@ -93,7 +93,7 @@ class RestDataSourceTest {
             assertNotNull(dataSource);
 
             dataSource.subscribe("1", new byte[0]);
-            receiveAndCheckData(dataSource, "de.gsi.microservice.datasource.rest.RestDataSource#*", true);
+            receiveAndCheckData(dataSource, "io.opencmw.client.rest.RestDataSource#*", true);
 
             // test asynchronuous get
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(DEFAULT_WAIT_MILLIS));

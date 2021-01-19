@@ -144,7 +144,25 @@
                 <version>3.0.0-M5</version>
                 <configuration>
                     <!-- Jacoco prepare-agent builds some command-line params without which jacoco will not instrument. Hence it is important to add those command-line params here (${argLine} holds those params) -->
-                    <argLine>${argLine} -Duser.language=en -Duser.country=US -Xms256m -Xmx2048m -XX:G1HeapRegionSize=32m -Djava.awt.headless=true -Dtestfx.robot=glass -Dtestfx.headless=true -Dprism.order=sw</argLine>
+                    <argLine>
+                        ${argLine}
+                        --add-opens io.opencmw.serialiser/io.opencmw.serialiser=ALL-UNNAMED
+                        --add-opens io.opencmw.serialiser/io.opencmw.serialiser.spi=ALL-UNNAMED
+                        --add-opens io.opencmw.serialiser/io.opencmw.serialiser.spi.iobuffer=ALL-UNNAMED
+                        --add-opens io.opencmw.serialiser/io.opencmw.serialiser.annotations=ALL-UNNAMED
+                        --add-opens io.opencmw.core/io.opencmw.core=ALL-UNNAMED
+                        --add-opens io.opencmw.core/io.opencmw.core.filter=ALL-UNNAMED
+                        --add-opens io.opencmw.core/io.opencmw.core.utils=ALL-UNNAMED
+                        --add-opens io.opencmw.core/io.opencmw.core.datasource=ALL-UNNAMED
+                        --add-opens io.opencmw.client/io.opencmw.client=ALL-UNNAMED
+                        --add-opens io.opencmw.client/io.opencmw.client.rest=ALL-UNNAMED
+                        --add-opens io.opencmw.client/io.opencmw.client.cmwlight=ALL-UNNAMED
+                        --add-opens io.opencmw.concepts/io.opencmw.concepts.cmwlight=ALL-UNNAMED
+                        --add-opens io.opencmw.concepts/io.opencmw.concepts.aggregate=ALL-UNNAMED
+                        -Duser.language=en -Duser.country=US
+                        -Xms256m -Xmx2048m -XX:G1HeapRegionSize=32m
+                        -Djava.awt.headless=true -Dtestfx.robot=glass -Dtestfx.headless=true -Dprism.order=sw
+                    </argLine>
                     <forkCount>1</forkCount>
                     <rerunFailingTestsCount>2</rerunFailingTestsCount>
                     <runOrder>random</runOrder>
