@@ -33,7 +33,7 @@
         <dependency>
             <groupId>de.gsi.dataset</groupId>
             <artifactId>chartfx-dataset</artifactId>
-            <version>${project.version}</version>
+            <version>${versions.chartfx}</version>
             <optional>true</optional>
         </dependency>
         <!-- micro-benchmarking framework -->
