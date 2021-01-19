@@ -5,10 +5,8 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
+import io.opencmw.core.utils.CustomFuture;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoClassSerialiser;
 import io.opencmw.serialiser.IoSerialiser;
@@ -35,7 +33,6 @@ import io.opencmw.core.utils.SharedPointer;
  */
 public class DataSourcePublisher implements Runnable {
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisher.class);
-    private static final int CONTROL_SOCKET_INDEX = 0;
     private static final AtomicInteger INSTANCE_COUNT = new AtomicInteger();
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
     private static final ZFrame EMPTY_FRAME = new ZFrame(EMPTY_BYTE_ARRAY);
@@ -79,54 +76,81 @@ public class DataSourcePublisher implements Runnable {
         this(rbacProvider, clientId);
         eventStore.register((event, sequence, endOfBatch) -> {
             final DataSourceFilter dataSourceFilter = event.getFilter(DataSourceFilter.class);
-            if (dataSourceFilter.eventType.equals(DataSourceFilter.ReplyType.SUBSCRIBE)) {
-                final ThePromisedFuture<?> future = dataSourceFilter.future;
-                if (future.replyType == DataSourceFilter.ReplyType.SUBSCRIBE) {
-                    final Class<?> domainClass = future.getRequestedDomainObjType();
-                    final ZMsg cmwMsg = event.payload.get(ZMsg.class);
-                    final String header = cmwMsg.poll().getString(Charset.defaultCharset());
-                    final byte[] body = cmwMsg.poll().getData();
-                    final String exc = cmwMsg.poll().getString(Charset.defaultCharset());
-                    Object domainObj = null;
-                    if (body != null && body.length != 0) {
-                        ioClassSerialiser.setDataBuffer(FastByteBuffer.wrap(body));
-                        domainObj = ioClassSerialiser.deserialiseObject(domainClass);
-                        ioClassSerialiser.setDataBuffer(byteBuffer); // allow received byte array to be released
-                    }
-                    publicationTarget.getRingBuffer().publishEvent((publishEvent, seq, obj, msg) -> {
-                        final TimingCtx contextFilter = publishEvent.getFilter(TimingCtx.class);
-                        final EvtTypeFilter evtTypeFilter = publishEvent.getFilter(EvtTypeFilter.class);
-                        publishEvent.arrivalTimeStamp = event.arrivalTimeStamp;
-                        publishEvent.payload = new SharedPointer<>();
-                        publishEvent.payload.set(obj);
-                        if (exc != null && !exc.isBlank()) {
-                            publishEvent.throwables.add(new Exception(exc));
-                        }
-                        try {
-                            contextFilter.setSelector(dataSourceFilter.context, 0);
-                        } catch (Exception e) {
-                            LOGGER.atError().setCause(e).addArgument(dataSourceFilter.context).log("No valid context: {}");
-                        }
-                        // contextFilter.acqts = msg.dataContext.acqStamp; // needs to be added?
-                        // contextFilter.ctxName = // what should go here?
-                        evtTypeFilter.evtType = EvtTypeFilter.DataType.DEVICE_DATA;
-                        evtTypeFilter.typeName = dataSourceFilter.device + '/' + dataSourceFilter.property;
-                        evtTypeFilter.updateType = EvtTypeFilter.UpdateType.COMPLETE;
-                    }, domainObj, cmwMsg);
-                } else if (future.replyType == DataSourceFilter.ReplyType.GET) {
-                    final ZMsg cmwMsg = event.payload.get(ZMsg.class);
-                    final String header = cmwMsg.poll().getString(Charset.defaultCharset());
-                    final byte[] body = cmwMsg.poll().getData();
-                    final String exc = cmwMsg.poll().getString(Charset.defaultCharset());
+            final ThePromisedFuture<?> future = dataSourceFilter.future;
+            if (future.replyType == DataSourceFilter.ReplyType.SUBSCRIBE) {
+                final Class<?> domainClass = future.getRequestedDomainObjType();
+                final ZMsg cmwMsg = event.payload.get(ZMsg.class);
+                final String header = cmwMsg.poll().getString(Charset.defaultCharset());
+                final byte[] body = cmwMsg.poll().getData();
+                final String exc = cmwMsg.poll().getString(Charset.defaultCharset());
+                Object domainObj = null;
+                if (body != null && body.length != 0) {
                     ioClassSerialiser.setDataBuffer(FastByteBuffer.wrap(body));
-                    final Object obj = ioClassSerialiser.deserialiseObject(future.getRequestedDomainObjType());
-                    // todo: set exception for future
-                    future.setReply(future.getRequestedDomainObjType().cast(obj));
+                    domainObj = ioClassSerialiser.deserialiseObject(domainClass);
                     ioClassSerialiser.setDataBuffer(byteBuffer); // allow received byte array to be released
-                } else {
-                    // ignore other reply types for now
                 }
+                publicationTarget.getRingBuffer().publishEvent((publishEvent, seq, obj) -> {
+                    final TimingCtx contextFilter = publishEvent.getFilter(TimingCtx.class);
+                    final EvtTypeFilter evtTypeFilter = publishEvent.getFilter(EvtTypeFilter.class);
+                    publishEvent.arrivalTimeStamp = event.arrivalTimeStamp;
+                    publishEvent.payload = new SharedPointer<>();
+                    publishEvent.payload.set(obj);
+                    if (exc != null && !exc.isBlank()) {
+                        publishEvent.throwables.add(new Exception(exc));
+                    }
+                    try {
+                        contextFilter.setSelector(dataSourceFilter.context, 0);
+                    } catch (Exception e) {
+                        LOGGER.atError().setCause(e).addArgument(dataSourceFilter.context).log("No valid context: {}");
+                    }
+                    // contextFilter.acqts = msg.dataContext.acqStamp; // needs to be added?
+                    // contextFilter.ctxName = // what should go here?
+                    evtTypeFilter.evtType = EvtTypeFilter.DataType.DEVICE_DATA;
+                    evtTypeFilter.typeName = dataSourceFilter.device + '/' + dataSourceFilter.property;
+                    evtTypeFilter.updateType = EvtTypeFilter.UpdateType.COMPLETE;
+                }, domainObj);
+            } else if (future.replyType == DataSourceFilter.ReplyType.GET) {
+                // get data from socket
+                final ZMsg cmwMsg = event.payload.get(ZMsg.class);
+                final String header = cmwMsg.poll().getString(Charset.defaultCharset());
+                final byte[] body = cmwMsg.poll().getData();
+                final String exc = cmwMsg.poll().getString(Charset.defaultCharset());
+                // deserialise
+                Object obj = null;
+                if (body != null && body.length != 0) {
+                    ioClassSerialiser.setDataBuffer(FastByteBuffer.wrap(body));
+                    obj = ioClassSerialiser.deserialiseObject(future.getRequestedDomainObjType());
+                    ioClassSerialiser.setDataBuffer(byteBuffer); // allow received byte array to be released
+                }
+                // notify future
+                if (exc != null && !exc.isBlank()){
+                    future.setException(new Exception(exc));
+                } else {
+                    future.castAndSetReply(obj);
+                }
+                // publish to ring buffer
+                publicationTarget.getRingBuffer().publishEvent((publishEvent, seq, o) -> {
+                    final TimingCtx contextFilter = publishEvent.getFilter(TimingCtx.class);
+                    final EvtTypeFilter evtTypeFilter = publishEvent.getFilter(EvtTypeFilter.class);
+                    publishEvent.arrivalTimeStamp = event.arrivalTimeStamp;
+                    publishEvent.payload = new SharedPointer<>();
+                    publishEvent.payload.set(o);
+                    if (exc != null && !exc.isBlank()) {
+                        publishEvent.throwables.add(new Exception(exc));
+                    }
+                    try {
+                        contextFilter.setSelector(dataSourceFilter.context, 0);
+                    } catch (Exception e) {
+                        LOGGER.atError().setCause(e).addArgument(dataSourceFilter.context).log("No valid context: {}");
+                    }
+                    // contextFilter.acqts = msg.dataContext.acqStamp; // needs to be added?
+                    // contextFilter.ctxName = // what should go here?
+                    evtTypeFilter.evtType = EvtTypeFilter.DataType.DEVICE_DATA;
+                    evtTypeFilter.typeName = dataSourceFilter.device + '/' + dataSourceFilter.property;
+                    evtTypeFilter.updateType = EvtTypeFilter.UpdateType.COMPLETE;
+                }, obj);
             } else {
+                // ignore other reply types for now
                 // todo: publish statistics, connection state and getRequests
                 LOGGER.atInfo().addArgument(event.payload.get()).log("{}");
             }
@@ -146,7 +170,7 @@ public class DataSourcePublisher implements Runnable {
         poller.register(controlSocket, ZMQ.Poller.POLLIN);
         // instantiate event store
         eventStore = EventStore.getFactory().setSingleProducer(true).setFilterConfig(DataSourceFilter.class).build();
-        // register default handlers
+        // register default handlers // TODO: find out how to do this without having to reference them directly
         // DataSource.register(CmwLightClient.FACTORY);
         // DataSource.register(RestDataSource.FACTORY);
         this.clientId = clientId.length == 1 ? clientId[0] : DataSourcePublisher.class.getName();
@@ -206,8 +230,7 @@ public class DataSourcePublisher implements Runnable {
         // RBAC
         if (rbacProvider.length > 0 || this.rbacProvider != null) {
             final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
-            // rbac.sign(msg);
-            // todo: sign message and add rbac token and signature
+            // rbac.sign(msg); // todo: sign message and add rbac token and signature
         } else {
             msg.add(EMPTY_FRAME);
         }
@@ -248,8 +271,7 @@ public class DataSourcePublisher implements Runnable {
         // RBAC
         if (rbacProvider.length > 0 || this.rbacProvider != null) {
             final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
-            // rbac.sign(msg);
-            // todo: sign message and add rbac token and signature
+            // rbac.sign(msg); // todo: sign message and add rbac token and signature
         } else {
             msg.add(EMPTY_FRAME);
         }
@@ -291,8 +313,7 @@ public class DataSourcePublisher implements Runnable {
         // RBAC
         if (rbacProvider.length > 0 || this.rbacProvider != null) {
             final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
-            // rbac.sign(msg);
-            // todo: sign message and add rbac token and signature
+            // rbac.sign(msg); // todo: sign message and add rbac token and signature
         } else {
             msg.add(EMPTY_FRAME);
         }
@@ -422,8 +443,8 @@ public class DataSourcePublisher implements Runnable {
     }
 
     private DataSource getClient(final String endpoint, final byte[] filters) {
-        return clientMap.computeIfAbsent(endpoint, requestedEndPoint -> {
-            final DataSource dataSource = DataSource.getFactory(requestedEndPoint).newInstance(context, requestedEndPoint, Duration.ofMillis(100), Long.toString(internalReqIdGenerator.incrementAndGet()), filters);
+        return clientMap.computeIfAbsent(endpoint.split("\\?")[0], requestedEndPoint -> {
+            final DataSource dataSource = DataSource.getFactory(requestedEndPoint).newInstance(context, endpoint, Duration.ofMillis(100), Long.toString(internalReqIdGenerator.incrementAndGet()), filters);
             clients.add(dataSource);
             clientsThreadsafe.add(dataSource);
             poller.register(dataSource.getSocket(), ZMQ.Poller.POLLIN);
@@ -431,81 +452,22 @@ public class DataSourcePublisher implements Runnable {
         });
     }
 
-
-
-    public static class ThePromisedFuture<R> implements Future<R> {
-        private final Lock lock = new ReentrantLock();
-        private final Condition processorNotifyCondition = lock.newCondition();
-        private final AtomicBoolean running = new AtomicBoolean(true);
-        private final AtomicBoolean requestCancel = new AtomicBoolean(false);
-        private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    public static class ThePromisedFuture<R> extends CustomFuture<R> {
         private final String endpoint;
         private final Map<String, Object> requestFilter;
         private final Object requestBody;
         private final Class<R> requestedDomainObjType;
         private final DataSourceFilter.ReplyType replyType;
         private final String internalRequestID;
-        private R reply = null;
 
         ThePromisedFuture(final String endpoint, final Map<String, Object> requestFilter, final Object requestBody, final Class<R> requestedDomainObjType, final DataSourceFilter.ReplyType replyType, final String internalRequestID) {
+            super();
             this.endpoint = endpoint;
             this.requestFilter = requestFilter;
             this.requestBody = requestBody;
             this.requestedDomainObjType = requestedDomainObjType;
             this.replyType = replyType;
             this.internalRequestID = internalRequestID;
-        }
-
-        @Override
-        public boolean cancel(final boolean mayInterruptIfRunning) {
-            if (running.getAndSet(false)) {
-                cancelled.set(true);
-                return !requestCancel.getAndSet(true);
-            }
-            return false;
-        }
-
-        @Override
-        public R get() throws InterruptedException{
-            if (isDone()) {
-                return reply;
-            }
-            lock.lock();
-            try {
-                while (!isDone()) {
-                    processorNotifyCondition.await();
-                }
-            } finally {
-                lock.unlock();
-            }
-            return reply;
-        }
-
-        @Override
-        public R get(final long timeout, final TimeUnit unit) throws InterruptedException, TimeoutException {
-            if (isCancelled()) {
-                throw new CancellationException("Future was already cancelled");
-            }
-            if (isDone()) {
-                return reply;
-            }
-            lock.lock();
-            try {
-                while (!isDone()) {
-                    if (!processorNotifyCondition.await(timeout, unit)) {
-                        throw new TimeoutException("Future timed out");
-                    }
-                    if (isCancelled()) {
-                        throw new CancellationException("Future was already cancelled");
-                    }
-                }
-            } catch (InterruptedException e) {
-                lock.unlock();
-                throw e;
-            } finally {
-                lock.unlock();
-            }
-            return reply;
         }
 
         public String getEndpoint() {
@@ -528,35 +490,13 @@ public class DataSourcePublisher implements Runnable {
             return requestedDomainObjType;
         }
 
-        @Override
-        public boolean isCancelled() {
-            return cancelled.get();
-        }
-
-        @Override
-        public boolean isDone() {
-            return (reply != null && !running.get()) || cancelled.get();
-        }
-
         @SuppressWarnings("unchecked")
-        protected void setReply(final Object newValue) {
-            if (running.getAndSet(false)) {
-                this.reply = (R) newValue;
-            }
-            notifyListener();
+        protected void castAndSetReply(final Object newValue) {
+            this.setReply((R) newValue);
         }
 
         public String getInternalRequestID() {
             return internalRequestID;
-        }
-
-        private void notifyListener() {
-            lock.lock();
-            try {
-                processorNotifyCondition.signalAll();
-            } finally {
-                lock.unlock();
-            }
         }
     }
 }

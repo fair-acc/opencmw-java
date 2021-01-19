@@ -14,6 +14,7 @@ public class CustomFuture<T> implements Future<T> {
     private final AtomicBoolean requestCancel = new AtomicBoolean(false);
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private T reply = null;
+    private Throwable exception = null;
 
     @Override
     public boolean cancel(final boolean mayInterruptIfRunning) {
@@ -59,6 +60,9 @@ public class CustomFuture<T> implements Future<T> {
         } finally {
             lock.unlock();
         }
+        if (exception != null) {
+            throw new ExecutionException(exception);
+        }
         return reply;
     }
 
@@ -80,6 +84,15 @@ public class CustomFuture<T> implements Future<T> {
     public void setReply(final T newValue) {
         if (running.getAndSet(false)) {
             this.reply = newValue;
+        } else {
+            throw new IllegalStateException("future is not running anymore (either cancelled or already notified)");
+        }
+        notifyListener();
+    }
+
+    public void setException(final Throwable exception) {
+        if (running.getAndSet(false)) {
+            this.exception = exception;
         } else {
             throw new IllegalStateException("future is not running anymore (either cancelled or already notified)");
         }

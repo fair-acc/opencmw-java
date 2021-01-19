@@ -11,10 +11,8 @@ import org.zeromq.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -29,7 +27,7 @@ public class CmwLightClient extends DataSource {
     private static final AtomicLong connectionIdGenerator = new AtomicLong(0); // global counter incremented for each connection
     private static final AtomicInteger requestIdGenerator = new AtomicInteger(0);
     public static final String RDA_3_PROTOCOL = "rda3://";
-    private static Factory FACTORY = new Factory() {
+    public static final Factory FACTORY = new Factory() {
         @Override
         public boolean matches(final String endpoint) {
             return endpoint.startsWith(RDA_3_PROTOCOL);
@@ -62,6 +60,8 @@ public class CmwLightClient extends DataSource {
     protected static final int heartbeatAllowedMisses = 3; // number of heartbeats which can be missed before resetting the conection
     protected static final long subscriptionTimeout = 1000; // maximum time after which a connection should be reconnected
     protected int backOff = 20;
+    private final Queue<Request<?>> queuedRequests = new LinkedBlockingQueue<>();
+    private final Map<Long, String> pendingRequests = new HashMap<>();
 
     public CmwLightClient(final ZContext context, final String endpoint, final Duration timeout, final String clientId, final byte[] filters) {
         super(context, endpoint, timeout, clientId, filters);
@@ -115,7 +115,7 @@ public class CmwLightClient extends DataSource {
                 final Subscription subscription = subscriptions.values().stream().filter(s -> s.id == reply.id).findAny().orElseThrow();
                 result.add(subscription.idString);
             } else { // error for get or other requests
-                result.add(Long.toString(reply.id)); // todo: get correct id from list of running requests
+                result.add(pendingRequests.remove(reply.id));
             }
             result.add(endpoint.toString());
             result.add(new ZFrame(new byte[0])); // header
@@ -123,7 +123,13 @@ public class CmwLightClient extends DataSource {
             result.add(reply.exceptionMessage.message); // exception
             return result;
         } else if (reply.requestType.equals(CmwLightProtocol.RequestType.REPLY)) {
-            return new ZMsg();
+            final ZMsg result = new ZMsg();
+            result.add(pendingRequests.remove(reply.id));
+            result.add(endpoint.getEndpointForContext(reply.dataContext.cycleName));
+            result.add(new ZFrame(new byte[0])); // header
+            result.add(reply.bodyData); // body
+            result.add(new ZFrame(new byte[0])); // exception
+            return result;
         } else {
             return new ZMsg();
         }
@@ -140,14 +146,17 @@ public class CmwLightClient extends DataSource {
         return endpoint.toString();
     }
 
+
     @Override
-    public void get(final String requestId, final String filterPattern, final byte[] filters1, final byte[] data, final byte[] rbacToken) {
-        throw new UnsupportedOperationException("not yet implemented");
+    public void get(final String requestId, final String filterPattern, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+        final Request request = new Request(CmwLightProtocol.RequestType.GET, requestId, filterPattern, filters, data, rbacToken);
+        queuedRequests.add(request);
     }
 
     @Override
-    public void set(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
-        throw new UnsupportedOperationException("Set is not implemented for cmw light");
+    public void set(final String requestId, final String filterPattern, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+        final Request request = new Request(CmwLightProtocol.RequestType.SET, requestId, filterPattern, filters, data, rbacToken);
+        queuedRequests.add(request);
     }
 
     @Override
@@ -302,6 +311,11 @@ public class CmwLightClient extends DataSource {
             }
             return lastHbSent + heartbeatInterval * heartbeatAllowedMisses;
         case CONNECTED:
+            Request<?> request;
+            while((request = queuedRequests.poll()) != null) {
+                pendingRequests.put(request.id, request.requestId);
+                sendRequest(request);
+            }
             if (currentTime > lastHbSent + heartbeatInterval) { // check for heartbeat interval
                 // send Heartbeats
                 sendHeartBeat();
@@ -320,6 +334,32 @@ public class CmwLightClient extends DataSource {
             return lastHbSent + heartbeatInterval;
         default:
             throw new IllegalStateException("unexpected connection state: " + connectionState.get());
+        }
+    }
+
+    private void sendRequest(final Request<?> request) {
+        // Filters and data are already serialised but the protocol saves them deserialised :/
+        // final ZFrame data = request.data == null ? new ZFrame(new byte[0]) : new ZFrame(request.data);
+        // final ZFrame filters = request.filters == null ? new ZFrame(new byte[0]) : new ZFrame(request.filters);
+        final Endpoint requestEndpoint = new Endpoint(request.filterPattern);
+
+        try {
+            switch (request.requestType) {
+                case GET:
+                    CmwLightProtocol.sendMsg(socket, CmwLightMessage.getRequest(
+                            sessionId, request.id, endpoint.getDevice(), endpoint.getProperty(),
+                            new CmwLightMessage.RequestContext(requestEndpoint.getSelector(), requestEndpoint.getFilters(), null)));
+                    break;
+                case SET:
+                    Objects.requireNonNull(request.data, "Data for set cannot be null");
+                    CmwLightProtocol.sendMsg(socket, CmwLightMessage.setRequest(
+                            sessionId, request.id, endpoint.getDevice(), endpoint.getProperty(),
+                            new ZFrame(request.data),
+                            new CmwLightMessage.RequestContext(requestEndpoint.getSelector(), requestEndpoint.getFilters(), null)));
+                    break;
+            }
+        } catch (CmwLightProtocol.RdaLightException e) {
+            LOGGER.atDebug().setCause(e).log("Error sending get request:");
         }
     }
 
@@ -412,6 +452,26 @@ public class CmwLightClient extends DataSource {
         public String toString() {
             return "Subscription{"
                     + "property='" + property + '\'' + ", device='" + device + '\'' + ", selector='" + selector + '\'' + ", filters=" + filters + ", subscriptionState=" + subscriptionState + ", backOff=" + backOff + ", id=" + id + ", updateId=" + updateId + ", timeoutValue=" + timeoutValue + '}';
+        }
+    }
+
+    public static class Request<T>  {
+        public final byte[] filters;
+        public final byte[] data;
+        public final long id;
+        private final String requestId;
+        private final String filterPattern;
+        private final byte[] rbacToken;
+        public CmwLightProtocol.RequestType requestType;
+
+        public Request(final CmwLightProtocol.RequestType requestType, final String requestId, final String filterPattern, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+            this.requestType = requestType;
+            this.id = requestIdGenerator.incrementAndGet();
+            this.requestId = requestId;
+            this.filterPattern = filterPattern;
+            this.filters = filters;
+            this.data = data;
+            this.rbacToken = rbacToken;
         }
     }
 

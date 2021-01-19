@@ -7,10 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -261,7 +258,7 @@ class DataSourceProducerTest {
     }
 
     @Test
-    void testFuture() throws InterruptedException {
+    void testFuture() throws InterruptedException, ExecutionException {
         final Float replyObject = (float) Math.PI;
 
         {
@@ -298,7 +295,7 @@ class DataSourceProducerTest {
             assertFalse(future.isCancelled());
             future.cancel(true);
             assertTrue(future.isCancelled());
-            Awaitility.waitAtMost(Duration.ofSeconds(1)).until(() -> !replyObject.equals(future.get()));
+            assertThrows(CancellationException.class, () -> future.get(1, TimeUnit.SECONDS));
         }
     }
 }
