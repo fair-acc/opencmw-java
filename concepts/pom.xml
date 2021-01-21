@@ -11,6 +11,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>concepts</artifactId>
+    <description>
+        Module for experimental features which will be moved to more appropriate modules once they become stable.
+    </description>
+
     <dependencies>
         <dependency>
             <groupId>io.opencmw</groupId>

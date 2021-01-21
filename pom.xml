@@ -168,10 +168,10 @@
                         --add-opens io.opencmw.serialiser/io.opencmw.serialiser.spi=ALL-UNNAMED
                         --add-opens io.opencmw.serialiser/io.opencmw.serialiser.spi.iobuffer=ALL-UNNAMED
                         --add-opens io.opencmw.serialiser/io.opencmw.serialiser.annotations=ALL-UNNAMED
-                        --add-opens io.opencmw.core/io.opencmw.core=ALL-UNNAMED
-                        --add-opens io.opencmw.core/io.opencmw.core.filter=ALL-UNNAMED
-                        --add-opens io.opencmw.core/io.opencmw.core.utils=ALL-UNNAMED
-                        --add-opens io.opencmw.core/io.opencmw.core.datasource=ALL-UNNAMED
+                        --add-opens io.opencmw.core/io.opencmw=ALL-UNNAMED
+                        --add-opens io.opencmw.core/io.opencmw.filter=ALL-UNNAMED
+                        --add-opens io.opencmw.core/io.opencmw.utils=ALL-UNNAMED
+                        --add-opens io.opencmw.core/io.opencmw.datasource=ALL-UNNAMED
                         --add-opens io.opencmw.client/io.opencmw.client=ALL-UNNAMED
                         --add-opens io.opencmw.client/io.opencmw.client.rest=ALL-UNNAMED
                         --add-opens io.opencmw.client/io.opencmw.client.cmwlight=ALL-UNNAMED

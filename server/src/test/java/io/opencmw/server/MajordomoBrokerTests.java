@@ -344,7 +344,7 @@ class MajordomoBrokerTests {
             internal.notify(testMessage);
         }
 
-        await().alias("wait for reply messages").atMost(1, TimeUnit.SECONDS).until(counter::get, equalTo(10));
+        await().alias("wait for reply messages").atMost(2, TimeUnit.SECONDS).until(counter::get, equalTo(10));
         run.set(false);
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
         assertFalse(subcriptionThread.isAlive(), "subscription thread shut-down");

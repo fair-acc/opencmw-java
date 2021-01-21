@@ -161,8 +161,8 @@ public class OpenCmwProtocol {
         public byte[] serviceNameBytes; // UTF-8 encoded service name and/or clientID
         /** OpenCMW frame 4: custom client request ID (N.B. client-generated and transparently passed through broker and worker) */
         public byte[] clientRequestID;
-        /** OpenCMW frame 5: request/reply topic -- follows URI syntax, ie. 'scheme:[//authority]path[?query][#fragment]' see {@link <a href="https://tools.ietf.org/html/rfc3986">documentation</a>} */
-        public URI topic; // request/reply topic - follows URI syntax, ie. 'scheme:[//authority]path[?query][#fragment]'
+        /** OpenCMW frame 5: request/reply topic -- follows URI syntax, ie. '<pre>scheme:[//authority]path[?query][#fragment]</pre>' see <a href="https://tools.ietf.org/html/rfc3986">documentation</a> */
+        public URI topic; // request/reply topic - follows URI syntax, ie. '<pre>scheme:[//authority]path[?query][#fragment]</pre>'
         /** OpenCMW frame 6: data (may be null if error stack is not blank) */
         public byte[] data;
         /** OpenCMW frame 7: error stack -- UTF-8 string (may be blank if data is not null) */
@@ -177,11 +177,11 @@ public class OpenCmwProtocol {
         /**
          * generate new (immutable) MdpMessage representation
          * @param senderID OpenCMW frame 0: sender source ID - usually the ID from the MDP broker ROUTER socket for the given connection
-         * @param protocol OpenCMW frame 1: unique protocol identifier {@see MdpSubProtocol}
-         * @param command OpenCMW frame 2: command {@see Command}
+         * @param protocol OpenCMW frame 1: unique protocol identifier (see: MdpSubProtocol)
+         * @param command OpenCMW frame 2: command (see: Command)
          * @param serviceID OpenCMW frame 3: service name (for client sub-protocols) or client source ID (for worker sub-protocol)
          * @param clientRequestID OpenCMW frame 4: custom client request ID (N.B. client-generated and transparently passed through broker and worker)
-         * @param topic openCMW frame 5: the request/reply topic - follows URI syntax, ie. 'scheme:[//authority]path[?query][#fragment]' see {@link <a href="https://tools.ietf.org/html/rfc3986">documentation</a>}
+         * @param topic openCMW frame 5: the request/reply topic - follows URI syntax, ie. '<pre>scheme:[//authority]path[?query][#fragment]</pre>' see <a href="https://tools.ietf.org/html/rfc3986">documentation</a>
          * @param data OpenCMW frame 6: data - may be null in case errors is not null
          * @param errors OpenCMW frame 7: error stack -- UTF-8 string may be blank only if data is not null
          * @param rbacToken OpenCMW frame 8 (optional): RBAC token
