@@ -6,9 +6,6 @@ import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Map;
 
-import io.opencmw.serialiser.DataType;
-import io.opencmw.serialiser.FieldDescription;
-import io.opencmw.serialiser.spi.WireDataFieldDescription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,9 +14,13 @@ import de.gsi.dataset.spi.AbstractDataSet;
 import de.gsi.dataset.spi.DataSetBuilder;
 import de.gsi.dataset.spi.utils.MathUtils;
 import de.gsi.dataset.spi.utils.StringHashMapList;
-import de.gsi.dataset.utils.AssertUtils;
-import de.gsi.dataset.utils.GenericsHelper;
+
+import io.opencmw.serialiser.DataType;
+import io.opencmw.serialiser.FieldDescription;
 import io.opencmw.serialiser.IoSerialiser;
+import io.opencmw.serialiser.spi.WireDataFieldDescription;
+import io.opencmw.serialiser.utils.AssertUtils;
+import io.opencmw.serialiser.utils.GenericsHelper;
 
 /**
  * Class to efficiently serialise and de-serialise DataSet objects into binary byte arrays. The performance can be tuned

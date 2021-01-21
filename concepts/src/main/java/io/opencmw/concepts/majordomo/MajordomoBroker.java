@@ -27,7 +27,6 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.opencmw.server.rbac.RbacRole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
@@ -35,10 +34,10 @@ import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMQException;
 
-import io.opencmw.server.rbac.BasicRbacRole;
-import io.opencmw.server.rbac.RbacRole;
-import io.opencmw.server.rbac.RbacToken;
-import io.opencmw.core.utils.SystemProperties;
+import io.opencmw.rbac.BasicRbacRole;
+import io.opencmw.rbac.RbacRole;
+import io.opencmw.rbac.RbacToken;
+import io.opencmw.utils.SystemProperties;
 
 /**
  * Majordomo Protocol broker -- a minimal implementation of http://rfc.zeromq.org/spec:7 and spec:8

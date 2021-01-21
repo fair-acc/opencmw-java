@@ -15,7 +15,7 @@ import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
 
 /**
-* Majordomo Protocol Client API, Java version Implements the MajordomoProtocol/Worker spec at
+* Majordomo Protocol Client API, Java version Implements the OpenCmwProtocol/Worker spec at
 * http://rfc.zeromq.org/spec:7.
 *
 */
@@ -93,7 +93,7 @@ public class MajordomoClientV1 {
      * NULL if there was no reply.
      *
      * @param service service name
-     * @param msgs message(s) to be sent to MajordomoProtocol broker (if more than one, than the last is assumed to be a RBAC-token
+     * @param msgs message(s) to be sent to OpenCmwProtocol broker (if more than one, than the last is assumed to be a RBAC-token
      * @return reply message or NULL if there was no reply
      */
     public ZMsg send(final String service, final byte[]... msgs) {
@@ -106,7 +106,7 @@ public class MajordomoClientV1 {
      * NULL if there was no reply.
      *
      * @param service UTF-8 encoded service name byte array
-     * @param msgs message(s) to be sent to MajordomoProtocol broker (if more than one, than the last is assumed to be a RBAC-token
+     * @param msgs message(s) to be sent to OpenCmwProtocol broker (if more than one, than the last is assumed to be a RBAC-token
      * @return reply message or NULL if there was no reply
      */
     public ZMsg send(final byte[] service, final byte[]... msgs) {

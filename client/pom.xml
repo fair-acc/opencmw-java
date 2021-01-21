@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.opencmw</groupId>
+        <artifactId>opencmw</artifactId>
+        <version>${revision}${sha1}${changelist}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>client</artifactId>
+
+    <description>
+        OpenCmw, CmwLight, and RESTful client implementations.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.opencmw</groupId>
+            <artifactId>core</artifactId>
+            <version>${revision}${sha1}${changelist}</version>
+        </dependency>
+        <dependency> <!-- primarily still needed due to dependencies of the serialiser on MultiArrayXxxx from 'de.gsi' -->
+            <groupId>de.gsi.dataset</groupId>
+            <artifactId>chartfx-dataset</artifactId>
+            <version>${version.chartfx}</version>
+        </dependency>
+        <!-- HTTP/REST client dependencies-->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>${version.okHttp3}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp-sse</artifactId>
+            <version>${version.okHttp3}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>${version.okHttp3}</version>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+</project>

@@ -23,11 +23,11 @@ import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
-import io.opencmw.server.rbac.RbacRole;
-import io.opencmw.core.utils.SystemProperties;
+import io.opencmw.rbac.RbacRole;
+import io.opencmw.utils.SystemProperties;
 
 /**
- * Majordomo Protocol Client API, Java version Implements the MajordomoProtocol/Worker spec at
+ * Majordomo Protocol Client API, Java version Implements the OpenCmwProtocol/Worker spec at
  * http://rfc.zeromq.org/spec:7.
  *
  * default heart-beat time-out [ms] is set by system property: 'OpenCMW.heartBeat' // default: 2500 [ms]

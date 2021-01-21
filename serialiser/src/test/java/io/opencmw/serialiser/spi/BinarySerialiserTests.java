@@ -22,12 +22,12 @@ import java.util.Set;
 import io.opencmw.serialiser.DataType;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.spi.helper.MyGenericClass;
+import io.opencmw.serialiser.utils.AssertUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import de.gsi.dataset.utils.AssertUtils;
 
 /**
  *

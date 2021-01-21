@@ -4,11 +4,11 @@ import java.nio.charset.StandardCharsets;
 
 import org.zeromq.ZMsg;
 
-import io.opencmw.server.rbac.BasicRbacRole;
-import io.opencmw.server.rbac.RbacToken;
+import io.opencmw.rbac.BasicRbacRole;
+import io.opencmw.rbac.RbacToken;
 
 /**
-* Majordomo Protocol client example. Uses the mdcli API to hide all MajordomoProtocol aspects
+* Majordomo Protocol client example. Uses the mdcli API to hide all OpenCmwProtocol aspects
 */
 public class ClientSampleV1 {
     private static final int N_SAMPLES = 50_000;

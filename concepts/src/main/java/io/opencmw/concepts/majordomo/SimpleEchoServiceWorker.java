@@ -1,9 +1,9 @@
 package io.opencmw.concepts.majordomo;
 
-import io.opencmw.server.rbac.BasicRbacRole;
+import io.opencmw.rbac.BasicRbacRole;
 
 /**
-* Majordomo Protocol worker example. Uses the mdwrk API to hide all MajordomoProtocol aspects
+* Majordomo Protocol worker example. Uses the mdwrk API to hide all OpenCmwProtocol aspects
 *
 */
 public class SimpleEchoServiceWorker {

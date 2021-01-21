@@ -27,8 +27,8 @@ import org.zeromq.Utils;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
 
-import io.opencmw.server.rbac.BasicRbacRole;
-import io.opencmw.server.rbac.RbacToken;
+import io.opencmw.rbac.BasicRbacRole;
+import io.opencmw.rbac.RbacToken;
 
 public class MajordomoBrokerTests {
     private static final byte[] DEFAULT_RBAC_TOKEN = new RbacToken(BasicRbacRole.ADMIN, "HASHCODE").getBytes();

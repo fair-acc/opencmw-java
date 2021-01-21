@@ -7,7 +7,15 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
-import de.gsi.dataset.spi.utils.*;
+import de.gsi.dataset.spi.utils.MultiArrayBoolean;
+import de.gsi.dataset.spi.utils.MultiArrayByte;
+import de.gsi.dataset.spi.utils.MultiArrayChar;
+import de.gsi.dataset.spi.utils.MultiArrayDouble;
+import de.gsi.dataset.spi.utils.MultiArrayFloat;
+import de.gsi.dataset.spi.utils.MultiArrayInt;
+import de.gsi.dataset.spi.utils.MultiArrayLong;
+import de.gsi.dataset.spi.utils.MultiArrayObject;
+import de.gsi.dataset.spi.utils.MultiArrayShort;
 import io.opencmw.serialiser.spi.BinarySerialiser;
 
 /**

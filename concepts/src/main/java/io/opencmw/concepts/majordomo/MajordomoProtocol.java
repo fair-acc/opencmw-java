@@ -110,10 +110,10 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
      * Send worker message according to the MDP 'client' sub-protocol
      *
      * @param socket ZeroMQ socket to send the message on
-     * @param mdpClientCommand the MajordomoProtocol mdpWorkerCommand
+     * @param mdpClientCommand the OpenCmwProtocol mdpWorkerCommand
      * @param sourceID the unique source ID of the peer client (usually 5 bytes, can be overwritten, BROKER sockets need this to be non-null)
      * @param serviceName the unique, original source ID the broker shall forward this message to
-     * @param msg message(s) to be sent to MajordomoProtocol broker (if more than one, than the last is assumed to be a RBAC-token
+     * @param msg message(s) to be sent to OpenCmwProtocol broker (if more than one, than the last is assumed to be a RBAC-token
      *
      * @return {@code true} if successful
      */
@@ -143,10 +143,10 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
      * Send worker message according to the MDP 'worker' sub-protocol
      *
      * @param socket ZeroMQ socket to send the message on
-     * @param mdpWorkerCommand the MajordomoProtocol mdpWorkerCommand
+     * @param mdpWorkerCommand the OpenCmwProtocol mdpWorkerCommand
      * @param sourceID the unique source ID of the peer client (usually 5 bytes, can be overwritten, BROKER sockets need this to be non-null)
      * @param clientID the unique, original source ID the broker shall forward this message to
-     * @param msg message(s) to be sent to MajordomoProtocol broker (if more than one, than the last is assumed to be a RBAC-token
+     * @param msg message(s) to be sent to OpenCmwProtocol broker (if more than one, than the last is assumed to be a RBAC-token
      *
      * @return {@code true} if successful
      */
@@ -211,8 +211,8 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
      * MDP sub-protocol V0.1
      */
     public enum MdpSubProtocol {
-        C_CLIENT("MDPC01"), // MajordomoProtocol/Client implementation version
-        W_WORKER("MDPW01"), // MajordomoProtocol/Worker implementation version
+        C_CLIENT("MDPC01"), // OpenCmwProtocol/Client implementation version
+        W_WORKER("MDPW01"), // OpenCmwProtocol/Worker implementation version
         UNKNOWN("XXXXXX");
 
         private final byte[] data;
@@ -250,7 +250,7 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
     }
 
     /**
-     * MajordomoProtocol/Server commands, as byte values
+     * OpenCmwProtocol/Server commands, as byte values
      */
     public enum MdpWorkerCommand {
         W_READY(0x01),
@@ -291,7 +291,7 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
     }
 
     /**
-     * MajordomoProtocol/Client commands, as byte values
+     * OpenCmwProtocol/Client commands, as byte values
      */
     public enum MdpClientCommand {
         C_UNKNOWN(-1); // N.B. Majordomo V0.1 does not provide dedicated client commands
