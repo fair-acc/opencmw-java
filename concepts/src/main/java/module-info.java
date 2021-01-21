@@ -7,7 +7,6 @@ module io.opencmw.concepts {
     requires java.management;
     requires io.opencmw;
 
-    exports io.opencmw.concepts.cmwlight;
     exports io.opencmw.concepts.aggregate;
     exports io.opencmw.concepts.majordomo;
     exports io.opencmw.concepts.majordomo.legacy;
