@@ -29,7 +29,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <versions.slf4j>2.0.0-alpha0</versions.slf4j>
         <versions.jupiter>5.7.0</versions.jupiter>
-        <versions.chartfx>master-SNAPSHOT</versions.chartfx>
+        <versions.chartfx>11.2.3</versions.chartfx>
     </properties>
 
     <licenses>
