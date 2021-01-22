@@ -44,7 +44,7 @@
         <version.JMemoryBuddy>0.5.0</version.JMemoryBuddy>
         <version.jmh>1.27</version.jmh>
         <version.micrometer>1.6.3</version.micrometer>
-        <version.velocity>2.0</version.velocity>
+        <version.velocity>2.2</version.velocity>
         <version.chartfx>11.2.3</version.chartfx>
     </properties>
 
