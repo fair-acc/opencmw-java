@@ -2,9 +2,9 @@ package io.opencmw;
 
 import static org.zeromq.ZMQ.Socket;
 
-import static io.opencmw.OpenCmwProtocol.Command.FINAL;
-import static io.opencmw.OpenCmwProtocol.Command.PARTIAL;
-import static io.opencmw.OpenCmwProtocol.Command.UNKNOWN;
+import static io.opencmw.OpenCmwProtocol.Command.*;
+import static io.opencmw.utils.AnsiDefs.ANSI_RED;
+import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.validation.constraints.NotNull;
@@ -23,6 +24,8 @@ import org.zeromq.ZFrame;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
 import org.zeromq.util.ZData;
+
+import io.opencmw.utils.AnsiDefs;
 
 /**
  * Open Common Middle-Ware Protocol
@@ -44,6 +47,7 @@ public class OpenCmwProtocol {
     protected static final byte[] PROTOCOL_NAME_CLIENT_HTTP = "MDPH03".getBytes(StandardCharsets.UTF_8);
     protected static final byte[] PROTOCOL_NAME_WORKER = "MDPW03".getBytes(StandardCharsets.UTF_8);
     protected static final byte[] PROTOCOL_NAME_UNKNOWN = "UNKNOWN_PROTOCOL".getBytes(StandardCharsets.UTF_8);
+    protected static final int MAX_PRINT_LENGTH = 200; // unique client id, see ROUTER socket docs for info
     protected static final int FRAME0_SOURCE_ID = 0; // unique client id, see ROUTER socket docs for info
     protected static final int FRAME1_PROTOCOL_ID = 1; // 'MDPC0<x>' or 'MDPW0<x>'
     protected static final int FRAME2_COMMAND_ID = 2;
@@ -107,7 +111,7 @@ public class OpenCmwProtocol {
         SUBSCRIBE(0x07, true, true), // client specific command
         UNSUBSCRIBE(0x08, true, true), // client specific command
         W_NOTIFY(0x09, false, true), // worker specific command
-        W_HEARTBEAT(0x10, false, true), // worker specific command, optional for client
+        W_HEARTBEAT(0x10, true, true), // worker specific command, optional for client
         UNKNOWN(-1, false, false);
 
         private final byte[] data;
@@ -132,7 +136,7 @@ public class OpenCmwProtocol {
         }
 
         public static Command getCommand(byte[] frame) {
-            for (Command knownMdpCommand : Command.values()) {
+            for (Command knownMdpCommand : values()) {
                 if (Arrays.equals(knownMdpCommand.data, frame)) {
                     if (knownMdpCommand == UNKNOWN) {
                         continue;
@@ -150,6 +154,7 @@ public class OpenCmwProtocol {
      * For a non-programmatic protocol description see:
      * https://github.com/GSI-CS-CO/chart-fx/blob/master/microservice/docs/MajordomoProtocol.md
      */
+    @SuppressWarnings("PMD.TooManyMethods") // acceptable for this use
     public static class MdpMessage {
         /** OpenCMW frame 0: sender source ID - usually the ID from the MDP broker ROUTER socket for the given connection */
         public byte[] senderID;
@@ -313,9 +318,33 @@ public class OpenCmwProtocol {
 
         @Override
         public String toString() {
+            final String errStr = errors == null || errors.isBlank() ? "no-exception" : ANSI_RED + " exception thrown: " + errors + ANSI_RESET;
             return "MdpMessage{senderID='" + ZData.toString(senderID) + "', " + protocol + ", " + command + ", serviceName='" + getServiceName()
                     + "', clientRequestID='" + ZData.toString(clientRequestID) + "', topic='" + topic
-                    + "', data='" + ZData.toString(data) + "', errors=" + errors + ", rbac='" + ZData.toString(rbacToken) + "'}";
+                    + "', data='" + dataToString(data) + "', " + errStr + ", rbac='" + ZData.toString(rbacToken) + "'}";
+        }
+
+        protected static String dataToString(byte[] data) {
+            if (data == null) {
+                return "";
+            }
+            // Dump message as text or hex-encoded string
+            boolean isText = true;
+            for (byte aData : data) {
+                if (aData < AnsiDefs.MIN_PRINTABLE_CHAR) {
+                    isText = false;
+                    break;
+                }
+            }
+            if (isText) {
+                // always make full-print when there are only printable characters
+                return new String(data, ZMQ.CHARSET);
+            }
+            if (data.length < MAX_PRINT_LENGTH) {
+                return ZData.strhex(data);
+            } else {
+                return ZData.strhex(Arrays.copyOf(data, MAX_PRINT_LENGTH)) + "[" + (data.length - MAX_PRINT_LENGTH) + " more bytes]";
+            }
         }
 
         /**
@@ -341,10 +370,14 @@ public class OpenCmwProtocol {
                 msg.push(EMPTY_FRAME); // push empty client frame
             }
 
+            if (socket.getSocketType() == SocketType.SUB || socket.getSocketType() == SocketType.XSUB) {
+                msg.pollFirst(); // remove first subscription topic message -- not needed here since this is also encoded in the service/topic frame
+            }
+
             final List<byte[]> rawFrames = msg.stream().map(ZFrame::getData).collect(Collectors.toUnmodifiableList());
             if (rawFrames.size() <= 8) {
                 if (LOGGER.isDebugEnabled()) {
-                    LOGGER.atWarn().addArgument(rawFrames.size()).addArgument(toString(rawFrames)).log("received message size is < 8: {} rawMessage: {}");
+                    LOGGER.atWarn().addArgument(rawFrames.size()).addArgument(dataToString(rawFrames)).log("received message size is < 8: {} rawMessage: {}");
                 }
                 return null;
             }
@@ -355,16 +388,16 @@ public class OpenCmwProtocol {
             final MdpSubProtocol protocol = MdpSubProtocol.getProtocol(rawFrames.get(FRAME1_PROTOCOL_ID));
             if (protocol.equals(MdpSubProtocol.UNKNOWN)) {
                 if (LOGGER.isDebugEnabled()) {
-                    LOGGER.atWarn().addArgument(ZData.toString(rawFrames.get(FRAME1_PROTOCOL_ID))).addArgument(toString(rawFrames)).log("unknown protocol: '{}' rawMessage: {}");
+                    LOGGER.atWarn().addArgument(ZData.toString(rawFrames.get(FRAME1_PROTOCOL_ID))).addArgument(dataToString(rawFrames)).log("unknown protocol: '{}' rawMessage: {}");
                 }
                 return null;
             }
 
             // OpenCMW frame 2: command
-            final Command command = Command.getCommand(rawFrames.get(FRAME2_COMMAND_ID));
+            final Command command = getCommand(rawFrames.get(FRAME2_COMMAND_ID));
             if (command.equals(Command.UNKNOWN)) {
                 if (LOGGER.isDebugEnabled()) {
-                    LOGGER.atWarn().addArgument(ZData.toString(rawFrames.get(FRAME2_COMMAND_ID))).addArgument(toString(rawFrames)).log("unknown command: '{}' rawMessage: {}");
+                    LOGGER.atWarn().addArgument(ZData.toString(rawFrames.get(FRAME2_COMMAND_ID))).addArgument(dataToString(rawFrames)).log("unknown command: '{}' rawMessage: {}");
                 }
                 return null;
             }
@@ -374,7 +407,7 @@ public class OpenCmwProtocol {
             if (serviceNameBytes == null) {
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.atDebug().addKeyValue("a", "dd").log("");
-                    LOGGER.atWarn().addArgument(toString(rawFrames)).log("serviceNameBytes is null, rawMessage: {}");
+                    LOGGER.atWarn().addArgument(dataToString(rawFrames)).log("serviceNameBytes is null, rawMessage: {}");
                 }
                 return null;
             }
@@ -386,7 +419,7 @@ public class OpenCmwProtocol {
             final byte[] topicBytes = rawFrames.get(FRAME5_TOPIC);
             if (topicBytes == null) {
                 if (LOGGER.isDebugEnabled()) {
-                    LOGGER.atWarn().addArgument(toString(rawFrames)).log("topic is null, rawMessage: {}");
+                    LOGGER.atWarn().addArgument(dataToString(rawFrames)).log("topic is null, rawMessage: {}");
                 }
                 return null;
             }
@@ -409,7 +442,7 @@ public class OpenCmwProtocol {
             final String errors = errorBytes == null || errorBytes.length == 0 ? "" : new String(errorBytes, StandardCharsets.UTF_8);
             if (data == null && errors.isBlank()) {
                 if (LOGGER.isDebugEnabled()) {
-                    LOGGER.atWarn().addArgument(toString(rawFrames)).log("data is null and errors is blank - {}");
+                    LOGGER.atWarn().addArgument(dataToString(rawFrames)).log("data is null and errors is blank - {}");
                 }
                 return null;
             }
@@ -438,7 +471,7 @@ public class OpenCmwProtocol {
             return original == null ? EMPTY_FRAME : Arrays.copyOf(original, original.length);
         }
 
-        protected static String toString(List<byte[]> data) {
+        protected static String dataToString(List<byte[]> data) {
             return data.stream().map(ZData::toString).collect(Collectors.joining(", ", "[#frames= " + data.size() + ": ", "]"));
         }
     }
@@ -457,6 +490,34 @@ public class OpenCmwProtocol {
         public Context(@NotNull MdpMessage requestMsg) {
             req = requestMsg;
             rep = new MdpMessage(req, FINAL);
+        }
+
+        @Override
+        public String toString() {
+            return "OpenCmwProtocol.Context{req=" + req + ", rep=" + rep + '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof Context)) {
+                return false;
+            }
+            Context context = (Context) o;
+
+            if (!Objects.equals(req, context.req)) {
+                return false;
+            }
+            return Objects.equals(rep, context.rep);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = req == null ? 0 : req.hashCode();
+            result = 31 * result + (rep == null ? 0 : rep.hashCode());
+            return result;
         }
     }
 }

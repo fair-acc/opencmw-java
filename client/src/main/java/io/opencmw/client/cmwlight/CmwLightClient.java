@@ -1,21 +1,32 @@
 package io.opencmw.client.cmwlight;
 
-import io.opencmw.datasource.DataSource;
-import io.opencmw.datasource.Endpoint;
-import io.opencmw.serialiser.IoSerialiser;
-import io.opencmw.serialiser.spi.BinarySerialiser;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.zeromq.*;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.zeromq.SocketType;
+import org.zeromq.ZContext;
+import org.zeromq.ZFrame;
+import org.zeromq.ZMQ;
+import org.zeromq.ZMQException;
+import org.zeromq.ZMsg;
+
+import io.opencmw.datasource.DataSource;
+import io.opencmw.datasource.Endpoint;
+import io.opencmw.serialiser.IoSerialiser;
+import io.opencmw.serialiser.spi.BinarySerialiser;
 
 /**
  * A lightweight implementation of the CMW RDA client part.

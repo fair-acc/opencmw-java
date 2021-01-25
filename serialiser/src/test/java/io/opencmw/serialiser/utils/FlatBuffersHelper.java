@@ -5,9 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
-import io.opencmw.serialiser.benchmark.SerialiserQuickBenchmark;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.opencmw.serialiser.benchmark.SerialiserQuickBenchmark;
 
 import com.google.flatbuffers.ArrayReadWriteBuf;
 import com.google.flatbuffers.FlexBuffers;

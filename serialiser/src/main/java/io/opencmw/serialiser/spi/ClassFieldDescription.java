@@ -14,11 +14,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import io.opencmw.serialiser.DataType;
-import io.opencmw.serialiser.FieldDescription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.opencmw.serialiser.DataType;
+import io.opencmw.serialiser.FieldDescription;
 import io.opencmw.serialiser.FieldSerialiser;
 import io.opencmw.serialiser.annotations.Description;
 import io.opencmw.serialiser.annotations.Direction;
@@ -49,6 +49,7 @@ public class ClassFieldDescription implements FieldDescription {
     private final Class<?> classType;
     private final DataType dataType;
     private final String typeName;
+    private final String typeNameSimple;
     private final int modifierID;
     private final boolean modPublic;
     private final boolean modProtected;
@@ -67,6 +68,7 @@ public class ClassFieldDescription implements FieldDescription {
     private final boolean isprimitive;
     private final boolean isclass;
     private final boolean isEnum;
+    private final List<?> enumDefinitions;
     private final boolean serializable;
     private String toStringName; // computed on demand and cached
     private Type genericType; // computed on demand and cached
@@ -135,6 +137,8 @@ public class ClassFieldDescription implements FieldDescription {
         annotationPresent = fieldUnit != null || fieldDescription != null || fieldDirection != null || !fieldGroups.isEmpty();
 
         typeName = ClassUtils.translateClassName(classType.getTypeName()).intern();
+        final int lastDot = typeName.lastIndexOf('.');
+        typeNameSimple = typeName.substring(lastDot < 0 ? 0 : lastDot + 1);
 
         modPublic = Modifier.isPublic(modifierID);
         modProtected = Modifier.isProtected(modifierID);
@@ -154,6 +158,11 @@ public class ClassFieldDescription implements FieldDescription {
         isprimitive = classType.isPrimitive();
         isclass = !isprimitive && !modInterface;
         isEnum = Enum.class.isAssignableFrom(classType);
+        if (isEnum) {
+            enumDefinitions = Collections.unmodifiableList(Arrays.asList(classType.getEnumConstants()));
+        } else {
+            enumDefinitions = Collections.emptyList();
+        }
         serializable = !modTransient && !modStatic;
     }
 
@@ -232,10 +241,9 @@ public class ClassFieldDescription implements FieldDescription {
 
     @Override
     public FieldDescription findChildField(final int fieldNameHashCode, final String fieldName) {
-        for (int i = 0; i < children.size(); i++) {
-            final FieldDescription child = children.get(i);
+        for (final FieldDescription child : children) {
             final String name = child.getFieldName();
-            if (name == fieldName) { //NOSONAR //NOPMD early return if the same String object reference
+            if (name == fieldName) { //NOSONAR NOPMD early return if the same String object reference
                 return child;
             }
             if (child.getFieldNameHashCode() == fieldNameHashCode && name.equals(fieldName)) {
@@ -343,7 +351,7 @@ public class ClassFieldDescription implements FieldDescription {
         return fieldNameRelative;
     }
 
-    public FieldSerialiser getFieldSerialiser() {
+    public FieldSerialiser<?> getFieldSerialiser() {
         return fieldSerialiser;
     }
 
@@ -467,6 +475,13 @@ public class ClassFieldDescription implements FieldDescription {
         return typeName;
     }
 
+    /**
+     * @return field class type name
+     */
+    public String getTypeNameSimple() {
+        return typeNameSimple;
+    }
+
     @Override
     public int hashCode() {
         return fieldNameHashCode;
@@ -496,6 +511,13 @@ public class ClassFieldDescription implements FieldDescription {
      */
     public boolean isEnum() {
         return isEnum;
+    }
+
+    /**
+     * @return possible Enum definitions, see also 'isEnum()'
+     */
+    public List<?> getEnumConstants() {
+        return enumDefinitions;
     }
 
     /**
@@ -617,6 +639,9 @@ public class ClassFieldDescription implements FieldDescription {
     }
 
     protected static void exploreClass(final Class<?> classType, final ClassFieldDescription parent, final int recursionLevel, final boolean fullScan) {
+        if (ClassUtils.DO_NOT_PARSE_MAP.get(classType) != null) {
+            return;
+        }
         if (recursionLevel > ClassUtils.getMaxRecursionDepth()) {
             throw new IllegalStateException("recursion error while scanning object structure: recursionLevel = '"
                                             + recursionLevel + "' > " + ClassFieldDescription.class.getSimpleName() + ".maxRecursionLevel ='"
@@ -644,8 +669,7 @@ public class ClassFieldDescription implements FieldDescription {
             // (e.g. for classes with static references to themselves or maps-of-maps-of-maps-....)
             final boolean isClassAndNotObjectOrEnmum = field.isClass() && (!field.getType().equals(Object.class) || !field.getType().equals(Enum.class));
             if (field.isSerializable() && (isClassAndNotObjectOrEnmum || field.isInterface()) && field.getDataType().equals(DataType.OTHER)) {
-                // object is a (technically) Serializable, unknown (ie 'OTHER) compound object
-                // or interface than can be further parsed
+                // object is a (technically) Serializable, unknown (ie 'OTHER) compound object or interface than can be further parsed
                 exploreClass(ClassUtils.getRawType(field.getType()), field, recursionLevel + 1, fullScan);
             }
         }

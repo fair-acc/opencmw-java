@@ -1,17 +1,13 @@
 package io.opencmw.serialiser.spi.iobuffer;
 
-import de.gsi.dataset.spi.utils.MultiArray;
-import de.gsi.dataset.spi.utils.MultiArrayBoolean;
-import de.gsi.dataset.spi.utils.MultiArrayByte;
-import de.gsi.dataset.spi.utils.MultiArrayChar;
-import de.gsi.dataset.spi.utils.MultiArrayDouble;
-import de.gsi.dataset.spi.utils.MultiArrayFloat;
-import de.gsi.dataset.spi.utils.MultiArrayInt;
-import de.gsi.dataset.spi.utils.MultiArrayLong;
-import de.gsi.dataset.spi.utils.MultiArrayObject;
-import de.gsi.dataset.spi.utils.MultiArrayShort;
-import io.opencmw.serialiser.*;
+import io.opencmw.serialiser.DataType;
+import io.opencmw.serialiser.FieldDescription;
+import io.opencmw.serialiser.FieldSerialiser;
+import io.opencmw.serialiser.IoClassSerialiser;
+import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.WireDataFieldDescription;
+
+import de.gsi.dataset.spi.utils.*;
 
 /**
  * helper class to register default serialiser for MultiArray types
@@ -23,6 +19,7 @@ public class FieldMultiArrayHelper {
         // utility class
     }
 
+    @SuppressWarnings("unchecked")
     public static <E> MultiArray<E> getMultiArray(final IoSerialiser serialiser, final MultiArray<E> dst, final DataType type) {
         final int[] dims = serialiser.getArraySizeDescriptor();
         int n = 1;

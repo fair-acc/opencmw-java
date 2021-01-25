@@ -1,14 +1,14 @@
 package io.opencmw.client.rest;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.jupiter.api.Assertions.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
+
+import org.jetbrains.annotations.NotNull;
 
 import okhttp3.Response;
 import okhttp3.internal.platform.Platform;
@@ -19,25 +19,25 @@ class EventSourceRecorder extends EventSourceListener {
     private final BlockingQueue<Object> events = new LinkedBlockingDeque<>();
 
     @Override
-    public void onOpen(EventSource eventSource, Response response) {
+    public void onOpen(@NotNull EventSource eventSource, @NotNull Response response) {
         Platform.get().log("[ES] onOpen", Platform.INFO, null);
         events.add(new Open(eventSource, response));
     }
 
     @Override
-    public void onEvent(EventSource eventSource, String id, String type, String data) {
+    public void onEvent(@NotNull EventSource eventSource, String id, String type,@NotNull  String data) {
         Platform.get().log("[ES] onEvent", Platform.INFO, null);
         events.add(new Event(id, type, data));
     }
 
     @Override
-    public void onClosed(EventSource eventSource) {
+    public void onClosed(@NotNull EventSource eventSource) {
         Platform.get().log("[ES] onClosed", Platform.INFO, null);
         events.add(new Closed());
     }
 
     @Override
-    public void onFailure(EventSource eventSource, Throwable t, Response response) {
+    public void onFailure(@NotNull EventSource eventSource, Throwable t, Response response) {
         Platform.get().log("[ES] onFailure", Platform.INFO, t);
         events.add(new Failure(t, response));
     }

@@ -1,10 +1,10 @@
 package io.opencmw.datasource;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
 
 public class EndpointTest {
     @Test
@@ -15,7 +15,7 @@ public class EndpointTest {
         assertEquals("device", ep.getDevice());
         assertEquals("property", ep.getProperty());
         assertEquals("test.sel:t=100", ep.getSelector());
-        assertEquals(Map.of("filter", "asdf", "amount", Integer.valueOf(1)), ep.getFilters());
+        assertEquals(Map.of("filter", "asdf", "amount", 1), ep.getFilters());
         assertEquals("rda3://server:port/device/property?ctx=test.sel:t=101:id=1&filter=asdf&amount=int:1", ep.getEndpointForContext("test.sel:t=101:id=1"));
     }
 }

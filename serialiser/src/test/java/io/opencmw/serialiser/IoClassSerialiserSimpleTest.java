@@ -2,10 +2,10 @@ package io.opencmw.serialiser;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.opencmw.serialiser.spi.BinarySerialiser;
-import io.opencmw.serialiser.spi.FastByteBuffer;
 import org.junit.jupiter.api.Test;
 
+import io.opencmw.serialiser.spi.BinarySerialiser;
+import io.opencmw.serialiser.spi.FastByteBuffer;
 import io.opencmw.serialiser.utils.TestDataClass;
 
 /**

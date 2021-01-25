@@ -3,7 +3,6 @@ package io.opencmw.server.rest;
 import org.jetbrains.annotations.NotNull;
 
 import io.javalin.core.security.Role;
-import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacRole;
 
 /**
@@ -13,7 +12,7 @@ import io.opencmw.rbac.RbacRole;
 public class RestRole implements Role {
     public final RbacRole rbacRole;
 
-    public RestRole(@NotNull final BasicRbacRole rbacRole) {
+    public RestRole(@NotNull final RbacRole rbacRole) {
         this.rbacRole = rbacRole;
     }
 

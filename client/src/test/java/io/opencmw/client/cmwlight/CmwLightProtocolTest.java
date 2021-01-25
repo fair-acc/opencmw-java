@@ -1,16 +1,16 @@
 package io.opencmw.client.cmwlight;
 
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
-import org.zeromq.ZFrame;
-import org.zeromq.ZMsg;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.zeromq.ZFrame;
+import org.zeromq.ZMsg;
 
 /**
  * Test serialisation and deserialisation of cmw protocol messages.
@@ -58,8 +58,8 @@ class CmwLightProtocolTest {
                 "testprop",
                 Map.of(CmwLightProtocol.FieldName.SESSION_BODY_TAG.value(), Collections.<String, Object>emptyMap()));
         ZMsg serialised = CmwLightProtocol.serialiseMsg(subscriptionMsg);
-        serialised.stream().forEach(frame -> System.out.println(frame.getString(Charset.defaultCharset())));
-        serialised.stream().forEach(frame -> System.out.println(Arrays.toString(frame.getData())));
+        serialised.forEach(frame -> System.out.println(frame.getString(Charset.defaultCharset())));
+        serialised.forEach(frame -> System.out.println(Arrays.toString(frame.getData())));
         final CmwLightMessage restored = CmwLightProtocol.parseMsg(serialised);
         assertEquals(subscriptionMsg, restored);
     }

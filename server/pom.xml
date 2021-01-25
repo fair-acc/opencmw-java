@@ -28,6 +28,13 @@
             <version>${version.chartfx}</version>
             <scope>test</scope>
         </dependency>
+        <!-- HTTP template engine-->
+        <dependency>
+            <groupId>org.apache.velocity</groupId>
+            <artifactId>velocity-engine-core</artifactId>
+            <version>${version.velocity}</version>
+           <scope>compile</scope>
+        </dependency>
     </dependencies>
 
 </project>

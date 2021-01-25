@@ -1,15 +1,16 @@
 package io.opencmw.serialiser.benchmark;
 
-import io.opencmw.serialiser.IoClassSerialiser;
-import io.opencmw.serialiser.spi.BinarySerialiser;
-import io.opencmw.serialiser.spi.ByteBuffer;
-import io.opencmw.serialiser.spi.FastByteBuffer;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
+
+import io.opencmw.serialiser.IoClassSerialiser;
+import io.opencmw.serialiser.spi.BinarySerialiser;
+import io.opencmw.serialiser.spi.ByteBuffer;
+import io.opencmw.serialiser.spi.FastByteBuffer;
 
 import de.gsi.dataset.DataSet;
 import de.gsi.dataset.spi.DoubleDataSet;

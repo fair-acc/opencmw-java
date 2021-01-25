@@ -4,8 +4,9 @@ import java.text.SimpleDateFormat;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-import io.opencmw.Filter;
 import org.apache.commons.lang3.StringUtils;
+
+import io.opencmw.Filter;
 
 public class TimingCtx implements Filter {
     public static final String WILD_CARD = "ALL";
@@ -144,9 +145,15 @@ public class TimingCtx implements Filter {
         }
     }
 
+    public static TimingCtx get(final String ctxString) {
+        final TimingCtx ctx = new TimingCtx();
+        ctx.setSelector(ctxString, 0);
+        return ctx;
+    }
+
     public String toString() {
         final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-        return '[' + TimingCtx.class.getSimpleName() + ": bpcts=" + bpcts + " (\"" + sdf.format(bpcts / 1000000) + "\"), selector='" + selector + "', cid=" + cid + ", sid=" + sid + ", pid=" + pid + ", gid=" + gid + ']';
+        return '[' + TimingCtx.class.getSimpleName() + ": bpcts=" + bpcts + " (\"" + sdf.format(bpcts / 1_000_000) + "\"), selector='" + selector + "', cid=" + cid + ", sid=" + sid + ", pid=" + pid + ", gid=" + gid + ']';
     }
 
     public static Predicate<TimingCtx> matches(final int cid, final int sid, final int pid, final long bpcts) {

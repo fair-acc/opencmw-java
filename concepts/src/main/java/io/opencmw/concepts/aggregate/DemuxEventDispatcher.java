@@ -6,13 +6,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.LockSupport;
 
+import io.opencmw.utils.Cache;
+
 import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.Sequence;
 import com.lmax.disruptor.SequenceReportingEventHandler;
 import com.lmax.disruptor.TimeoutHandler;
-
-import io.opencmw.utils.Cache;
 
 /**
  * Dispatches aggregation workers upon seeing new values for a specified event field.

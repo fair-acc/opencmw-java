@@ -7,14 +7,27 @@ import java.util.Locale;
 /**
  * Definition and convenience methods for common MIME types according to RFC6838 and RFC4855
  * <p>
- * Since the official list is rather and contains types we likely never
- * encounter, we chose the specific sub-selection from:
+ * Since the official list is rather long, contains types we likely never encounter, and also does not contain all
+ * unofficial but nevertheless commonly used MIME types, we chose the specific sub-selection from:
  * https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
  * 
  * @author rstein
  *
  */
 public enum MimeType {
+    /* text MIME types */
+    CSS("text/css", "Cascading Style Sheets (CSS)", ".css"),
+    CSV("text/csv", "Comma-separated values (CSV)", ".csv"),
+    EVENT_STREAM("text/event-stream", "SSE stream"),
+    HTML("text/html", "HyperText Markup Language (HTML)", ".htm", ".html"),
+    ICS("text/calendar", "iCalendar format", ".ics"),
+    JAVASCRIPT("text/javascript", "JavaScript", ".js", ".mjs"),
+    JSON("application/json", "JSON format", ".json"),
+    JSON_LD("application/ld+json", "JSON-LD format", ".jsonld"),
+    TEXT("text/plain", "Text, (generally ASCII or ISO 8859-n)", ".txt"),
+    XML("text/xml", "XML", ".xml"), // if readable from casual users (RFC 3023, section 3)
+    YAML("text/yaml", "YAML Ain't Markup Language File", ".yml", ".yaml"), // not yet an IANA standard
+
     /* audio MIME types */
     AAC("audio/aac", "AAC audio", ".aac"),
     MIDI("audio/midi audio/x-midi", "Musical Instrument Digital Interface (MIDI)", ".mid", ".midi"),
@@ -34,17 +47,6 @@ public enum MimeType {
     TIFF("image/tiff", "Tagged Image File Format (TIFF)", ".tif", ".tiff"),
     WEBP("image/webp", "WEBP image", ".webp"),
 
-    /* text MIME types */
-    CSS("text/css", "Cascading Style Sheets (CSS)", ".css"),
-    CSV("text/csv", "Comma-separated values (CSV)", ".csv"),
-    EVENT_STREAM("text/event-stream", "SSE stream"),
-    HTML("text/html", "HyperText Markup Language (HTML)", ".htm", ".html"),
-    ICS("text/calendar", "iCalendar format", ".ics"),
-    JAVASCRIPT("text/javascript", "JavaScript", ".js", ".mjs"),
-    TEXT("text/plain", "Text, (generally ASCII or ISO 8859-n)", ".txt"),
-    XML("text/xml", "XML", ".xml"), // if readable from casual users (RFC 3023, section 3)
-    YAML("text/yaml", "YAML Ain't Markup Language File", ".yml", ".yaml"), // not yet an IANA standard
-
     /* video MIME types */
     AVI("video/x-msvideo", "AVI: Audio Video Interleave", ".avi"),
     MP2T("video/mp2t", "MPEG transport stream", ".ts"),
@@ -59,8 +61,6 @@ public enum MimeType {
     DOCX("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Microsoft Word (OpenXML)", ".docx"),
     GZIP("application/gzip", "GZip Compressed Archive", ".gz"),
     JAR("application/java-archive", "Java Archive (JAR)", ".jar"),
-    JSON("application/json", "JSON format", ".json"),
-    JSON_LD("application/ld+json", "JSON-LD format", ".jsonld"),
     ODP("application/vnd.oasis.opendocument.presentation", "OpenDocument presentation document", ".odp"),
     ODS("application/vnd.oasis.opendocument.spreadsheet", "OpenDocument spreadsheet document", ".ods"),
     ODT("application/vnd.oasis.opendocument.text", "OpenDocument text document", ".odt"),
@@ -150,8 +150,7 @@ public enum MimeType {
      * Case-insensitive mapping between MIME-type string and enumumeration value.
      * 
      * @param mimeType the string equivalent mime-type, e.g. "image/png"
-     * @return the enumeration equivalent mime-type, e.g. MimeType.PNG or
-     *         MimeType.UNKNOWN as fall-back
+     * @return the enumeration equivalent first matching mime-type, e.g. MimeType.PNG or MimeType.UNKNOWN as fall-back
      */
     public static MimeType getEnum(final String mimeType) {
         if (mimeType == null || mimeType.isBlank()) {
@@ -164,6 +163,10 @@ public enum MimeType {
             if (trimmed.contains(mType.mediaType)) {
                 return mType;
             }
+            // second fall-back - raw enum type name
+            if (trimmed.equalsIgnoreCase(mType.name())) {
+                return mType;
+            }
         }
         return UNKNOWN;
     }
@@ -172,8 +175,7 @@ public enum MimeType {
      * Case-insensitive mapping between MIME-type string and enumeration value.
      * 
      * @param fileName the string equivalent mime-type, e.g. "image/png"
-     * @return the enumeration equivalent mime-type, e.g. MimeType.PNG or
-     *         MimeType.UNKNOWN as fall-back
+     * @return the enumeration equivalent mime-type, e.g. MimeType.PNG or MimeType.UNKNOWN as fall-back
      */
     public static MimeType getEnumByFileName(final String fileName) {
         if (fileName == null || fileName.isBlank()) {

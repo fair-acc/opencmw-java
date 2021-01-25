@@ -1,0 +1,8 @@
+#parse("/velocity/layout.vm")
+#@mainLayout()
+<h1>$msg.get("ERROR_400_BAD_REQUEST")</h1>
+#if ($exceptionText)
+Service '$service' error reply:<br>
+    $exceptionText
+#end
+#end

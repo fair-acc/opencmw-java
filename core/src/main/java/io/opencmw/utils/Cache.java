@@ -2,13 +2,20 @@ package io.opencmw.utils;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A simple map based cache with timeOut and limit
@@ -144,7 +151,7 @@ public class Cache<K, V> implements Map<K, V> {
     }
 
     @Override
-    public Set<Entry<K, V>> entrySet() {
+    public @NotNull Set<Entry<K, V>> entrySet() {
         return dataCache.entrySet();
     }
 
@@ -185,7 +192,7 @@ public class Cache<K, V> implements Map<K, V> {
     }
 
     @Override
-    public Set<K> keySet() {
+    public @NotNull Set<K> keySet() {
         return dataCache.keySet();
     }
 
@@ -226,7 +233,7 @@ public class Cache<K, V> implements Map<K, V> {
     }
 
     @Override
-    public Collection<V> values() {
+    public @NotNull Collection<V> values() {
         return dataCache.values();
     }
 
@@ -260,7 +267,7 @@ public class Cache<K, V> implements Map<K, V> {
 
         // call registered pre-listener
         if (preListener != null) {
-            removalMap.entrySet().forEach(entry -> preListener.accept(entry.getKey(), entry.getValue()));
+            removalMap.forEach(preListener);
         }
 
         toBeRemoved.forEach(key -> {
@@ -270,7 +277,7 @@ public class Cache<K, V> implements Map<K, V> {
 
         // call registered post-listener
         if (postListener != null) {
-            removalMap.entrySet().forEach(entry -> postListener.accept(entry.getKey(), entry.getValue()));
+            removalMap.forEach(postListener);
         }
     }
 
@@ -282,20 +289,14 @@ public class Cache<K, V> implements Map<K, V> {
         if (value < min) {
             return min;
         }
-        if (value > max) {
-            return max;
-        }
-        return value;
+        return Math.min(value, max);
     }
 
     protected static long clamp(final long min, final long max, final long value) {
         if (value < min) {
             return min;
         }
-        if (value > max) {
-            return max;
-        }
-        return value;
+        return Math.min(value, max);
     }
 
     protected static ChronoUnit convertToChronoUnit(final TimeUnit timeUnit) {

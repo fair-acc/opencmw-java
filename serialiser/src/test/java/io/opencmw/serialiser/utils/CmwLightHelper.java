@@ -4,18 +4,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.opencmw.serialiser.DataType;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoClassSerialiser;
 import io.opencmw.serialiser.IoSerialiser;
+import io.opencmw.serialiser.benchmark.SerialiserQuickBenchmark;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 import io.opencmw.serialiser.spi.ProtocolInfo;
 import io.opencmw.serialiser.spi.WireDataFieldDescription;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.opencmw.serialiser.benchmark.SerialiserQuickBenchmark;
 
 public class CmwLightHelper {
     private static final Logger LOGGER = LoggerFactory.getLogger(SerialiserQuickBenchmark.class); // N.B. SerialiserQuickBenchmark reference on purpose

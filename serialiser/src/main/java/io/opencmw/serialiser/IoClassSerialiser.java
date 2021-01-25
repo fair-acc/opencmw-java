@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import de.gsi.dataset.utils.ByteArrayCache;
 import io.opencmw.serialiser.spi.BinarySerialiser;
 import io.opencmw.serialiser.spi.ClassFieldDescription;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
@@ -33,6 +32,8 @@ import io.opencmw.serialiser.spi.iobuffer.FieldMultiArrayHelper;
 import io.opencmw.serialiser.spi.iobuffer.FieldPrimitiveValueHelper;
 import io.opencmw.serialiser.spi.iobuffer.FieldPrimitveValueArrayHelper;
 import io.opencmw.serialiser.utils.ClassUtils;
+
+import de.gsi.dataset.utils.ByteArrayCache;
 
 /**
  * reference implementation for streaming arbitrary object classes to and from a IoSerialiser- and IoBuffer-based buffers

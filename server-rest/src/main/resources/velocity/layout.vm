@@ -20,26 +20,26 @@
                 </form>
             </ul>
             <ul id="menu">
-                #if($navContent)
+#if ($navContent)
                     $navContent
-                #end
-                #set($rolesStr = ($currentRoles.toString().toUpperCase()))
+#end
+#set($rolesStr = ($currentRoles.toString().toUpperCase()))
                 <li><a href="/">$msg.get("COMMON_NAV_ALLIMAGES")</a></li>
-                #if($rolesStr.contains("ADMIN") || $rolesStr.contains("READ_WRITE"))
+#if ($rolesStr.contains("ADMIN") || $rolesStr.contains("READ_WRITE"))
                     <li><a href="/upload">$msg.get("COMMON_NAV_UPLOAD")</a></li>
-                #end
-                #if($rolesStr.contains("ADMIN"))
+#end
+#if ($rolesStr.contains("ADMIN"))
                     <li><a href="/admin">$msg.get("COMMON_NAV_ADMIN")</a></li>
-                #end
-                #if($currentUser && $currentUser != "anonymous")
+#end
+#if ($currentUser && $currentUser != "anonymous")
                     <li>
                         <form method="post" action="/logout">
                             <button id="logout" aria-label="logout action">$msg.get("COMMON_NAV_LOGOUT")</button>
                         </form>
                     </li>
-                #else
+#else
                     <li><a href="/login" alt="login action">$msg.get("COMMON_NAV_LOGIN")</a></li>
-                #end
+#end
             </ul>
         </nav>
     </header>

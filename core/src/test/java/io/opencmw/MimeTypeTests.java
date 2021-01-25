@@ -1,9 +1,6 @@
 package io.opencmw;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,6 +23,7 @@ public class MimeTypeTests {
             assertEquals(MimeType.BINARY, MimeType.getEnum(mType.toString()), "getEnum: mType = " + mimeTypeName);
         } else {
             assertEquals(mType, MimeType.getEnum(mType.toString()), "getEnum: mType = " + mimeTypeName);
+            assertEquals(mType, MimeType.getEnum(mType.name()), "getEnum: mType = " + mimeTypeName);
         }
 
         assertNotNull(mType.getDescription(), "description: mType = " + mimeTypeName);

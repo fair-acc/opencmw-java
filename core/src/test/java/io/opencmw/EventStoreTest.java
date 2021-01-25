@@ -1,12 +1,6 @@
 package io.opencmw;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +17,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.spi.LoggingEventBuilder;
 
+import io.opencmw.filter.EvtTypeFilter;
+import io.opencmw.filter.TimingCtx;
+import io.opencmw.utils.Cache;
+import io.opencmw.utils.SharedPointer;
+
 import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.LifecycleAware;
 import com.lmax.disruptor.RingBuffer;
@@ -30,11 +29,6 @@ import com.lmax.disruptor.TimeoutHandler;
 import com.lmax.disruptor.WaitStrategy;
 import com.lmax.disruptor.YieldingWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
-
-import io.opencmw.filter.EvtTypeFilter;
-import io.opencmw.filter.TimingCtx;
-import io.opencmw.utils.Cache;
-import io.opencmw.utils.SharedPointer;
 
 class EventStoreTest {
     private final static Logger LOGGER = LoggerFactory.getLogger(EventStoreTest.class);

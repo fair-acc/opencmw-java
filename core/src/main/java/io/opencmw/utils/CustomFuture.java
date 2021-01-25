@@ -1,6 +1,10 @@
 package io.opencmw.utils;
 
-import java.util.concurrent.*;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -10,7 +14,7 @@ public class CustomFuture<T> implements Future<T> {
     private static final String FUTURE_HAS_BEEN_CANCELLED = "future has been cancelled";
     protected final Lock lock = new ReentrantLock();
     protected final Condition processorNotifyCondition = lock.newCondition();
-    protected final AtomicBoolean running = new AtomicBoolean(true);
+    protected final AtomicBoolean done = new AtomicBoolean(false);
     private final AtomicBoolean requestCancel = new AtomicBoolean(false);
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private T reply = null;
@@ -18,12 +22,12 @@ public class CustomFuture<T> implements Future<T> {
 
     @Override
     public boolean cancel(final boolean mayInterruptIfRunning) {
-        cancelled.set(true);
-        if (running.getAndSet(false)) {
-            notifyListener();
-            return !requestCancel.getAndSet(true);
+        if (done.getAndSet(true)) {
+            return false;
         }
-        return false;
+        cancelled.set(true);
+        notifyListener();
+        return !requestCancel.getAndSet(true);
     }
 
     @Override
@@ -31,17 +35,23 @@ public class CustomFuture<T> implements Future<T> {
         try {
             return get(0, TimeUnit.NANOSECONDS);
         } catch (TimeoutException e) {
+            // cannot normally occur -- need this because we re-use 'get(...)' to avoid code duplication
             throw new ExecutionException("TimeoutException should not occur here", e);
         }
     }
 
+    @SuppressWarnings("NullableProblems")
     @Override
     public T get(final long timeout, final TimeUnit unit) throws ExecutionException, InterruptedException, TimeoutException {
         if (cancelled.get()) {
             throw new CancellationException(FUTURE_HAS_BEEN_CANCELLED);
         }
+
         if (isDone()) {
-            return reply;
+            if (exception == null) {
+                return reply;
+            }
+            throw new ExecutionException(exception);
         }
         lock.lock();
         try {
@@ -73,7 +83,7 @@ public class CustomFuture<T> implements Future<T> {
 
     @Override
     public boolean isDone() {
-        return (reply != null && !running.get());
+        return done.get();
     }
 
     /**
@@ -82,20 +92,18 @@ public class CustomFuture<T> implements Future<T> {
      * @throws IllegalStateException in case this method has been already called or Future has been cancelled
      */
     public void setReply(final T newValue) {
-        if (running.getAndSet(false)) {
-            this.reply = newValue;
-        } else {
+        if (done.getAndSet(true)) {
             throw new IllegalStateException("future is not running anymore (either cancelled or already notified)");
         }
+        this.reply = newValue;
         notifyListener();
     }
 
     public void setException(final Throwable exception) {
-        if (running.getAndSet(false)) {
-            this.exception = exception;
-        } else {
+        if (done.getAndSet(true)) {
             throw new IllegalStateException("future is not running anymore (either cancelled or already notified)");
         }
+        this.exception = exception;
         notifyListener();
     }
 

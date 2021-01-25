@@ -1,9 +1,6 @@
 package io.opencmw.concepts.majordomo;
 
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpMessage;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpWorkerCommand;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpWorkerMessage;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.receiveMdpMessage;
+import static io.opencmw.concepts.majordomo.MajordomoProtocol.*;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -235,7 +232,7 @@ public class MajordomoWorker extends Thread {
                 }
 
                 if (reply != null) {
-                    MajordomoProtocol.sendWorkerMessage(workerSocket, MdpWorkerCommand.W_REPLY, reply.senderID, workerMessage.clientSourceID, reply.payload);
+                    sendWorkerMessage(workerSocket, MdpWorkerCommand.W_REPLY, reply.senderID, workerMessage.clientSourceID, reply.payload);
                 }
 
             } else if (--liveness == 0) {
@@ -243,7 +240,7 @@ public class MajordomoWorker extends Thread {
                     LOGGER.atDebug().addArgument(uniqueID).log("worker '{}' disconnected from broker - retrying");
                 }
                 try {
-                    Thread.sleep(reconnect); // NOSONAR
+                    Thread.sleep(reconnect); // NOSONAR NOPMD -- need to wait until retry
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt(); // Restore the interrupted status
                     break;
@@ -253,7 +250,7 @@ public class MajordomoWorker extends Thread {
 
             // Send HEARTBEAT if it's time
             if (System.currentTimeMillis() > heartbeatAt) {
-                MajordomoProtocol.sendWorkerMessage(workerSocket, MdpWorkerCommand.W_HEARTBEAT, null, null);
+                sendWorkerMessage(workerSocket, MdpWorkerCommand.W_HEARTBEAT, null, null);
                 heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
             }
         }
@@ -277,7 +274,7 @@ public class MajordomoWorker extends Thread {
         LOGGER.atDebug().addArgument(uniqueID).addArgument(brokerAddress).log("worker '{}' connecting to broker at '{}'");
 
         // Register service with broker
-        MajordomoProtocol.sendWorkerMessage(workerSocket, MdpWorkerCommand.W_READY, null, serviceBytes, getUniqueID().getBytes(StandardCharsets.UTF_8));
+        sendWorkerMessage(workerSocket, MdpWorkerCommand.W_READY, null, serviceBytes, getUniqueID().getBytes(StandardCharsets.UTF_8));
 
         if (poller != null) {
             poller.unregister(workerSocket);

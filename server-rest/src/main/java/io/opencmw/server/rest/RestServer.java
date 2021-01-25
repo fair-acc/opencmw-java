@@ -1,5 +1,7 @@
 package io.opencmw.server.rest;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,7 +12,6 @@ import java.net.SocketException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
@@ -51,11 +52,13 @@ import io.javalin.Javalin;
 import io.javalin.apibuilder.ApiBuilder;
 import io.javalin.core.compression.Gzip;
 import io.javalin.core.event.HandlerMetaInfo;
+import io.javalin.core.security.Role;
 import io.javalin.core.util.Header;
 import io.javalin.core.util.RouteOverviewPlugin;
 import io.javalin.http.Context;
 import io.javalin.http.sse.SseClient;
 import io.javalin.http.util.RateLimit;
+import io.javalin.plugin.json.JavalinJson;
 import io.javalin.plugin.metrics.MicrometerPlugin;
 import io.javalin.plugin.openapi.OpenApiOptions;
 import io.javalin.plugin.openapi.OpenApiPlugin;
@@ -71,6 +74,9 @@ import io.opencmw.server.rest.user.RestUserHandler;
 import io.opencmw.server.rest.user.RestUserHandlerImpl;
 import io.opencmw.server.rest.util.MessageBundle;
 import io.swagger.v3.oas.models.info.Info;
+
+import com.jsoniter.JsonIterator;
+import com.jsoniter.output.JsonStream;
 
 /**
  * Small RESTful server helper class.
@@ -100,13 +106,14 @@ import io.swagger.v3.oas.models.info.Info;
  * @author rstein
  */
 public final class RestServer { // NOPMD -- nomen est omen
-    private static final Logger LOGGER = LoggerFactory.getLogger(RestServer.class);
     public static final String TAG_REST_SERVER_HOST_NAME = "restServerHostName";
     public static final String TAG_REST_SERVER_PORT = "restServerPort";
     public static final String TAG_REST_SERVER_PORT2 = "restServerPort2";
-    private static final String REST_KEY_STORE = "restKeyStore";
-    private static final String REST_KEY_STORE_PASSWORD = "restKeyStorePassword";
-
+    public static final String REST_KEY_STORE = "restKeyStore";
+    public static final String REST_KEY_STORE_PASSWORD = "restKeyStorePassword";
+    // some HTML constants
+    public static final String HTML_ACCEPT = "accept";
+    private static final Logger LOGGER = LoggerFactory.getLogger(RestServer.class);
     private static final String DEFAULT_HOST_NAME = "0";
     private static final int DEFAULT_PORT = 8080;
     private static final int DEFAULT_PORT2 = 8443;
@@ -115,16 +122,14 @@ public final class RestServer { // NOPMD -- nomen est omen
     private static final String TEMPLATE_UNAUTHORISED = "/velocity/errors/unauthorised.vm";
     private static final String TEMPLATE_ACCESS_DENIED = "/velocity/errors/accessDenied.vm";
     private static final String TEMPLATE_NOT_FOUND = "/velocity/errors/notFound.vm";
-    private static final RbacRole ADMIN = BasicRbacRole.ADMIN;
-    private static final RbacRole ANYONE = BasicRbacRole.ANYONE;
-
+    private static final String TEMPLATE_BAD_REQUEST = "/velocity/errors/badRequest.vm";
+    private static final ConcurrentMap<String, Queue<SseClient>> EVENT_LISTENER_SSE = new ConcurrentHashMap<>();
+    private static final List<HandlerMetaInfo> ENDPOINTS = new ArrayList<>();
+    private static final Consumer<HandlerMetaInfo> ENDPOINT_ADDED_HANDLER = ENDPOINTS::add;
     private static Javalin instance;
     private static MimeType defaultProtocol = MimeType.HTML;
     private static RestUserHandler userHandler = new RestUserHandlerImpl(BasicRbacRole.NULL); // include basic Rbac role definition
-    private static final ConcurrentMap<String, Queue<SseClient>> EVENT_LISTENER_SSE = new ConcurrentHashMap<>();
-
-    private static final List<HandlerMetaInfo> ENDPOINTS = new ArrayList<>();
-    private static final Consumer<HandlerMetaInfo> ENDPOINT_ADDED_HANDLER = ENDPOINTS::add;
+    private static String serverName = "Undefined REST Server";
 
     private RestServer() {
         // this is a utility class
@@ -138,6 +143,11 @@ public final class RestServer { // NOPMD -- nomen est omen
         ctx.res.addHeader("Set-Cookie", cookie);
     }
 
+    public static URI appendUri(URI oldUri, String appendQuery) throws URISyntaxException {
+        return new URI(oldUri.getScheme(), oldUri.getAuthority(), oldUri.getPath(),
+                oldUri.getQuery() == null ? appendQuery : oldUri.getQuery() + "&" + appendQuery, oldUri.getFragment());
+    }
+
     /**
      * guards this end point and returns HTTP error response if predefined rate limit is exceeded
      *
@@ -149,8 +159,12 @@ public final class RestServer { // NOPMD -- nomen est omen
         new RateLimit(ctx).requestPerTimeUnit(numRequests, timeUnit); //
     }
 
-    public static Set<RbacRole> getDefaultRole() {
-        return Collections.singleton(ANYONE);
+    public static MimeType getDefaultProtocol() {
+        return defaultProtocol;
+    }
+
+    public static Set<Role> getDefaultRole() {
+        return Collections.singleton(new RestRole(BasicRbacRole.ANYONE));
     }
 
     public static List<HandlerMetaInfo> getEndpoints() {
@@ -197,6 +211,33 @@ public final class RestServer { // NOPMD -- nomen est omen
         return instance;
     }
 
+    public static URI getLocalURI() {
+        try {
+            return new URI("http://localhost:" + getHostPort());
+        } catch (final URISyntaxException e) {
+            LOGGER.atError().setCause(e).log("getLocalURL()");
+        }
+        return null;
+    }
+
+    public static String getName() {
+        return serverName;
+    }
+
+    public static URI getPublicURI() {
+        final String ip = getLocalHostName();
+        try (DatagramSocket socket = new DatagramSocket()) {
+            return new URI("https://" + ip + ":" + getHostPort2());
+        } catch (final URISyntaxException | SocketException e) {
+            LOGGER.atError().setCause(e).log("getPublicURL()");
+        }
+        return null;
+    }
+
+    public static MimeType getRequestedMimeProtocol(final Context ctx, final MimeType... defaultProtocol) {
+        return MimeType.getEnum(getRequestedProtocol(ctx, defaultProtocol.length == 0 ? getDefaultProtocol().toString() : defaultProtocol[0].toString()));
+    }
+
     public static String getRequestedProtocol(final Context ctx, final String... defaultProtocol) {
         String protocol = defaultProtocol.length == 0 ? getDefaultProtocol().toString() : defaultProtocol[0];
         String protocolHeader = ctx.header(Header.ACCEPT);
@@ -210,29 +251,6 @@ public final class RestServer { // NOPMD -- nomen est omen
         }
 
         return protocol;
-    }
-
-    public static MimeType getRequestedMimeProtocol(final Context ctx, final MimeType... defaultProtocol) {
-        return MimeType.getEnum(getRequestedProtocol(ctx, defaultProtocol.length == 0 ? getDefaultProtocol().toString() : defaultProtocol[0].toString()));
-    }
-
-    public static URI getLocalURI() {
-        try {
-            return new URI("http://localhost:" + getHostPort());
-        } catch (final URISyntaxException e) {
-            LOGGER.atError().setCause(e).log("getLocalURL()");
-        }
-        return null;
-    }
-
-    public static URI getPublicURI() {
-        final String ip = getLocalHostName();
-        try (DatagramSocket socket = new DatagramSocket()) {
-            return new URI("https://" + ip + ":" + getHostPort2());
-        } catch (final URISyntaxException | SocketException e) {
-            LOGGER.atError().setCause(e).log("getPublicURL()");
-        }
-        return null;
     }
 
     public static Set<RbacRole> getSessionCurrentRoles(final Context ctx) {
@@ -255,10 +273,18 @@ public final class RestServer { // NOPMD -- nomen est omen
         return ApiBuilder.prefixPath(path);
     }
 
+    public static void setDefaultProtocol(MimeType defaultProtocol) {
+        RestServer.defaultProtocol = defaultProtocol;
+    }
+
+    public static void setName(final String serverName) {
+        RestServer.serverName = serverName;
+    }
+
     /**
      * Sets a new user handler.
      *
-     * N.B: This will issue a warning to remind system admins or security-minded people 
+     * N.B: This will issue a warning to remind system admins or security-minded people
      * that the default implementation may have been replaced with a better/worse/different implementation (e.g. based on
      * LDAP or another data base)
      *
@@ -270,12 +296,14 @@ public final class RestServer { // NOPMD -- nomen est omen
     }
 
     public static void startRestServer() {
+        JavalinJson.setFromJsonMapper(JsonIterator::deserialize);
+        JavalinJson.setToJsonMapper(JsonStream::serialize);
         instance = Javalin.create(config -> {
                               config.enableCorsForAllOrigins();
                               config.addStaticFiles("/public");
                               config.showJavalinBanner = false;
                               config.defaultContentType = getDefaultProtocol().toString();
-                              config.compressionStrategy(null, new Gzip(2));
+                              config.compressionStrategy(null, new Gzip(6));
                               config.server(RestServer::createHttp2Server);
                               // show all routes on specified path
                               config.registerPlugin(new RouteOverviewPlugin("/admin/endpoints", Collections.singleton(new RestRole(BasicRbacRole.ADMIN))));
@@ -294,16 +322,10 @@ public final class RestServer { // NOPMD -- nomen est omen
         RestServerAdmin.register();
 
         // some default error mappings
+        instance.error(400, ctx -> ctx.render(TEMPLATE_BAD_REQUEST, MessageBundle.baseModel(ctx)));
         instance.error(401, ctx -> ctx.render(TEMPLATE_UNAUTHORISED, MessageBundle.baseModel(ctx)));
         instance.error(403, ctx -> ctx.render(TEMPLATE_ACCESS_DENIED, MessageBundle.baseModel(ctx)));
         instance.error(404, ctx -> ctx.render(TEMPLATE_NOT_FOUND, MessageBundle.baseModel(ctx)));
-    }
-
-    private static OpenApiOptions getOpenApiOptions() {
-        Info applicationInfo = new Info().version("1.0").description("My Application");
-        return new OpenApiOptions(applicationInfo).path("/swagger-docs").ignorePath("/admin/endpoints", HttpMethod.GET) // Disable documentation
-                .swagger(new SwaggerOptions("/swagger").title("My Swagger Documentation"))
-                .reDoc(new ReDocOptions("/redoc").title("My ReDoc Documentation"));
     }
 
     public static void startRestServer(final int hostPort, final int hostPort2) {
@@ -398,14 +420,6 @@ public final class RestServer { // NOPMD -- nomen est omen
         return server;
     }
 
-    public static MimeType getDefaultProtocol() {
-        return defaultProtocol;
-    }
-
-    public static void setDefaultProtocol(MimeType defaultProtocol) {
-        RestServer.defaultProtocol = defaultProtocol;
-    }
-
     private static SslContextFactory createSslContextFactory() {
         final String keyStoreFile = System.getProperty(REST_KEY_STORE, null); // replace default with your real keystore
         final String keyStorePwdFile = System.getProperty(REST_KEY_STORE_PASSWORD, null); // replace default with your real password
@@ -420,8 +434,8 @@ public final class RestServer { // NOPMD -- nomen est omen
         KeyStore keyStore = null;
 
         // read keyStore password
-        try (BufferedReader br = keyStorePwdFile == null ? new BufferedReader(new InputStreamReader(RestServer.class.getResourceAsStream("/keystore.pwd"), StandardCharsets.UTF_8)) //
-                                                         : Files.newBufferedReader(Paths.get(keyStorePwdFile), StandardCharsets.UTF_8)) {
+        try (BufferedReader br = keyStorePwdFile == null ? new BufferedReader(new InputStreamReader(RestServer.class.getResourceAsStream("/keystore.pwd"), UTF_8)) //
+                                                         : Files.newBufferedReader(Paths.get(keyStorePwdFile), UTF_8)) {
             keyStorePwd = br.readLine();
         } catch (final IOException e) {
             readComplete = false;
@@ -482,5 +496,12 @@ public final class RestServer { // NOPMD -- nomen est omen
             LOGGER.atError().setCause(e).log("getLocalHostName()");
         }
         return "localhost";
+    }
+
+    private static OpenApiOptions getOpenApiOptions() {
+        Info applicationInfo = new Info().version("1.0").description(serverName);
+        return new OpenApiOptions(applicationInfo).path("/swagger-docs").ignorePath("/admin/endpoints", HttpMethod.GET) // Disable documentation
+                .swagger(new SwaggerOptions("/swagger").title("My Swagger Documentation"))
+                .reDoc(new ReDocOptions("/redoc").title("My ReDoc Documentation"));
     }
 }

@@ -1,0 +1,113 @@
+<style>
+    .propHeader {font-family:"Comic Sans MS", cursive, sans-serif !important; margin: 10px;}
+    .propHeader h1 { font-family:"Comic Sans MS", cursive, sans-serif !important; font-weight:bold; margin: 0;}
+    .propHeader h2 { margin: 0;}
+    .propHeader h3 { font-style: italic; margin: 0;}
+    .propTable  {border-collapse:collapse;border-spacing:0;font-family:"Comic Sans MS", cursive, sans-serif !important;text-align:left;vertical-align:top;width: 100%;}
+    .propTable th{font-size:16px;font-weight:bold;overflow:hidden;padding:1px 5px;word-break:normal;}
+    .propTable td{font-size:14px;overflow:hidden;padding:1px 5px;word-break:normal;}
+    .propTable .propTable-fName{width: 30%}
+    .propTable .propTable-fUnit{text-align:right;width: 10%}
+    .propTable .propTable-fValue{width: 25%}
+    .propTable .propTable-fDesc{width: 45%}
+</style>
+
+<div class="propHeader">
+    <h1>Property: '$service'</h1>
+    <h3>$mdpMetaData.getFieldDescription()</h3>
+</div>
+
+#macro( renderPropertyData $propertyDataName $propertyData )
+<table class="propTable">
+    <thead>
+    <tr>
+        <th class="propTable-fName">$propertyDataName Field Name</th>
+        <th class="propTable-fUnit">Unit:</th>
+        <th class="propTable-fValue">Field Value:</th>
+        <th class="propTable-fDesc">Description:</th>
+    </tr>
+    </thead>
+    <tbody>
+        #foreach ($field in $propertyData.keySet())
+            #if ($field.getFieldUnit())
+                #set($unit = "["+$field.getFieldUnit()+"]:")
+            #else
+                #set($unit = ":")
+            #end
+            #if ($field.isEnum())
+                #set($unit = "["+$field.getTypeNameSimple()+"]:")
+            #end
+            #if ($field.getFieldDescription())
+                #set($description = $field.getFieldDescription())
+            #else
+                #set($description = "")
+            #end
+        <tr>
+            <td class="propTable-fName"><label for="$field.getFieldName()">$field.getFieldName()</label></td>
+            <td class="propTable-fUnit">$unit</td>
+            <td class="propTable-fValue">
+            #if ($field.isEnum())
+                #set($value = $propertyData.get($field))
+                <select id="$field.getFieldName()" name="$field.getFieldName()">
+                    <option value="$value">$value</option>
+                    #foreach( $enum in $field.getEnumConstants() )
+                    <option value="$enum.name()">$enum.name()</option>
+                    #end
+                </select>
+            #else
+                #set($value = $propertyData.get($field))
+                #if ($value == "true" || $value == "false")
+                    #set($type = 'type="checkbox"')
+                #else
+                    #set($type = 'type="text" placeholder="<null>"')
+                #end
+                <input $type id="$field.getFieldName()" name="$field.getFieldName()" value="$value">
+            #end
+            </td>
+            <td class="propTable-fDesc">$description</td>
+        </tr>
+        #end
+    </tbody>
+</table>
+#end
+
+<form id="defaultPropertyTopic" method="GET">
+    <div class="wrap-collabsible">
+        <input id="collapsibleTopic" class="toggle" type="checkbox">
+        <label for="collapsibleTopic" class="lbl-toggle">$mdpCommand from '$clientRequestID'</label>
+        <div class="collapsible-content">
+            <div class="content-inner">
+                <small>req: $requestTopic</small><br>
+                <small>rep: $replyTopic</small>
+                #renderPropertyData( $requestCtx.getClass().getSimpleName() $requestCtxClassData )
+                <input type="submit" value="GET"> ## pushes form data as query string and reloads with the new URI
+                <input type="submit" value="SUBSCRIBE">
+            </div>
+        </div>
+    </div>
+</form>
+
+<form id="defaultPropertyRequest" method="POST">
+    <div class="wrap-collabsible">
+        <input id="collapsibleRequest" class="toggle" type="checkbox">
+        <label for="collapsibleRequest" class="lbl-toggle">request data:</label>
+        <div class="collapsible-content">
+            <div class="content-inner">
+                #renderPropertyData( $request.getClass().getSimpleName() $requestClassData )
+                <input type="submit" value="SET">
+            </div>
+        </div>
+    </div>
+</form>
+
+<form id="defaultPropertyReply" method="POST">
+    <div class="wrap-collabsible">
+        <input id="collapsibleReply" class="toggle" type="checkbox" checked>
+        <label for="collapsibleReply" class="lbl-toggle">reply data:</label>
+        <div class="collapsible-content">
+            <div class="content-inner">
+                #renderPropertyData( $reply.getClass().getSimpleName() $replyClassData )
+            </div>
+        </div>
+    </div>
+</form>

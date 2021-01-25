@@ -12,9 +12,9 @@ import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.lmax.disruptor.EventHandler;
-
 import io.opencmw.utils.SharedPointer;
+
+import com.lmax.disruptor.EventHandler;
 
 public class RingBufferEvent implements FilterPredicate, Cloneable {
     private final static Logger LOGGER = LoggerFactory.getLogger(RingBufferEvent.class);
@@ -50,7 +50,7 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
     @SafeVarargs
     public RingBufferEvent(final Class<? extends Filter>... filterConfig) {
         assert filterConfig != null;
-        this.filters = new Filter[filterConfig == null ? 0 : filterConfig.length];
+        this.filters = new Filter[filterConfig.length];
         for (int i = 0; i < filters.length; i++) {
             try {
                 filters[i] = filterConfig[i].getConstructor().newInstance();
@@ -62,8 +62,9 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public RingBufferEvent clone() { // NOSONAR NOPMD we do not want to call super (would be kind of stupid)
-        final RingBufferEvent retVal = new RingBufferEvent(Arrays.stream(filters).map(f -> f.getClass()).toArray(Class[]::new));
+        final RingBufferEvent retVal = new RingBufferEvent(Arrays.stream(filters).map(Filter::getClass).toArray(Class[] ::new));
         this.copyTo(retVal);
         return retVal;
     }

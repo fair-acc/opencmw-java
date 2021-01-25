@@ -10,7 +10,6 @@
     #end
     <h1>$msg.get("CLIPBOARD_UPLOAD_HEADING")</h1>
     <p>$msg.get("CLIPBOARD_UPLOAD_INSTRUCTIONS", "/index")</p>
-    <input type="text" name="clipboarExportName" placeholder="optional export name" value="">
     <input type="text" name="clipboarCategoryName" placeholder="optional category name" value="">
     <input type="file" name="clipboardData" required multiple>
     <input type="submit" value="$msg.get("CLIPBOARD_UPLOAD_BUTTON")">

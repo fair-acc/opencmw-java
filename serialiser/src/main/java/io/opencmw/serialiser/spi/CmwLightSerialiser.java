@@ -8,9 +8,14 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-import io.opencmw.serialiser.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.opencmw.serialiser.DataType;
+import io.opencmw.serialiser.FieldDescription;
+import io.opencmw.serialiser.FieldSerialiser;
+import io.opencmw.serialiser.IoBuffer;
+import io.opencmw.serialiser.IoSerialiser;
 
 /**
  * Light-weight open-source implementation of a (de-)serialiser that is binary-compatible to the serialiser used by CMW,

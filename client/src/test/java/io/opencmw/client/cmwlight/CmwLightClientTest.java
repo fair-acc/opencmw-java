@@ -1,16 +1,20 @@
 package io.opencmw.client.cmwlight;
 
 
-import org.awaitility.Awaitility;
-import org.junit.jupiter.api.Test;
-import org.zeromq.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.locks.LockSupport;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.Test;
+import org.zeromq.SocketType;
+import org.zeromq.ZContext;
+import org.zeromq.ZFrame;
+import org.zeromq.ZMQ;
+import org.zeromq.ZMsg;
 
 class CmwLightClientTest {
     @Test

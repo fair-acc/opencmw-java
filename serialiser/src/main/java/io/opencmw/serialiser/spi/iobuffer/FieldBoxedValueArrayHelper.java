@@ -1,8 +1,9 @@
 package io.opencmw.serialiser.spi.iobuffer;
 
-import de.gsi.dataset.utils.GenericsHelper;
 import io.opencmw.serialiser.FieldSerialiser;
 import io.opencmw.serialiser.IoClassSerialiser;
+
+import de.gsi.dataset.utils.GenericsHelper;
 
 /**
  * helper class to register default serialiser for boxed array primitive types (ie. Boolean[], Byte[], Short[], ...,

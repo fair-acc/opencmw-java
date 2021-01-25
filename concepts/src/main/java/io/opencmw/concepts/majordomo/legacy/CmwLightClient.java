@@ -5,12 +5,17 @@ import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.zeromq.SocketType;
+import org.zeromq.ZContext;
+import org.zeromq.ZFrame;
+import org.zeromq.ZMQ;
+import org.zeromq.ZMsg;
+
 import io.opencmw.serialiser.DataType;
 import io.opencmw.serialiser.IoClassSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 import io.opencmw.serialiser.spi.WireDataFieldDescription;
-import org.zeromq.*;
 
 /**
  * CmwLight Prototype Client.

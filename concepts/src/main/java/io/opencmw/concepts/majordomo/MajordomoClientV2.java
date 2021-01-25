@@ -1,8 +1,6 @@
 package io.opencmw.concepts.majordomo;
 
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpClientCommand;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpSubProtocol;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.sendClientMessage;
+import static io.opencmw.concepts.majordomo.MajordomoProtocol.*;
 
 import java.nio.charset.StandardCharsets;
 

@@ -4,6 +4,7 @@ module io.opencmw.serialiser {
     requires jsoniter;
     requires jdk.unsupported;
     requires it.unimi.dsi.fastutil;
+    requires org.jetbrains.annotations;
 
     exports io.opencmw.serialiser;
     exports io.opencmw.serialiser.annotations;

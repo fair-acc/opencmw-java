@@ -3,20 +3,23 @@ package io.opencmw.server;
 import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import java.lang.management.ManagementFactory;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Formatter;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.opencmw.OpenCmwProtocol;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
+
+import io.opencmw.OpenCmwProtocol;
 
 /**
 * Majordomo Protocol Client API, implements the OpenCMW MDP variant
@@ -36,7 +39,7 @@ public class MajordomoTestClientSync {
     private ZMQ.Poller poller;
 
     public MajordomoTestClientSync(String broker, String clientName) {
-        this.broker = broker;
+        this.broker = broker.replace("mdp://", "tcp://");
         ctx = new ZContext();
 
         uniqueID = clientName + "PID=" + ManagementFactory.getRuntimeMXBean().getName() + "-InstanceID=" + CLIENT_V1_INSTANCE.getAndIncrement();
@@ -95,31 +98,19 @@ public class MajordomoTestClientSync {
      * request message and destroys it when sent. Returns the reply message or
      * NULL if there was no reply.
      *
-     * @param service service name
+     * @param service UTF-8 encoded service name
      * @param msgs message(s) to be sent to OpenCmwProtocol broker (if more than one, than the last is assumed to be a RBAC-token
      * @return reply message or NULL if there was no reply
      */
     public OpenCmwProtocol.MdpMessage send(final String service, final byte[]... msgs) {
-        return send(service.getBytes(StandardCharsets.UTF_8), msgs);
-    }
-
-    /**
-     * Send request to broker and get reply by hook or crook takes ownership of
-     * request message and destroys it when sent. Returns the reply message or
-     * NULL if there was no reply.
-     *
-     * @param service UTF-8 encoded service name byte array
-     * @param msgs message(s) to be sent to OpenCmwProtocol broker (if more than one, than the last is assumed to be a RBAC-token
-     * @return reply message or NULL if there was no reply
-     */
-    public OpenCmwProtocol.MdpMessage send(final byte[] service, final byte[]... msgs) {
         ZMsg reply = null;
 
         int retriesLeft = retries;
         while (retriesLeft > 0 && !Thread.currentThread().isInterrupted()) {
-            final URI topic = URI.create(new String(service, StandardCharsets.UTF_8));
+            final URI topic = URI.create(service);
+            final byte[] serviceBytes = StringUtils.stripStart(topic.getPath(), "/").getBytes(UTF_8);
             final byte[] rbacToken = msgs.length > 1 ? msgs[1] : null;
-            if (!new OpenCmwProtocol.MdpMessage(null, PROT_CLIENT, GET_REQUEST, service, "requestID".getBytes(StandardCharsets.UTF_8), topic, msgs[0], "", rbacToken).send(clientSocket)) {
+            if (!new OpenCmwProtocol.MdpMessage(null, PROT_CLIENT, GET_REQUEST, serviceBytes, "requestID".getBytes(UTF_8), topic, msgs[0], "", rbacToken).send(clientSocket)) {
                 throw new IllegalStateException("could not send request " + Arrays.toString(msgs));
             }
 

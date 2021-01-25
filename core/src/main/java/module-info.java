@@ -5,6 +5,7 @@ open module io.opencmw {
     requires io.opencmw.serialiser;
     requires java.validation;
     requires org.apache.commons.lang3;
+    requires org.jetbrains.annotations;
 
     exports io.opencmw;
     exports io.opencmw.datasource;
