@@ -30,7 +30,7 @@ import sun.misc.Unsafe;
  *
  * Read operations return "IndexOutOfBoundsException" if there are not enough bytes left in the buffer.
  * For primitive types, the check can be done before, but for arrays and strings the size field has to be read first.
- * Therefore, the position after a failed non-primitve read is not necessarily the position before the read attempt.
+ * Therefore, the position after a failed non-primitive read is not necessarily the position before the read attempt.
  *
  * When there is not enough space for a write operation, the behaviour depends on the autoRange and byteArrayCache
  * variables. If autoRange is false, the operation returns an IndexOutOfBounds exception and the position is set to the
@@ -915,7 +915,7 @@ public class FastByteBuffer implements IoBuffer {
         unsafe.copyMemory(srcBase, srcOffset, destBase, destOffset, nBytes);
     }
 
-    // Fast UTF-8 byte-array to String(Builder) decode - code originally based on Google's PrototBuffer implementation and since modified
+    // Fast UTF-8 byte-array to String(Builder) decode - code originally based on Google's ProtoBuffer implementation and since modified
     @SuppressWarnings("PMD")
     private static void decodeUTF8(byte[] bytes, int offset, int size, StringBuilder result) { //NOSONAR
         // Bitwise OR combines the sign bits so any negative value fails the check.
@@ -1040,7 +1040,7 @@ public class FastByteBuffer implements IoBuffer {
         return length;
     }
 
-    // Fast UTF-8 String (CharSequence) to byte-array encoder - code originally based on Google's PrototBuffer implementation and since modified
+    // Fast UTF-8 String (CharSequence) to byte-array encoder - code originally based on Google's ProtoBuffer implementation and since modified
     @SuppressWarnings("PMD")
     private static int encodeUTF8(final CharSequence sequence, final byte[] bytes, final int offset, final int length) { //NOSONAR
         int utf16Length = sequence.length();

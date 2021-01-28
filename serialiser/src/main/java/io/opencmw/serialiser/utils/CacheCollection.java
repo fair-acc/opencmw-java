@@ -14,7 +14,7 @@ import de.gsi.dataset.utils.ByteArrayCache;
  * 
  * @author rstein
  *
- * @param <T> generic for object type to be cahced.
+ * @param <T> generic for object type to be cached.
  */
 public class CacheCollection<T> extends AbstractCollection<T> {
     protected final List<Reference<T>> contents = Collections.synchronizedList(new LinkedList<>());
@@ -26,9 +26,9 @@ public class CacheCollection<T> extends AbstractCollection<T> {
                 if (contains(recoveredObject)) {
                     return false;
                 }
-                // N.B. here: specific choice of using 'SoftReferene'
-                // derived classes may overwrite this function and replace this with e.g. WeakReferene or simialr
-                return contents.add(new SoftReference<T>(recoveredObject));
+                // N.B. here: specific choice of using 'SoftReference'
+                // derived classes may overwrite this function and replace this with e.g. WeakReference or similar
+                return contents.add(new SoftReference<>(recoveredObject));
             }
         }
         return false;

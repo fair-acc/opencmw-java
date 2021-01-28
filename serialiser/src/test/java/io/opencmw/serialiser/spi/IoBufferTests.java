@@ -18,16 +18,16 @@ import io.opencmw.serialiser.utils.ByteArrayCache;
  * @author rstein
  */
 class IoBufferTests {
-    protected static final boolean[] booleanTestArrray = { true, false, true, false };
-    protected static final byte[] byteTestArrray = { 100, 101, 102, 103, -100, -101, -102, -103 };
-    protected static final short[] shortTestArrray = { -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5 }; // NOPMD by rstein
-    protected static final int[] intTestArrray = { 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5 };
-    protected static final long[] longTestArrray = { Integer.MAX_VALUE, Integer.MAX_VALUE - 1, -Integer.MAX_VALUE + 2 };
-    protected static final float[] floatTestArrray = { 1.1e9f, 1.2e9f, 1.3e9f, -1.1e9f, -1.2e9f, -1.3e9f };
-    protected static final double[] doubleTestArrray = { Float.MAX_VALUE + 1.1e9, Float.MAX_VALUE + 1.2e9, Float.MAX_VALUE + 1.3e9f, -Float.MAX_VALUE - 1.1e9f, -Float.MAX_VALUE - 1.2e9f, Float.MAX_VALUE - 1.3e9f };
-    protected static final char[] charTestArrray = { 'a', 'b', 'c', 'd' };
-    protected static final String[] stringTestArrray = { "Is", "this", "the", "real", "life?", "Is", "this", "just", "fantasy?", "", null };
-    protected static final String[] stringTestArrrayNullAsEmpty = Arrays.stream(stringTestArrray).map(s -> s == null ? "" : s).toArray(String[]::new);
+    protected static final boolean[] booleanTestArray = { true, false, true, false };
+    protected static final byte[] byteTestArray = { 100, 101, 102, 103, -100, -101, -102, -103 };
+    protected static final short[] shortTestArray = { -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5 }; // NOPMD by rstein
+    protected static final int[] intTestArray = { 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5 };
+    protected static final long[] longTestArray = { Integer.MAX_VALUE, Integer.MAX_VALUE - 1, -Integer.MAX_VALUE + 2 };
+    protected static final float[] floatTestArray = { 1.1e9f, 1.2e9f, 1.3e9f, -1.1e9f, -1.2e9f, -1.3e9f };
+    protected static final double[] doubleTestArray = { Float.MAX_VALUE + 1.1e9, Float.MAX_VALUE + 1.2e9, Float.MAX_VALUE + 1.3e9f, -Float.MAX_VALUE - 1.1e9f, -Float.MAX_VALUE - 1.2e9f, Float.MAX_VALUE - 1.3e9f };
+    protected static final char[] charTestArray = { 'a', 'b', 'c', 'd' };
+    protected static final String[] stringTestArray = { "Is", "this", "the", "real", "life?", "Is", "this", "just", "fantasy?", "", null };
+    protected static final String[] stringTestArrayNullAsEmpty = Arrays.stream(stringTestArray).map(s -> s == null ? "" : s).toArray(String[]::new);
     private static final int BUFFER_SIZE = 1000;
 
     @ParameterizedTest(name = "IoBuffer class - {0}")
@@ -61,100 +61,100 @@ class IoBufferTests {
 
         {
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putBooleanArray(booleanTestArrray, booleanTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putBooleanArray(booleanTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putBooleanArray(booleanTestArray, booleanTestArray.length));
+            assertDoesNotThrow(() -> buffer.putBooleanArray(booleanTestArray, -1));
             assertDoesNotThrow(() -> buffer.putBooleanArray(null, 5));
             buffer.flip();
-            assertArrayEquals(booleanTestArrray, buffer.getBooleanArray());
-            assertArrayEquals(booleanTestArrray, buffer.getBooleanArray());
+            assertArrayEquals(booleanTestArray, buffer.getBooleanArray());
+            assertArrayEquals(booleanTestArray, buffer.getBooleanArray());
             assertEquals(0, buffer.getBooleanArray().length);
         }
 
         {
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putByteArray(byteTestArrray, byteTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putByteArray(byteTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putByteArray(byteTestArray, byteTestArray.length));
+            assertDoesNotThrow(() -> buffer.putByteArray(byteTestArray, -1));
             assertDoesNotThrow(() -> buffer.putByteArray(null, 5));
             buffer.flip();
-            assertArrayEquals(byteTestArrray, buffer.getByteArray());
-            assertArrayEquals(byteTestArrray, buffer.getByteArray());
+            assertArrayEquals(byteTestArray, buffer.getByteArray());
+            assertArrayEquals(byteTestArray, buffer.getByteArray());
             assertEquals(0, buffer.getByteArray().length);
         }
 
         {
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putShortArray(shortTestArrray, shortTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putShortArray(shortTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putShortArray(shortTestArray, shortTestArray.length));
+            assertDoesNotThrow(() -> buffer.putShortArray(shortTestArray, -1));
             assertDoesNotThrow(() -> buffer.putShortArray(null, 5));
             buffer.flip();
-            assertArrayEquals(shortTestArrray, buffer.getShortArray());
-            assertArrayEquals(shortTestArrray, buffer.getShortArray());
+            assertArrayEquals(shortTestArray, buffer.getShortArray());
+            assertArrayEquals(shortTestArray, buffer.getShortArray());
             assertEquals(0, buffer.getShortArray().length);
         }
 
         {
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putIntArray(intTestArrray, intTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putIntArray(intTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putIntArray(intTestArray, intTestArray.length));
+            assertDoesNotThrow(() -> buffer.putIntArray(intTestArray, -1));
             assertDoesNotThrow(() -> buffer.putIntArray(null, 5));
             buffer.flip();
-            assertArrayEquals(intTestArrray, buffer.getIntArray());
-            assertArrayEquals(intTestArrray, buffer.getIntArray());
+            assertArrayEquals(intTestArray, buffer.getIntArray());
+            assertArrayEquals(intTestArray, buffer.getIntArray());
             assertEquals(0, buffer.getIntArray().length);
         }
 
         {
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putLongArray(longTestArrray, longTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putLongArray(longTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putLongArray(longTestArray, longTestArray.length));
+            assertDoesNotThrow(() -> buffer.putLongArray(longTestArray, -1));
             assertDoesNotThrow(() -> buffer.putLongArray(null, 5));
             buffer.flip();
-            assertArrayEquals(longTestArrray, buffer.getLongArray());
-            assertArrayEquals(longTestArrray, buffer.getLongArray());
+            assertArrayEquals(longTestArray, buffer.getLongArray());
+            assertArrayEquals(longTestArray, buffer.getLongArray());
             assertEquals(0, buffer.getLongArray().length);
         }
 
         {
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putFloatArray(floatTestArrray, floatTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putFloatArray(floatTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putFloatArray(floatTestArray, floatTestArray.length));
+            assertDoesNotThrow(() -> buffer.putFloatArray(floatTestArray, -1));
             assertDoesNotThrow(() -> buffer.putFloatArray(null, 5));
             buffer.flip();
-            assertArrayEquals(floatTestArrray, buffer.getFloatArray());
-            assertArrayEquals(floatTestArrray, buffer.getFloatArray());
+            assertArrayEquals(floatTestArray, buffer.getFloatArray());
+            assertArrayEquals(floatTestArray, buffer.getFloatArray());
             assertEquals(0, buffer.getFloatArray().length);
         }
 
         {
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putDoubleArray(doubleTestArrray, doubleTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putDoubleArray(doubleTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putDoubleArray(doubleTestArray, doubleTestArray.length));
+            assertDoesNotThrow(() -> buffer.putDoubleArray(doubleTestArray, -1));
             assertDoesNotThrow(() -> buffer.putDoubleArray(null, 5));
             buffer.flip();
-            assertArrayEquals(doubleTestArrray, buffer.getDoubleArray());
-            assertArrayEquals(doubleTestArrray, buffer.getDoubleArray());
+            assertArrayEquals(doubleTestArray, buffer.getDoubleArray());
+            assertArrayEquals(doubleTestArray, buffer.getDoubleArray());
             assertEquals(0, buffer.getDoubleArray().length);
         }
 
         {
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putCharArray(charTestArrray, charTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putCharArray(charTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putCharArray(charTestArray, charTestArray.length));
+            assertDoesNotThrow(() -> buffer.putCharArray(charTestArray, -1));
             assertDoesNotThrow(() -> buffer.putCharArray(null, 5));
             buffer.flip();
-            assertArrayEquals(charTestArrray, buffer.getCharArray());
-            assertArrayEquals(charTestArrray, buffer.getCharArray());
+            assertArrayEquals(charTestArray, buffer.getCharArray());
+            assertArrayEquals(charTestArray, buffer.getCharArray());
             assertEquals(0, buffer.getCharArray().length);
         }
 
         {
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArrray, stringTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArray, stringTestArray.length));
+            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArray, -1));
             assertDoesNotThrow(() -> buffer.putStringArray(null, 5));
             buffer.flip();
-            assertArrayEquals(stringTestArrrayNullAsEmpty, buffer.getStringArray());
-            assertArrayEquals(stringTestArrrayNullAsEmpty, buffer.getStringArray());
+            assertArrayEquals(stringTestArrayNullAsEmpty, buffer.getStringArray());
+            assertArrayEquals(stringTestArrayNullAsEmpty, buffer.getStringArray());
             assertEquals(0, buffer.getStringArray().length);
         }
     }
@@ -168,13 +168,13 @@ class IoBufferTests {
             final String fourByteCharacter = new String(chars);
             String utf8TestString = "Γειά σου Κόσμε! - " + fourByteCharacter + " 語 \u00ea \u00f1 \u00fc + some normal ASCII character";
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArrray, stringTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArray, stringTestArray.length));
+            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArray, -1));
             assertDoesNotThrow(() -> buffer.putStringArray(null, 5));
             buffer.putString(utf8TestString);
             buffer.flip();
-            assertArrayEquals(stringTestArrrayNullAsEmpty, buffer.getStringArray());
-            assertArrayEquals(stringTestArrrayNullAsEmpty, buffer.getStringArray());
+            assertArrayEquals(stringTestArrayNullAsEmpty, buffer.getStringArray());
+            assertArrayEquals(stringTestArrayNullAsEmpty, buffer.getStringArray());
             assertEquals(0, buffer.getStringArray().length);
             assertEquals(utf8TestString, buffer.getString());
         }
@@ -182,13 +182,13 @@ class IoBufferTests {
         buffer.setEnforceSimpleStringEncoding(true);
         {
             buffer.reset();
-            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArrray, stringTestArrray.length));
-            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArrray, -1));
+            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArray, stringTestArray.length));
+            assertDoesNotThrow(() -> buffer.putStringArray(stringTestArray, -1));
             assertDoesNotThrow(() -> buffer.putStringArray(null, 5));
             buffer.putString("Hello World!");
             buffer.flip();
-            assertArrayEquals(stringTestArrrayNullAsEmpty, buffer.getStringArray());
-            assertArrayEquals(stringTestArrrayNullAsEmpty, buffer.getStringArray());
+            assertArrayEquals(stringTestArrayNullAsEmpty, buffer.getStringArray());
+            assertArrayEquals(stringTestArrayNullAsEmpty, buffer.getStringArray());
             assertEquals(0, buffer.getStringArray().length);
             assertEquals("Hello World!", buffer.getString());
         }
@@ -402,8 +402,8 @@ class IoBufferTests {
         }
 
         {
-            FastByteBuffer buffer = FastByteBuffer.wrap(byteTestArrray);
-            assertArrayEquals(byteTestArrray, buffer.elements());
+            FastByteBuffer buffer = FastByteBuffer.wrap(byteTestArray);
+            assertArrayEquals(byteTestArray, buffer.elements());
         }
     }
 
