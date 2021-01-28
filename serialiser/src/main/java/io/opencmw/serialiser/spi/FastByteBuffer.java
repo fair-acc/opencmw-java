@@ -91,7 +91,7 @@ public class FastByteBuffer implements IoBuffer {
     private boolean autoResize = false;
 
     /**
-     * construct new FastByteBuffer backed by a default length Array
+     * construct new FastByteBuffer backed by a default length array
      */
     public FastByteBuffer() {
         this(DEFAULT_INITIAL_CAPACITY);
