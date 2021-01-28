@@ -22,6 +22,12 @@
             <artifactId>core</artifactId>
             <version>${revision}${sha1}${changelist}</version>
         </dependency>
+        <dependency>
+            <groupId>de.gsi.dataset</groupId>
+            <artifactId>chartfx-dataset</artifactId>
+            <version>${version.chartfx}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>
