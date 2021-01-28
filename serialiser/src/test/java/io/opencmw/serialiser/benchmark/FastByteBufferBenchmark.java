@@ -1,7 +1,5 @@
 package io.opencmw.serialiser.benchmark;
 
-import java.nio.file.attribute.FileAttribute;
-
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 

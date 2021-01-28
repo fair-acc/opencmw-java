@@ -79,7 +79,7 @@ public class FastByteBuffer implements IoBuffer {
     private int limit;
     private byte[] buffer;
     private boolean enforceSimpleStringEncoding = false;
-    private boolean autoResize = false;
+    private boolean autoResize;
 
     /**
      * construct new FastByteBuffer backed by a default length array
@@ -101,7 +101,6 @@ public class FastByteBuffer implements IoBuffer {
         this.buffer = buffer;
         this.limit = limit;
         position = 0;
-        this.byteArrayCache = null;
     }
 
     /**
@@ -778,7 +777,7 @@ public class FastByteBuffer implements IoBuffer {
     public void putStringArray(final String[] values, final int n) {
         final int valuesSize = values == null ? 0 : values.length;
         final int nElements = n >= 0 ? Math.min(n, valuesSize) : valuesSize;
-        final int originalPos = position;
+        final int originalPos = position; // NOPMD
         putInt(nElements); // strided-array size
         if (values == null) {
             return;

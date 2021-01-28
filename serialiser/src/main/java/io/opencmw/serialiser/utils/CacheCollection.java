@@ -46,8 +46,9 @@ public class CacheCollection<T> extends AbstractCollection<T> {
         if (object != null) {
             synchronized (contents) {
                 for (Reference<T> weakReference : contents) {
-                    if (object.equals(weakReference.get()))
+                    if (object.equals(weakReference.get())) {
                         return true;
+                    }
                 }
             }
         }
@@ -131,7 +132,7 @@ public class CacheCollection<T> extends AbstractCollection<T> {
         @Override
         public T next() {
             T result = next;
-            next = null;
+            next = null; // NOPMD
             while (result == null) {
                 result = iterator.next().get();
             }
