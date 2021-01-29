@@ -1,7 +1,6 @@
-package io.opencmw.filter;
+package io.opencmw.client;
 
 import io.opencmw.Filter;
-import io.opencmw.datasource.DataSourcePublisher;
 import io.opencmw.serialiser.IoSerialiser;
 
 public class DataSourceFilter implements Filter {
@@ -45,7 +44,7 @@ public class DataSourceFilter implements Filter {
 
         private final byte id;
         ReplyType(int id) {
-            this.id = (byte)id;
+            this.id = (byte) id;
         }
 
         public byte getID() {

@@ -1,10 +1,10 @@
-package io.opencmw.datasource;
+package io.opencmw.client;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
 
 public class EndpointTest {
     @Test

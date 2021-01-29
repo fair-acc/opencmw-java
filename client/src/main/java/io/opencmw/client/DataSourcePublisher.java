@@ -1,4 +1,4 @@
-package io.opencmw.datasource;
+package io.opencmw.client;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -6,7 +6,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 
-import io.opencmw.rbac.RbacProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.*;
@@ -15,9 +14,9 @@ import com.lmax.disruptor.EventHandler;
 
 import io.opencmw.EventStore;
 import io.opencmw.RingBufferEvent;
-import io.opencmw.filter.DataSourceFilter;
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
+import io.opencmw.rbac.RbacProvider;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoClassSerialiser;
 import io.opencmw.serialiser.IoSerialiser;
@@ -126,7 +125,7 @@ public class DataSourcePublisher implements Runnable {
                     ioClassSerialiser.setDataBuffer(byteBuffer); // allow received byte array to be released
                 }
                 // notify future
-                if (exc != null && !exc.isBlank()){
+                if (exc != null && !exc.isBlank()) {
                     future.setException(new Exception(exc));
                 } else {
                     future.castAndSetReply(obj);
@@ -384,22 +383,22 @@ public class DataSourcePublisher implements Runnable {
 
         final DataSource client = getClient(endpoint, filters); // get client for endpoint
         switch (msgType) {
-            case SUBSCRIBE: // subscribe: 0b, requestId, addr/dev/prop?sel&filters, [filter]
-                client.subscribe(requestId, rbacToken); // issue get request
-                break;
-            case GET: // get: 1b, reqId, addr/dev/prop?sel&filters, [filter]
-                client.get(requestId, endpoint, filters, data, rbacToken); // issue get request
-                break;
-            case SET: // set: 2b, reqId, addr/dev/prop?sel&filters, data, add data to blocking queue instead?
-                client.set(requestId, endpoint, filters, data, rbacToken);
-                break;
-            case UNSUBSCRIBE: //unsub: 3b, reqId, endpoint
-                client.unsubscribe();
-                requestFutureMap.remove(requestId);
-                break;
-            case UNKNOWN:
-            default:
-                throw new UnsupportedOperationException("Illegal operation type");
+        case SUBSCRIBE: // subscribe: 0b, requestId, addr/dev/prop?sel&filters, [filter]
+            client.subscribe(requestId, rbacToken); // issue get request
+            break;
+        case GET: // get: 1b, reqId, addr/dev/prop?sel&filters, [filter]
+            client.get(requestId, endpoint, filters, data, rbacToken); // issue get request
+            break;
+        case SET: // set: 2b, reqId, addr/dev/prop?sel&filters, data, add data to blocking queue instead?
+            client.set(requestId, endpoint, filters, data, rbacToken);
+            break;
+        case UNSUBSCRIBE: //unsub: 3b, reqId, endpoint
+            client.unsubscribe();
+            requestFutureMap.remove(requestId);
+            break;
+        case UNKNOWN:
+        default:
+            throw new UnsupportedOperationException("Illegal operation type");
         }
         return dataAvailable;
     }
@@ -420,7 +419,8 @@ public class DataSourcePublisher implements Runnable {
                 final String reqId = reply.pollFirst().getString(Charset.defaultCharset());
                 final ThePromisedFuture<?> returnFuture = requestFutureMap.get(reqId);
                 if (returnFuture.getReplyType() != DataSourceFilter.ReplyType.SUBSCRIBE) { // remove entries for one time replies
-                    assert returnFuture.getInternalRequestID().equals(reqId) : "requestID mismatch";
+                    assert returnFuture.getInternalRequestID().equals(reqId)
+                        : "requestID mismatch";
                     requestFutureMap.remove(reqId);
                 }
                 final Endpoint endpoint = new Endpoint(reply.pollFirst().getString(Charset.defaultCharset()));

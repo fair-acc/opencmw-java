@@ -1,4 +1,4 @@
-package io.opencmw.datasource;
+package io.opencmw.client;
 
 import java.time.Duration;
 import java.util.List;

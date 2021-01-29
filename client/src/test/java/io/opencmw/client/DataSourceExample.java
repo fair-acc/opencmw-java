@@ -1,15 +1,15 @@
 package io.opencmw.client;
 
-import io.opencmw.client.cmwlight.CmwLightExample;
-import io.opencmw.client.cmwlight.DirectoryLightClient;
-import io.opencmw.EventStore;
-import io.opencmw.datasource.DataSourcePublisher;
-import io.opencmw.filter.EvtTypeFilter;
-import io.opencmw.filter.TimingCtx;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
+import io.opencmw.EventStore;
+import io.opencmw.client.cmwlight.CmwLightExample;
+import io.opencmw.client.cmwlight.DirectoryLightClient;
+import io.opencmw.filter.EvtTypeFilter;
+import io.opencmw.filter.TimingCtx;
 
 public class DataSourceExample {
     private final static Logger LOGGER = LoggerFactory.getLogger(DataSourceExample.class);
@@ -21,7 +21,7 @@ public class DataSourceExample {
     public static void main(String[] args) throws DirectoryLightClient.DirectoryClientException, InterruptedException {
         // create and start a simple event store which just prints everything written to it to stdout
         final EventStore eventStore = EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
-        eventStore.register((e, s,last) -> {
+        eventStore.register((e, s, last) -> {
             System.out.println(e);
             System.out.println(e.payload.get());
         });
@@ -39,7 +39,7 @@ public class DataSourceExample {
         final String address2 = devInfo.get(1).getAddress().replace("tcp://", "rda3://");
         // run the publisher's main loop
         new Thread(dataSourcePublisher).start();
-        dataSourcePublisher.subscribe(address + '/' + DEV_NAME + '/' + PROP + "?ctx=" + SELECTOR + '&' + "acquisitionModeFilter=int:0" +'&' + "channelNameFilter=GS11MU2:Current_1@10Hz", CmwLightExample.AcquisitionDAQ.class);
+        dataSourcePublisher.subscribe(address + '/' + DEV_NAME + '/' + PROP + "?ctx=" + SELECTOR + '&' + "acquisitionModeFilter=int:0" + '&' + "channelNameFilter=GS11MU2:Current_1@10Hz", CmwLightExample.AcquisitionDAQ.class);
         dataSourcePublisher.subscribe(address2 + '/' + DEV2_NAME + '/' + PROP + "?ctx=FAIR.SELECTOR.ALL" + '&' + "acquisitionModeFilter=int:4&channelNameFilter=GS02P:SumY:Triggered@25MHz", CmwLightExample.AcquisitionDAQ.class);
     }
 }

@@ -1,13 +1,5 @@
 package io.opencmw.client.cmwlight;
 
-import io.opencmw.datasource.DataSource;
-import io.opencmw.datasource.Endpoint;
-import io.opencmw.serialiser.IoSerialiser;
-import io.opencmw.serialiser.spi.BinarySerialiser;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.zeromq.*;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
@@ -16,6 +8,15 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.zeromq.*;
+
+import io.opencmw.client.DataSource;
+import io.opencmw.client.Endpoint;
+import io.opencmw.serialiser.IoSerialiser;
+import io.opencmw.serialiser.spi.BinarySerialiser;
 
 /**
  * A lightweight implementation of the CMW RDA client part.
@@ -146,7 +147,6 @@ public class CmwLightClient extends DataSource {
         return endpoint.toString();
     }
 
-
     @Override
     public void get(final String requestId, final String filterPattern, final byte[] filters, final byte[] data, final byte[] rbacToken) {
         final Request request = new Request(CmwLightProtocol.RequestType.GET, requestId, filterPattern, filters, data, rbacToken);
@@ -245,7 +245,7 @@ public class CmwLightClient extends DataSource {
             LOGGER.atTrace().setCause(e).log("Failed to disconnect socket");
         }
         // disconnect/reset subscriptions
-        for (Subscription sub: subscriptions.values()) {
+        for (Subscription sub : subscriptions.values()) {
             sub.subscriptionState = SubscriptionState.UNSUBSCRIBED;
         }
     }
@@ -312,7 +312,7 @@ public class CmwLightClient extends DataSource {
             return lastHbSent + heartbeatInterval * heartbeatAllowedMisses;
         case CONNECTED:
             Request<?> request;
-            while((request = queuedRequests.poll()) != null) {
+            while ((request = queuedRequests.poll()) != null) {
                 pendingRequests.put(request.id, request.requestId);
                 sendRequest(request);
             }
@@ -345,18 +345,18 @@ public class CmwLightClient extends DataSource {
 
         try {
             switch (request.requestType) {
-                case GET:
-                    CmwLightProtocol.sendMsg(socket, CmwLightMessage.getRequest(
-                            sessionId, request.id, endpoint.getDevice(), endpoint.getProperty(),
-                            new CmwLightMessage.RequestContext(requestEndpoint.getSelector(), requestEndpoint.getFilters(), null)));
-                    break;
-                case SET:
-                    Objects.requireNonNull(request.data, "Data for set cannot be null");
-                    CmwLightProtocol.sendMsg(socket, CmwLightMessage.setRequest(
-                            sessionId, request.id, endpoint.getDevice(), endpoint.getProperty(),
-                            new ZFrame(request.data),
-                            new CmwLightMessage.RequestContext(requestEndpoint.getSelector(), requestEndpoint.getFilters(), null)));
-                    break;
+            case GET:
+                CmwLightProtocol.sendMsg(socket, CmwLightMessage.getRequest(
+                                                         sessionId, request.id, endpoint.getDevice(), endpoint.getProperty(),
+                                                         new CmwLightMessage.RequestContext(requestEndpoint.getSelector(), requestEndpoint.getFilters(), null)));
+                break;
+            case SET:
+                Objects.requireNonNull(request.data, "Data for set cannot be null");
+                CmwLightProtocol.sendMsg(socket, CmwLightMessage.setRequest(
+                                                         sessionId, request.id, endpoint.getDevice(), endpoint.getProperty(),
+                                                         new ZFrame(request.data),
+                                                         new CmwLightMessage.RequestContext(requestEndpoint.getSelector(), requestEndpoint.getFilters(), null)));
+                break;
             }
         } catch (CmwLightProtocol.RdaLightException e) {
             LOGGER.atDebug().setCause(e).log("Error sending get request:");
@@ -400,16 +400,16 @@ public class CmwLightClient extends DataSource {
         }
     }
 
-    private void sendSubscribe(final Subscription sub){
+    private void sendSubscribe(final Subscription sub) {
         if (!sub.subscriptionState.equals(SubscriptionState.UNSUBSCRIBED)) {
             return; // already subscribed/subscription in progress
         }
         try {
             CmwLightProtocol.sendMsg(socket, CmwLightMessage.subscribeRequest(
-                    sessionId, sub.id, sub.device, sub.property,
-                    Map.of(CmwLightProtocol.FieldName.SESSION_BODY_TAG.value(), Collections.<String, Object>emptyMap()),
-                    new CmwLightMessage.RequestContext(sub.selector, sub.filters, null),
-                    CmwLightProtocol.UpdateType.IMMEDIATE_UPDATE));
+                                                     sessionId, sub.id, sub.device, sub.property,
+                                                     Map.of(CmwLightProtocol.FieldName.SESSION_BODY_TAG.value(), Collections.<String, Object>emptyMap()),
+                                                     new CmwLightMessage.RequestContext(sub.selector, sub.filters, null),
+                                                     CmwLightProtocol.UpdateType.IMMEDIATE_UPDATE));
             sub.subscriptionState = SubscriptionState.SUBSCRIBING;
             sub.timeoutValue = System.currentTimeMillis() + subscriptionTimeout;
         } catch (CmwLightProtocol.RdaLightException e) {
@@ -424,9 +424,9 @@ public class CmwLightClient extends DataSource {
             return; // not currently subscribed to this property
         }
         CmwLightProtocol.sendMsg(socket, CmwLightMessage.unsubscribeRequest(
-                                                         sessionId, sub.updateId, sub.device, sub.property,
-                                                         Map.of(CmwLightProtocol.FieldName.SESSION_BODY_TAG.value(), Collections.<String, Object>emptyMap()),
-                                                         CmwLightProtocol.UpdateType.IMMEDIATE_UPDATE));
+                                                 sessionId, sub.updateId, sub.device, sub.property,
+                                                 Map.of(CmwLightProtocol.FieldName.SESSION_BODY_TAG.value(), Collections.<String, Object>emptyMap()),
+                                                 CmwLightProtocol.UpdateType.IMMEDIATE_UPDATE));
     }
 
     public static class Subscription {
@@ -455,7 +455,7 @@ public class CmwLightClient extends DataSource {
         }
     }
 
-    public static class Request<T>  {
+    public static class Request<T> {
         public final byte[] filters;
         public final byte[] data;
         public final long id;
