@@ -3,12 +3,7 @@ package io.opencmw.client;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -28,7 +23,7 @@ import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.BinarySerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 
-class DataSourceProducerTest {
+class DataSourcePublisherTest {
     private static final AtomicReference<TestObject> testObject = new AtomicReference<>();
     private final Integer requestBody = 10;
     private final Map<String, Object> requestFilter = new HashMap<>();
@@ -50,24 +45,22 @@ class DataSourceProducerTest {
             }
 
             @Override
-            public DataSource newInstance(final ZContext context, final String endpoint, final Duration timeout, final String clientId, final byte[] filters) {
-                return new TestDataSource(context, endpoint, timeout, clientId, filters);
+            public DataSource newInstance(final ZContext context, final String endpoint, final Duration timeout, final String clientId) {
+                return new TestDataSource(context, endpoint, timeout, clientId);
             }
         };
         private final static String INPROC = "inproc://testDataSource";
         private final ZContext context;
         private final ZMQ.Socket socket;
         private ZMQ.Socket internalSocket;
-        private String endpoint;
-        private String subscriptionId = "";
         private long nextHousekeeping = 0;
         private final IoClassSerialiser ioClassSerialiser = new IoClassSerialiser(new FastByteBuffer(2000));
-        private String requestId = "";
-        private boolean subscribed = false;
+        private final Map<String, String> subscriptions = new HashMap<>();
+        private final Map<String, String> requests = new HashMap<>();
+        private long nextNotification = 0L;
 
-        public TestDataSource(final ZContext context, final String endpoint, final Duration timeOut, final String clientId, final byte[] filters) {
-            super(context, endpoint, timeOut, clientId, filters);
-            this.endpoint = endpoint;
+        public TestDataSource(final ZContext context, final String endpoint, final Duration timeOut, final String clientId) {
+            super(context, endpoint, timeOut, clientId);
             this.context = context;
             this.socket = context.createSocket(SocketType.DEALER);
             this.socket.bind(INPROC);
@@ -77,23 +70,27 @@ class DataSourceProducerTest {
         public long housekeeping() {
             final long currentTime = System.currentTimeMillis();
             if (currentTime > nextHousekeeping) {
-                if (subscribed && !subscriptionId.isEmpty()) { // notify a single update if a subscription was added
-                    if (internalSocket == null) {
-                        internalSocket = context.createSocket(SocketType.DEALER);
-                        internalSocket.connect(INPROC);
-                    }
-                    final ZMsg msg = new ZMsg();
-                    msg.add(subscriptionId);
-                    msg.add(endpoint);
-                    msg.add(new byte[0]); // header
-                    ioClassSerialiser.getDataBuffer().reset();
-                    ioClassSerialiser.serialiseObject(testObject.get());
-                    // todo: the serialiser does not report the correct position after serialisation
-                    msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position() + 100));
-                    msg.add(new byte[0]); // exception
-                    msg.send(internalSocket);
-                }
-                if (!requestId.isEmpty() && testObject.get() != null) { // answer to get requests
+                if (currentTime > nextNotification) {
+                    subscriptions.forEach((subscriptionId, endpoint) -> {
+                        if (internalSocket == null) {
+                            internalSocket = context.createSocket(SocketType.DEALER);
+                            internalSocket.connect(INPROC);
+                        }
+                        final ZMsg msg = new ZMsg();
+                        msg.add(subscriptionId);
+                        msg.add(endpoint);
+                        msg.add(new byte[0]); // header
+                        ioClassSerialiser.getDataBuffer().reset();
+                        ioClassSerialiser.serialiseObject(testObject.get());
+                        // todo: the serialiser does not report the correct position after serialisation
+                        msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position() + 4));
+                        msg.add(new byte[0]); // exception
+                        msg.send(internalSocket);
+                    });
+                    nextNotification = currentTime + 3000;
+                };
+                requests.forEach((requestId, endpoint) -> {
+                    final Optional<Map.Entry<String, String>> reqEntry = requests.entrySet().stream().findAny();
                     if (internalSocket == null) {
                         internalSocket = context.createSocket(SocketType.DEALER);
                         internalSocket.connect(INPROC);
@@ -105,10 +102,11 @@ class DataSourceProducerTest {
                     ioClassSerialiser.getDataBuffer().reset();
                     ioClassSerialiser.serialiseObject(testObject.get());
                     // todo: the serialiser does not report the correct position after serialisation
-                    msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position() + 100));
+                    msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position() + 4));
                     msg.add(new byte[0]); // exception
                     msg.send(internalSocket);
-                }
+                });
+                requests.clear();
                 nextHousekeeping = currentTime + 200;
             }
             return nextHousekeeping;
@@ -116,18 +114,12 @@ class DataSourceProducerTest {
 
         @Override
         public void get(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
-            this.requestId = requestId;
-            this.endpoint = endpoint;
+            requests.put(requestId, endpoint);
         }
 
         @Override
         public void set(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
             throw new UnsupportedOperationException("cannot perform set");
-        }
-
-        @Override
-        public String getEndpoint() {
-            return endpoint;
         }
 
         @Override
@@ -142,18 +134,17 @@ class DataSourceProducerTest {
 
         @Override
         public ZMsg getMessage() {
-            return ZMsg.recvMsg(socket);
+            return ZMsg.recvMsg(socket, ZMQ.DONTWAIT);
         }
 
         @Override
-        public void subscribe(final String reqId, final byte[] rbacToken) {
-            subscriptionId = reqId;
-            subscribed = true;
+        public void subscribe(final String reqId, final String endpoint, final byte[] rbacToken) {
+            subscriptions.put(reqId, endpoint);
         }
 
         @Override
-        public void unsubscribe() {
-            subscribed = false;
+        public void unsubscribe(final String reqId) {
+            subscriptions.remove(reqId);
         }
     }
 
@@ -168,7 +159,7 @@ class DataSourceProducerTest {
 
         public TestObject() {
             this.foo = "";
-            this.bar = 0.0;
+            this.bar = Double.NaN;
         }
 
         @Override
@@ -213,7 +204,7 @@ class DataSourceProducerTest {
         eventStore.start();
         new Thread(dataSourcePublisher).start();
 
-        dataSourcePublisher.subscribe("test://foobar/testdev/prop?ctx=testselector&filter=foobar", TestObject.class);
+        dataSourcePublisher.subscribe("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar", TestObject.class);
 
         Awaitility.waitAtMost(Duration.ofSeconds(1)).until(eventReceived::get);
     }
@@ -232,7 +223,7 @@ class DataSourceProducerTest {
         eventStore.start();
         new Thread(dataSourcePublisher).start();
 
-        final Future<TestObject> future = dataSourcePublisher.get("test://foobar/testdev/prop?ctx=testselector&filter=foobar", TestObject.class);
+        final Future<TestObject> future = dataSourcePublisher.get("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar", TestObject.class);
 
         final TestObject result = future.get(1000, TimeUnit.MILLISECONDS);
         assertEquals(referenceObject, result);
@@ -251,9 +242,9 @@ class DataSourceProducerTest {
         eventStore.start();
         new Thread(dataSourcePublisher).start();
 
-        final Future<TestObject> future = dataSourcePublisher.get("test://foobar/testdev/prop?ctx=testselector&filter=foobar", TestObject.class);
+        final Future<TestObject> future = dataSourcePublisher.get("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar", TestObject.class);
 
-        assertThrows(TimeoutException.class, () -> future.get(100, TimeUnit.MILLISECONDS));
+        assertThrows(TimeoutException.class, () -> future.get(1, TimeUnit.MILLISECONDS));
     }
 
     @Test

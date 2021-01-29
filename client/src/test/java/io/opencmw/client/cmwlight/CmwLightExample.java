@@ -9,7 +9,6 @@ import org.zeromq.ZMQ;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
 public class CmwLightExample { // NOPMD is not a utility class but a sample
     private final static String CMW_NAMESERVER = "cmwpro00a.acc.gsi.de:5021";
@@ -18,29 +17,27 @@ public class CmwLightExample { // NOPMD is not a utility class but a sample
     private final static String PROPERTY = "AcquisitionDAQ";
     private final static String SELECTOR = "FAIR.SELECTOR.ALL";
 
-    public static void main(String[] args) throws DirectoryLightClient.DirectoryClientException, CmwLightProtocol.RdaLightException {
+    public static void main(String[] args) throws DirectoryLightClient.DirectoryClientException {
         subscribeAcqFromDigitizer();
     }
 
-    public static void subscribeAcqFromDigitizer() throws DirectoryLightClient.DirectoryClientException, CmwLightProtocol.RdaLightException {
+    public static void subscribeAcqFromDigitizer() throws DirectoryLightClient.DirectoryClientException {
         final DirectoryLightClient directoryClient = new DirectoryLightClient(CMW_NAMESERVER);
         DirectoryLightClient.Device device = directoryClient.getDeviceInfo(Collections.singletonList(DEVICE)).get(0);
         System.out.println(device);
         final String address = device.servers.stream().findFirst().orElseThrow().get("Address:");
         System.out.println("connect client to " + address);
-        final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), address, Duration.ofMillis(100), "testclient", null);
+        final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), address, Duration.ofMillis(100), "testclient");
         final ZMQ.Poller poller = client.getContext().createPoller(1);
         poller.register(client.getSocket(), ZMQ.Poller.POLLIN);
         client.connect();
 
         System.out.println("starting subscription");
         // 4 = Triggered Acquisition Mode; 0 = Continuous Acquisition mode
-        Map<String, Object> filters = Map.of("acquisitionModeFilter", 0, "channelNameFilter", "GS11MU2:Current_1@10Hz");
-        Map<String, Object> filters2 = Map.of("acquisitionModeFilter", 0, "channelNameFilter", "GS11MU2:Voltage_1@10Hz");
-        final CmwLightDataSource.Subscription subscription = new CmwLightDataSource.Subscription(DEVICE, PROPERTY, SELECTOR, filters);
-        client.subscribe(subscription);
-        final CmwLightDataSource.Subscription subscription2 = new CmwLightDataSource.Subscription(DEVICE, PROPERTY, SELECTOR, filters2);
-        client.subscribe(subscription2);
+        String filtersString = "acquisitionModeFilter=int:0&channelNameFilter=GS11MU2:Current_1@10Hz";
+        String filters2String = "acquisitionModeFilter=int:0&channelNameFilter=GS11MU2:Voltage_1@10Hz";
+        client.subscribe("r1", "rda3://" + DEVICE + '/' + DEVICE + '/' + PROPERTY + "?ctx=" + SELECTOR + "&" + filtersString, null);
+        client.subscribe("r1", "rda3://" + DEVICE + '/' + DEVICE + '/' + PROPERTY + "?ctx=" + SELECTOR + "&" + filters2String, null);
         client.subscriptions.forEach((id, c) -> System.out.println(id + " -> " + c));
 
         int i = 0;
@@ -61,8 +58,8 @@ public class CmwLightExample { // NOPMD is not a utility class but a sample
             if (i == 15) {
                 client.subscriptions.forEach((id, c) -> System.out.println(id + " -> " + c));
                 System.out.println("unsubscribe");
-                client.unsubscribe(subscription);
-                client.unsubscribe(subscription2);
+                client.unsubscribe("r1");
+                client.unsubscribe("r2");
             }
             i++;
         }

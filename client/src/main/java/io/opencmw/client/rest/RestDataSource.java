@@ -5,11 +5,7 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -58,8 +54,8 @@ public class RestDataSource extends DataSource implements Runnable {
         }
 
         @Override
-        public DataSource newInstance(final ZContext context, final String endpoint, final Duration timeout, final String clientId, final byte[] filters) {
-            return new RestDataSource(context, endpoint, timeout, clientId, filters);
+        public DataSource newInstance(final ZContext context, final String endpoint, final Duration timeout, final String clientId) {
+            return new RestDataSource(context, endpoint, timeout, clientId);
         }
     };
     private static final Logger LOGGER = LoggerFactory.getLogger(RestDataSource.class);
@@ -82,7 +78,7 @@ public class RestDataSource extends DataSource implements Runnable {
     protected final List<RestCallBack> pendingCallbacks = Collections.synchronizedList(new ArrayList<>());
     protected final List<RestCallBack> completedCallbacks = Collections.synchronizedList(new ArrayList<>());
     protected final BlockingQueue<String> requestQueue = new LinkedBlockingDeque<>(); // <#requestHashCode> TODO: to be extended to allow for get/set filter/send data
-    protected EventSource sseSource;
+    protected Map<String, EventSource> sseSource = new HashMap<>();
     protected Socket internalSocket; // facing towards the internal REST client API
     protected Socket externalSocket; // facing towards the DataSource manager
     protected final TimerTask wakeupTask = new TimerTask() {
@@ -95,7 +91,7 @@ public class RestDataSource extends DataSource implements Runnable {
     };
 
     protected RestDataSource(final ZContext ctx, final String endpoint) {
-        this(ctx, endpoint, Duration.ofMillis(0), RestDataSource.class.getName(), null);
+        this(ctx, endpoint, Duration.ofMillis(0), RestDataSource.class.getName());
     }
 
     /**
@@ -104,10 +100,9 @@ public class RestDataSource extends DataSource implements Runnable {
      * @param endpoint Endpoint to subscribe to
      * @param timeOut after which the request defaults to a time-out exception (no data)
      * @param clientID subscription id to be able to process the notification updates.
-     * @param filters The serialised filters which will determine which data to update
      */
-    public RestDataSource(final ZContext ctx, final String endpoint, final Duration timeOut, final String clientID, final byte[] filters) {
-        super(ctx, endpoint, timeOut, clientID, filters);
+    public RestDataSource(final ZContext ctx, final String endpoint, final Duration timeOut, final String clientID) {
+        super(ctx, endpoint, timeOut, clientID);
         synchronized (LOGGER) { // prevent race condition between multiple constructor invocations
             if (okClient == null) {
                 okClient = new OkHttpClient();
@@ -204,22 +199,23 @@ public class RestDataSource extends DataSource implements Runnable {
     }
 
     @Override
-    public void subscribe(final String reqId, final byte[] rbacToken) {
+    public void subscribe(final String reqId, final String endpoint, final byte[] rbacToken) {
         final Request request = new Request.Builder().url(endpoint).build();
-        sseSource = eventSourceFactory.newEventSource(request, new EventSourceListener() {
+        sseSource.put(reqId, eventSourceFactory.newEventSource(request, new EventSourceListener() {
             @Override
             public void onEvent(final @NotNull EventSource eventSource, final String id, final String type, final @NotNull String data) {
                 final String pubKey = clientID + "#" + PUBLICATION_COUNTER.getAndIncrement();
                 getRequest(pubKey, endpoint, MimeType.TEXT); // poll actual endpoint
             }
-        });
+        }));
     }
 
-    public void unsubscribe() {
-        if (sseSource != null) {
-            sseSource.cancel();
+    @Override
+    public void unsubscribe(final String reqId) {
+        final EventSource source = sseSource.remove(reqId);
+        if (source != null) {
+            source.cancel();
         }
-        sseSource = null;
     }
 
     public ZContext getCtx() {
@@ -268,11 +264,6 @@ public class RestDataSource extends DataSource implements Runnable {
             }
         }
         return System.currentTimeMillis() + timeOut.toMillis();
-    }
-
-    @Override
-    public String getEndpoint() {
-        return endpoint;
     }
 
     public void run() { // NOPMD NOSONAR - complexity
@@ -340,7 +331,9 @@ public class RestDataSource extends DataSource implements Runnable {
     }
 
     public void stop() {
-        unsubscribe();
+        for (final String reqId : sseSource.keySet()) {
+            unsubscribe(reqId);
+        }
         run.set(false);
     }
 

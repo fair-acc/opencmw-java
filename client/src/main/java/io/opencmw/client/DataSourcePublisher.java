@@ -41,8 +41,6 @@ public class DataSourcePublisher implements Runnable {
     private final String inprocCtrl = "inproc://dsPublisher#" + INSTANCE_COUNT.incrementAndGet();
     protected final Map<String, ThePromisedFuture<?>> requestFutureMap = new ConcurrentHashMap<>(); // <requestId, future for the get request>
     protected final Map<String, DataSource> clientMap = new HashMap<>(); // <endpoint, DataSource>
-    protected final List<DataSource> clients = new ArrayList<>();
-    protected final List<DataSource> clientsThreadsafe = Collections.synchronizedList(new ArrayList<>());
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicInteger internalReqIdGenerator = new AtomicInteger(0);
@@ -229,7 +227,7 @@ public class DataSourcePublisher implements Runnable {
 
     private <R> ThePromisedFuture<R> request(final DataSourceFilter.ReplyType replyType, final String endpoint, final Map<String, Object> requestFilter, final Object requestBody, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
         final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-        final ThePromisedFuture<R> requestFuture = newFuture(endpoint, requestFilter, requestBody, requestedDomainObjType, DataSourceFilter.ReplyType.GET, requestId);
+        final ThePromisedFuture<R> requestFuture = newFuture(endpoint, requestFilter, requestBody, requestedDomainObjType, replyType, requestId);
         final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
 
         // signal socket for get with endpoint and request id
@@ -304,10 +302,10 @@ public class DataSourcePublisher implements Runnable {
                 dataAvailable |= handleControlSocket();
             }
 
-            nextHousekeeping = clients.stream().mapToLong(DataSource::housekeeping).min().orElse(System.currentTimeMillis() + 1000);
+            nextHousekeeping = clientMap.values().stream().mapToLong(DataSource::housekeeping).min().orElse(System.currentTimeMillis() + 1000);
             tout = nextHousekeeping - System.currentTimeMillis();
         }
-        LOGGER.atDebug().addArgument(clients).log("poller returned negative value - abort run() - clients = {}");
+        LOGGER.atDebug().addArgument(clientMap.values()).log("poller returned negative value - abort run() - clients = {}");
     }
 
     public void start() {
@@ -315,7 +313,6 @@ public class DataSourcePublisher implements Runnable {
     }
 
     protected boolean handleControlSocket() {
-        boolean dataAvailable = false;
         final ZMsg controlMsg = ZMsg.recvMsg(controlSocket, false);
         if (controlMsg == null) {
             return false; // no more data available on control socket
@@ -331,10 +328,10 @@ public class DataSourcePublisher implements Runnable {
         final byte[] data = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
         final byte[] rbacToken = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
 
-        final DataSource client = getClient(endpoint, filters); // get client for endpoint
+        final DataSource client = getClient(endpoint); // get client for endpoint
         switch (msgType) {
         case SUBSCRIBE: // subscribe: 0b, requestId, addr/dev/prop?sel&filters, [filter]
-            client.subscribe(requestId, rbacToken); // issue get request
+            client.subscribe(requestId, endpoint, rbacToken); // issue get request
             break;
         case GET: // get: 1b, reqId, addr/dev/prop?sel&filters, [filter]
             client.get(requestId, endpoint, filters, data, rbacToken); // issue get request
@@ -343,19 +340,19 @@ public class DataSourcePublisher implements Runnable {
             client.set(requestId, endpoint, filters, data, rbacToken);
             break;
         case UNSUBSCRIBE: //unsub: 3b, reqId, endpoint
-            client.unsubscribe();
+            client.unsubscribe(requestId);
             requestFutureMap.remove(requestId);
             break;
         case UNKNOWN:
         default:
             throw new UnsupportedOperationException("Illegal operation type");
         }
-        return dataAvailable;
+        return true;
     }
 
     protected boolean handleDataSourceSockets() {
         boolean dataAvailable = false;
-        for (DataSource entry : clients) {
+        for (DataSource entry : clientMap.values()) {
             final ZMsg reply = entry.getMessage();
             if (reply == null) {
                 continue; // no data received, queue empty
@@ -395,11 +392,9 @@ public class DataSourcePublisher implements Runnable {
         return requestFuture;
     }
 
-    private DataSource getClient(final String endpoint, final byte[] filters) {
-        return clientMap.computeIfAbsent(endpoint.split("\\?")[0], requestedEndPoint -> {
-            final DataSource dataSource = DataSource.getFactory(requestedEndPoint).newInstance(context, endpoint, Duration.ofMillis(100), Long.toString(internalReqIdGenerator.incrementAndGet()), filters);
-            clients.add(dataSource);
-            clientsThreadsafe.add(dataSource);
+    private DataSource getClient(final String endpoint) {
+        return clientMap.computeIfAbsent(new Endpoint(endpoint).getAddress(), requestedEndPoint -> {
+            final DataSource dataSource = DataSource.getFactory(requestedEndPoint).newInstance(context, endpoint, Duration.ofMillis(100), Long.toString(internalReqIdGenerator.incrementAndGet()));
             poller.register(dataSource.getSocket(), ZMQ.Poller.POLLIN);
             return dataSource;
         });

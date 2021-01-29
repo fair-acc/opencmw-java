@@ -20,7 +20,7 @@ class CmwLightClientTest {
         ZMQ.Socket socket = context.createSocket(SocketType.DEALER);
         socket.bind("tcp://localhost:7777");
 
-        final CmwLightDataSource client = new CmwLightDataSource(context, "rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1", Duration.ofSeconds(1), "testClientId", null);
+        final CmwLightDataSource client = new CmwLightDataSource(context, "rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1", Duration.ofSeconds(1), "testClientId");
 
         client.connect();
         client.housekeeping();
@@ -45,7 +45,7 @@ class CmwLightClientTest {
         });
 
         // request subscription
-        client.subscribe(new CmwLightDataSource.Subscription("testdevice", "testprop", "test.selector", Map.of("nFilter", 1)));
+        client.subscribe("testId", "rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1", null);
 
         final CmwLightMessage subMsg = getNextNonHeartbeatMsg(socket, client, false);
         assertEquals(CmwLightProtocol.MessageType.CLIENT_REQ, subMsg.messageType);
