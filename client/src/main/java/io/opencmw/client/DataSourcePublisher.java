@@ -187,6 +187,26 @@ public class DataSourcePublisher implements Runnable {
         return eventStore;
     }
 
+    public <R> Future<R> set(String endpoint, final Class<R> requestedDomainObjType, final Object requestBody, final RbacProvider... rbacProvider) {
+        return set(endpoint, null, requestBody, requestedDomainObjType, rbacProvider);
+    }
+
+    /**
+     * Perform an asynchronous set request on the given device/property.
+     * Checks if a client for this service already exists and if it does performs the asynchronous get on it, otherwise
+     * it starts a new client and performs it there.
+     *
+     * @param endpoint endpoint address for the property e.g. 'rda3://hostname:port/property?selector&amp;filter', file:///path/to/directory, mdp://host:port
+     * @param requestFilter optional map of optional filters e.g. Map.of("channelName", "VoltageChannel")
+     * @param requestBody optional domain object payload to be send with the request
+     * @param requestedDomainObjType the requested result domain object type
+     * @param <R> The type of the deserialised requested result domain object
+     * @return A future which will be able to retrieve the deserialised result
+     */
+    public <R> Future<R> set(String endpoint, final Map<String, Object> requestFilter, final Object requestBody, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
+        return request(DataSourceFilter.ReplyType.SET, endpoint, requestFilter, requestBody, requestedDomainObjType, rbacProvider);
+    }
+
     public <R> Future<R> get(String endpoint, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
         return get(endpoint, null, null, requestedDomainObjType, rbacProvider);
     }
@@ -204,13 +224,17 @@ public class DataSourcePublisher implements Runnable {
      * @return A future which will be able to retrieve the deserialised result
      */
     public <R> Future<R> get(String endpoint, final Map<String, Object> requestFilter, final Object requestBody, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
+        return request(DataSourceFilter.ReplyType.GET, endpoint, requestFilter, requestBody, requestedDomainObjType, rbacProvider);
+    }
+
+    private <R> ThePromisedFuture<R> request(final DataSourceFilter.ReplyType replyType, final String endpoint, final Map<String, Object> requestFilter, final Object requestBody, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
         final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-        final Future<R> requestFuture = newFuture(endpoint, requestFilter, requestBody, requestedDomainObjType, DataSourceFilter.ReplyType.GET, requestId);
+        final ThePromisedFuture<R> requestFuture = newFuture(endpoint, requestFilter, requestBody, requestedDomainObjType, DataSourceFilter.ReplyType.GET, requestId);
         final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
 
         // signal socket for get with endpoint and request id
         final ZMsg msg = new ZMsg();
-        msg.add(new byte[] { DataSourceFilter.ReplyType.GET.getID() });
+        msg.add(new byte[] { replyType.getID() });
         msg.add(requestId);
         msg.add(endpoint);
         if (requestFilter != null) {
@@ -243,95 +267,21 @@ public class DataSourcePublisher implements Runnable {
         return requestFuture;
     }
 
-    public <T> void set(final String endpoint, final Map<String, Object> requestFilter, final Class<T> dataType, final T domainObject, final RbacProvider... rbacProvider) {
-        final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-        final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
-        ioClassSerialiser.getDataBuffer().reset();
-        ioClassSerialiser.setMatchedIoSerialiser(matchingSerialiser);
-        ioClassSerialiser.serialiseObject(domainObject);
-        final byte[] requestBody = Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position());
-        newFuture(endpoint, requestFilter, requestBody, dataType, DataSourceFilter.ReplyType.GET, requestId);
-
-        // signal socket for get with endpoint and request id
-        final ZMsg msg = new ZMsg();
-        msg.add(new byte[] { DataSourceFilter.ReplyType.SET.getID() });
-        msg.add(requestId);
-        msg.add(endpoint);
-        if (requestFilter != null) {
-            ioClassSerialiser.getDataBuffer().reset();
-            ioClassSerialiser.setMatchedIoSerialiser(matchingSerialiser); // needs to be converted in DataSource impl
-            ioClassSerialiser.serialiseObject(requestFilter);
-            msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
-        } else {
-            msg.add(EMPTY_FRAME);
-        }
-        if (requestBody != null) {
-            msg.add(requestBody);
-        } else {
-            msg.add(EMPTY_FRAME); // todo: should this be an error, set without body doesn't seem to be useful
-        }
-        // RBAC
-        if (rbacProvider.length > 0 || this.rbacProvider != null) {
-            final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
-            // rbac.sign(msg); // todo: sign message and add rbac token and signature
-        } else {
-            msg.add(EMPTY_FRAME);
-        }
-
-        msg.send(perThreadControlSocket.get());
-        //TODO: do we need the following 'remove()'
-        perThreadControlSocket.remove();
-    }
-
     public <T> void subscribe(final String endpoint, final Class<T> requestedDomainObjType) {
         subscribe(endpoint, requestedDomainObjType, null, null);
     }
 
-    public <R> void subscribe(final String endpoint, final Class<R> requestedDomainObjType, final Map<String, Object> requestFilter, final Object requestBody, final RbacProvider... rbacProvider) {
-        final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-        final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
-        newFuture(endpoint, requestFilter, requestBody, requestedDomainObjType, DataSourceFilter.ReplyType.SUBSCRIBE, requestId);
-
-        // signal socket for get with endpoint and request id
-        final ZMsg msg = new ZMsg();
-        msg.add(new byte[] { DataSourceFilter.ReplyType.SUBSCRIBE.getID() });
-        msg.add(requestId);
-        msg.add(endpoint);
-        if (requestFilter != null) {
-            ioClassSerialiser.getDataBuffer().reset();
-            ioClassSerialiser.serialiseObject(requestFilter);
-            msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
-        } else {
-            msg.add(EMPTY_FRAME);
-        }
-        if (requestBody != null) {
-            ioClassSerialiser.getDataBuffer().reset();
-            ioClassSerialiser.setMatchedIoSerialiser(matchingSerialiser); // needs to be converted in DataSource impl
-            ioClassSerialiser.serialiseObject(requestBody);
-            msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
-        } else {
-            msg.add(EMPTY_FRAME);
-        }
-        // RBAC
-        if (rbacProvider.length > 0 || this.rbacProvider != null) {
-            final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
-            // rbac.sign(msg); // todo: sign message and add rbac token and signature
-        } else {
-            msg.add(EMPTY_FRAME);
-        }
-
-        msg.send(perThreadControlSocket.get());
-        //TODO: do we need the following 'remove()'
-        perThreadControlSocket.remove();
+    public <R> String subscribe(final String endpoint, final Class<R> requestedDomainObjType, final Map<String, Object> requestFilter, final Object requestBody, final RbacProvider... rbacProvider) {
+        ThePromisedFuture<R> future = request(DataSourceFilter.ReplyType.SUBSCRIBE, endpoint, requestFilter, requestBody, requestedDomainObjType, rbacProvider);
+        return future.internalRequestID;
     }
 
-    public void unsubscribe(String endpoint) {
-        final String requestId = clientId + internalReqIdGenerator.incrementAndGet(); // should this use the req id from the subscription?
+    public void unsubscribe(String requestId) {
         // signal socket for get with endpoint and request id
         final ZMsg msg = new ZMsg();
         msg.add(new byte[] { DataSourceFilter.ReplyType.UNSUBSCRIBE.getID() });
         msg.add(requestId);
-        msg.add(endpoint);
+        msg.add(requestFutureMap.get(requestId).endpoint);
         msg.send(perThreadControlSocket.get());
         //TODO: do we need the following 'remove()'
         perThreadControlSocket.remove();
