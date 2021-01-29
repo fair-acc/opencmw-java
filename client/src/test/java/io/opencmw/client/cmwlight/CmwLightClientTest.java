@@ -20,7 +20,7 @@ class CmwLightClientTest {
         ZMQ.Socket socket = context.createSocket(SocketType.DEALER);
         socket.bind("tcp://localhost:7777");
 
-        final CmwLightClient client = new CmwLightClient(context, "rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1", Duration.ofSeconds(1), "testClientId", null);
+        final CmwLightDataSource client = new CmwLightDataSource(context, "rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1", Duration.ofSeconds(1), "testClientId", null);
 
         client.connect();
         client.housekeeping();
@@ -41,11 +41,11 @@ class CmwLightClientTest {
         Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
             client.getMessage(); // Make client receive ack and update connection status
             client.housekeeping(); // allow the subscription to be sent out
-            return client.connectionState.get().equals(CmwLightClient.ConnectionState.CONNECTED);
+            return client.connectionState.get().equals(CmwLightDataSource.ConnectionState.CONNECTED);
         });
 
         // request subscription
-        client.subscribe(new CmwLightClient.Subscription("testdevice", "testprop", "test.selector", Map.of("nFilter", 1)));
+        client.subscribe(new CmwLightDataSource.Subscription("testdevice", "testprop", "test.selector", Map.of("nFilter", 1)));
 
         final CmwLightMessage subMsg = getNextNonHeartbeatMsg(socket, client, false);
         assertEquals(CmwLightProtocol.MessageType.CLIENT_REQ, subMsg.messageType);
@@ -79,7 +79,7 @@ class CmwLightClientTest {
     /*
     / get next message sent from client to server ignoring heartbeats, periodically send heartbeat and perform housekeeping
     */
-    private CmwLightMessage getNextNonHeartbeatMsg(final ZMQ.Socket socket, final CmwLightClient client, boolean debug) throws CmwLightProtocol.RdaLightException {
+    private CmwLightMessage getNextNonHeartbeatMsg(final ZMQ.Socket socket, final CmwLightDataSource client, boolean debug) throws CmwLightProtocol.RdaLightException {
         int i = 0;
         while(true) {
             final ZMsg msg = ZMsg.recvMsg(socket, false);
@@ -107,7 +107,7 @@ class CmwLightClientTest {
     /*
     / get next message ignoring heartbeats, periodically send heartbeat and perform housekeeping
     */
-    private CmwLightMessage getNextNonHeartbeatClientMsg(final CmwLightClient client, boolean debug) throws CmwLightProtocol.RdaLightException {
+    private CmwLightMessage getNextNonHeartbeatClientMsg(final CmwLightDataSource client, boolean debug) throws CmwLightProtocol.RdaLightException {
         while(true) {
             final CmwLightMessage result = client.receiveData();
             if (debug) {

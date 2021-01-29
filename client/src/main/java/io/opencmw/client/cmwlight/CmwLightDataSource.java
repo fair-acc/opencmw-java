@@ -23,8 +23,8 @@ import io.opencmw.serialiser.spi.BinarySerialiser;
  * Reads all sockets from a single Thread, which can also be embedded into other event loops.
  * Manages connection state and automatically reconnects broken connections and subscriptions.
  */
-public class CmwLightClient extends DataSource {
-    private static final Logger LOGGER = LoggerFactory.getLogger(CmwLightClient.class);
+public class CmwLightDataSource extends DataSource {
+    private static final Logger LOGGER = LoggerFactory.getLogger(CmwLightDataSource.class);
     private static final AtomicLong connectionIdGenerator = new AtomicLong(0); // global counter incremented for each connection
     private static final AtomicInteger requestIdGenerator = new AtomicInteger(0);
     public static final String RDA_3_PROTOCOL = "rda3://";
@@ -41,7 +41,7 @@ public class CmwLightClient extends DataSource {
 
         @Override
         public DataSource newInstance(final ZContext context, final String endpoint, final Duration timeout, final String clientId, final byte[] filters) {
-            return new CmwLightClient(context, endpoint, timeout, clientId, filters);
+            return new CmwLightDataSource(context, endpoint, timeout, clientId, filters);
         }
     };
     private static DirectoryLightClient directoryLightClient;
@@ -64,7 +64,7 @@ public class CmwLightClient extends DataSource {
     private final Queue<Request<?>> queuedRequests = new LinkedBlockingQueue<>();
     private final Map<Long, String> pendingRequests = new HashMap<>();
 
-    public CmwLightClient(final ZContext context, final String endpoint, final Duration timeout, final String clientId, final byte[] filters) {
+    public CmwLightDataSource(final ZContext context, final String endpoint, final Duration timeout, final String clientId, final byte[] filters) {
         super(context, endpoint, timeout, clientId, filters);
         LOGGER.atTrace().addArgument(endpoint).log("connecting to: {}");
         this.context = context;
@@ -80,7 +80,7 @@ public class CmwLightClient extends DataSource {
     }
 
     public static void setDirectoryLightClient(final DirectoryLightClient directoryLightClient) {
-        CmwLightClient.directoryLightClient = directoryLightClient;
+        CmwLightDataSource.directoryLightClient = directoryLightClient;
     }
 
     public void unsubscribe(final Subscription subscription) throws CmwLightProtocol.RdaLightException {

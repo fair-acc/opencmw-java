@@ -28,7 +28,7 @@ public class CmwLightExample { // NOPMD is not a utility class but a sample
         System.out.println(device);
         final String address = device.servers.stream().findFirst().orElseThrow().get("Address:");
         System.out.println("connect client to " + address);
-        final CmwLightClient client = new CmwLightClient(new ZContext(1), address, Duration.ofMillis(100), "testclient", null);
+        final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), address, Duration.ofMillis(100), "testclient", null);
         final ZMQ.Poller poller = client.getContext().createPoller(1);
         poller.register(client.getSocket(), ZMQ.Poller.POLLIN);
         client.connect();
@@ -37,9 +37,9 @@ public class CmwLightExample { // NOPMD is not a utility class but a sample
         // 4 = Triggered Acquisition Mode; 0 = Continuous Acquisition mode
         Map<String, Object> filters = Map.of("acquisitionModeFilter", 0, "channelNameFilter", "GS11MU2:Current_1@10Hz");
         Map<String, Object> filters2 = Map.of("acquisitionModeFilter", 0, "channelNameFilter", "GS11MU2:Voltage_1@10Hz");
-        final CmwLightClient.Subscription subscription = new CmwLightClient.Subscription(DEVICE, PROPERTY, SELECTOR, filters);
+        final CmwLightDataSource.Subscription subscription = new CmwLightDataSource.Subscription(DEVICE, PROPERTY, SELECTOR, filters);
         client.subscribe(subscription);
-        final CmwLightClient.Subscription subscription2 = new CmwLightClient.Subscription(DEVICE, PROPERTY, SELECTOR, filters2);
+        final CmwLightDataSource.Subscription subscription2 = new CmwLightDataSource.Subscription(DEVICE, PROPERTY, SELECTOR, filters2);
         client.subscribe(subscription2);
         client.subscriptions.forEach((id, c) -> System.out.println(id + " -> " + c));
 
