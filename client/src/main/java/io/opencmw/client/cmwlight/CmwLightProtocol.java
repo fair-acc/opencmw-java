@@ -211,7 +211,9 @@ public class CmwLightProtocol {
             return reply;
         case NOTIFICATION_DATA: // notification update
             assertDescriptor(descriptor, FrameType.HEADER, FrameType.BODY, FrameType.BODY_DATA_CONTEXT);
-            reply.notificationId = (long) reply.options.get(FieldName.NOTIFICATION_ID_TAG.value());
+            if (reply.options != null && reply.options.containsKey(FieldName.NOTIFICATION_ID_TAG.value())) {
+                reply.notificationId = (long) reply.options.get(FieldName.NOTIFICATION_ID_TAG.value());
+            }
             reply.bodyData = data.pollFirst();
             reply.dataContext = parseContextData(data.pollFirst());
             return reply;
@@ -228,7 +230,9 @@ public class CmwLightProtocol {
         case SUBSCRIBE: // descriptor: [0] options: SOURCE_ID_TAG // seems to be sent after subscription is accepted
             if (reply.messageType == MessageType.SERVER_REP) {
                 assertDescriptor(descriptor, FrameType.HEADER);
-                reply.sourceId = (long) reply.options.get(FieldName.SOURCE_ID_TAG.value());
+                if (reply.options != null && reply.options.containsKey(FieldName.SOURCE_ID_TAG.value())) {
+                    reply.sourceId = (long) reply.options.get(FieldName.SOURCE_ID_TAG.value());
+                }
             } else {
                 assertDescriptor(descriptor, FrameType.HEADER, FrameType.BODY_REQUEST_CONTEXT);
                 reply.requestContext = parseRequestContext(data.pollFirst());
@@ -236,7 +240,9 @@ public class CmwLightProtocol {
             return reply;
         case SESSION_CONFIRM: // descriptor: [0] options: SESSION_BODY_TAG
             assertDescriptor(descriptor, FrameType.HEADER);
-            reply.sessionBody = (Map<String, Object>) reply.options.get(FieldName.SESSION_BODY_TAG.value());
+            if (reply.options != null && reply.options.containsKey(FieldName.SESSION_BODY_TAG.value())) {
+                reply.sessionBody = (Map<String, Object>) reply.options.get(FieldName.SESSION_BODY_TAG.value());
+            }
             return reply;
         case EVENT:
         case UNSUBSCRIBE:

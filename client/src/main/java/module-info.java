@@ -8,7 +8,12 @@ module io.opencmw.client {
     requires okhttp3.sse;
     requires disruptor;
     requires java.validation;
+    requires kotlin.stdlib;
+    requires it.unimi.dsi.fastutil;
 
     exports io.opencmw.client.cmwlight;
     exports io.opencmw.client.rest;
+    exports io.opencmw.client;
+
+    opens io.opencmw.client to io.opencmw.serialiser;
 }

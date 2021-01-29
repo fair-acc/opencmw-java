@@ -75,11 +75,10 @@ class RestDataSourceTest {
     void basicRestDataSourceTests() {
         assertThrows(UnsupportedOperationException.class, () -> new RestDataSource(null, null));
         assertThrows(UnsupportedOperationException.class, () -> new RestDataSource(null, ""));
-        assertThrows(IllegalArgumentException.class, () -> new RestDataSource(null, server.url("/sse").toString(), null, "clientName", null)); // NOSONAR
+        assertThrows(IllegalArgumentException.class, () -> new RestDataSource(null, server.url("/sse").toString(), null, "clientName")); // NOSONAR
         RestDataSource dataSource = new RestDataSource(null, server.url("/sse").toString());
         assertNotNull(dataSource);
-        assertNotNull(dataSource.getEndpoint());
-        assertDoesNotThrow(dataSource::housekeeping);
+        assertDoesNotThrow(() -> dataSource.housekeeping());
     }
 
     @Test
@@ -88,7 +87,7 @@ class RestDataSourceTest {
             final RestDataSource dataSource = new RestDataSource(ctx, server.url("/sse").toString());
             assertNotNull(dataSource);
 
-            dataSource.subscribe("1", new byte[0]);
+            dataSource.subscribe("1", server.url("/sse").toString(), new byte[0]);
             receiveAndCheckData(dataSource, "io.opencmw.client.rest.RestDataSource#*", true);
 
             // test asynchronuous get
@@ -104,7 +103,7 @@ class RestDataSourceTest {
     @Test
     void testRestDataSourceTimeOut() {
         try (final ZContext ctx = new ZContext()) {
-            final RestDataSource dataSource = new RestDataSource(ctx, server.url("/testDelayed").toString(), Duration.ofMillis(10), "testClient", null);
+            final RestDataSource dataSource = new RestDataSource(ctx, server.url("/testDelayed").toString(), Duration.ofMillis(10), "testClient");
             assertNotNull(dataSource);
 
             // test asynchronuous with time-out

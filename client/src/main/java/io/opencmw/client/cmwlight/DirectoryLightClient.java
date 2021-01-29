@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  */
 public class DirectoryLightClient {
     public static final String GET_DEVICE_INFO = "get-device-info";
-    public static final String GET_SERVER_INFO = "get-server-info";
+    // public static final String GET_SERVER_INFO = "get-server-info";
     // private static final String SUPPORTED_CHARACTERS = "\\.\\-\\+_a-zA-Z0-9";
     // private static final String NAME_REGEX = "[a-zA-Z0-9][" + SUPPORTED_CHARACTERS + "]*";
     // private static final String CLIENT_INFO_SUPPORTED_CHARACTERS = "\\x20-\\x7E"; // ASCII := {32-126}

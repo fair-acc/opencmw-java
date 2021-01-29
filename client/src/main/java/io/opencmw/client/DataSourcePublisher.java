@@ -1,12 +1,8 @@
-package io.opencmw.datasource;
+package io.opencmw.client;
 
 import java.nio.charset.Charset;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
@@ -23,7 +19,6 @@ import org.zeromq.ZMsg;
 
 import io.opencmw.EventStore;
 import io.opencmw.RingBufferEvent;
-import io.opencmw.filter.DataSourceFilter;
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.rbac.RbacProvider;
@@ -50,11 +45,10 @@ public class DataSourcePublisher implements Runnable {
     private static final AtomicInteger INSTANCE_COUNT = new AtomicInteger();
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
     private static final ZFrame EMPTY_FRAME = new ZFrame(EMPTY_BYTE_ARRAY);
+    public static final int MIN_FRAMES_INTERNAL_MSG = 3;
     private final String inprocCtrl = "inproc://dsPublisher#" + INSTANCE_COUNT.incrementAndGet();
     protected final Map<String, ThePromisedFuture<?>> requestFutureMap = new ConcurrentHashMap<>(); // <requestId, future for the get request>
-    protected final Map<String, DataSource> clientMap = new HashMap<>(); // <endpoint, DataSource>
-    protected final List<DataSource> clients = new ArrayList<>();
-    protected final List<DataSource> clientsThreadsafe = Collections.synchronizedList(new ArrayList<>());
+    protected final Map<String, DataSource> clientMap = new ConcurrentHashMap<>(); // <address, DataSource>
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicInteger internalReqIdGenerator = new AtomicInteger(0);
@@ -94,7 +88,7 @@ public class DataSourcePublisher implements Runnable {
             if (future.replyType == DataSourceFilter.ReplyType.SUBSCRIBE) {
                 final Class<?> domainClass = future.getRequestedDomainObjType();
                 final ZMsg cmwMsg = event.payload.get(ZMsg.class);
-                final String header = cmwMsg.poll().getString(Charset.defaultCharset());
+                cmwMsg.poll().getString(Charset.defaultCharset()); // ignore header
                 final byte[] body = cmwMsg.poll().getData();
                 final String exc = cmwMsg.poll().getString(Charset.defaultCharset());
                 Object domainObj = null;
@@ -114,7 +108,7 @@ public class DataSourcePublisher implements Runnable {
                     }
                     try {
                         contextFilter.setSelector(dataSourceFilter.context, 0);
-                    } catch (Exception e) {
+                    } catch (IllegalArgumentException e) {
                         LOGGER.atError().setCause(e).addArgument(dataSourceFilter.context).log("No valid context: {}");
                     }
                     // contextFilter.acqts = msg.dataContext.acqStamp; // needs to be added?
@@ -137,10 +131,10 @@ public class DataSourcePublisher implements Runnable {
                     ioClassSerialiser.setDataBuffer(byteBuffer); // allow received byte array to be released
                 }
                 // notify future
-                if (exc != null && !exc.isBlank()) {
-                    future.setException(new Exception(exc));
-                } else {
+                if (exc == null || exc.isBlank()) {
                     future.castAndSetReply(obj);
+                } else {
+                    future.setException(new Exception(exc));
                 }
                 // publish to ring buffer
                 publicationTarget.getRingBuffer().publishEvent((publishEvent, seq, o) -> {
@@ -154,7 +148,7 @@ public class DataSourcePublisher implements Runnable {
                     }
                     try {
                         contextFilter.setSelector(dataSourceFilter.context, 0);
-                    } catch (Exception e) {
+                    } catch (IllegalArgumentException e) {
                         LOGGER.atError().setCause(e).addArgument(dataSourceFilter.context).log("No valid context: {}");
                     }
                     // contextFilter.acqts = msg.dataContext.acqStamp; // needs to be added?
@@ -199,6 +193,27 @@ public class DataSourcePublisher implements Runnable {
         return eventStore;
     }
 
+    public <R> Future<R> set(String endpoint, final Class<R> requestedDomainObjType, final Object requestBody, final RbacProvider... rbacProvider) {
+        return set(endpoint, null, requestBody, requestedDomainObjType, rbacProvider);
+    }
+
+    /**
+     * Perform an asynchronous set request on the given device/property.
+     * Checks if a client for this service already exists and if it does performs the asynchronous get on it, otherwise
+     * it starts a new client and performs it there.
+     *
+     * @param endpoint endpoint address for the property e.g. 'rda3://hostname:port/property?selector&amp;filter',
+     *                 file:///path/to/directory, mdp://host:port
+     * @param requestFilter optional map of optional filters e.g. Map.of("channelName", "VoltageChannel")
+     * @param requestBody optional domain object payload to be send with the request
+     * @param requestedDomainObjType the requested result domain object type
+     * @param <R> The type of the deserialised requested result domain object
+     * @return A future which will be able to retrieve the deserialised result
+     */
+    public <R> Future<R> set(String endpoint, final Map<String, Object> requestFilter, final Object requestBody, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
+        return request(DataSourceFilter.ReplyType.SET, endpoint, requestFilter, requestBody, requestedDomainObjType, rbacProvider);
+    }
+
     public <R> Future<R> get(String endpoint, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
         return get(endpoint, null, null, requestedDomainObjType, rbacProvider);
     }
@@ -208,7 +223,8 @@ public class DataSourcePublisher implements Runnable {
      * Checks if a client for this service already exists and if it does performs the asynchronous get on it, otherwise
      * it starts a new client and performs it there.
      *
-     * @param endpoint endpoint address for the property e.g. 'rda3://hostname:port/property?selector&amp;filter', file:///path/to/directory, mdp://host:port
+     * @param endpoint endpoint address for the property e.g. 'rda3://hostname:port/property?selector&amp;filter',
+     *                 file:///path/to/directory, mdp://host:port
      * @param requestFilter optional map of optional filters e.g. Map.of("channelName", "VoltageChannel")
      * @param requestBody optional domain object payload to be send with the request
      * @param requestedDomainObjType the requested result domain object type
@@ -216,34 +232,38 @@ public class DataSourcePublisher implements Runnable {
      * @return A future which will be able to retrieve the deserialised result
      */
     public <R> Future<R> get(String endpoint, final Map<String, Object> requestFilter, final Object requestBody, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
+        return request(DataSourceFilter.ReplyType.GET, endpoint, requestFilter, requestBody, requestedDomainObjType, rbacProvider);
+    }
+
+    private <R> ThePromisedFuture<R> request(final DataSourceFilter.ReplyType replyType, final String endpoint, final Map<String, Object> requestFilter, final Object requestBody, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
         final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-        final Future<R> requestFuture = newFuture(endpoint, requestFilter, requestBody, requestedDomainObjType, DataSourceFilter.ReplyType.GET, requestId);
+        final ThePromisedFuture<R> requestFuture = newFuture(endpoint, requestFilter, requestBody, requestedDomainObjType, replyType, requestId);
         final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
 
         // signal socket for get with endpoint and request id
         final ZMsg msg = new ZMsg();
-        msg.add(new byte[] { DataSourceFilter.ReplyType.GET.getID() });
+        msg.add(new byte[] { replyType.getID() });
         msg.add(requestId);
         msg.add(endpoint);
-        if (requestFilter != null) {
+        if (requestFilter == null) {
+            msg.add(EMPTY_FRAME);
+        } else {
             ioClassSerialiser.getDataBuffer().reset();
             ioClassSerialiser.setMatchedIoSerialiser(matchingSerialiser); // needs to be converted in DataSource impl
             ioClassSerialiser.serialiseObject(requestFilter);
             msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
-        } else {
-            msg.add(EMPTY_FRAME);
         }
-        if (requestBody != null) {
+        if (requestBody == null) {
+            msg.add(EMPTY_FRAME);
+        } else {
             ioClassSerialiser.getDataBuffer().reset();
             ioClassSerialiser.setMatchedIoSerialiser(matchingSerialiser); // needs to be converted in DataSource impl
             ioClassSerialiser.serialiseObject(requestBody);
             msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
-        } else {
-            msg.add(EMPTY_FRAME);
         }
         // RBAC
         if (rbacProvider.length > 0 || this.rbacProvider != null) {
-            final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
+            final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider; // NOPMD - future use
             // rbac.sign(msg); // todo: sign message and add rbac token and signature
         } else {
             msg.add(EMPTY_FRAME);
@@ -255,95 +275,21 @@ public class DataSourcePublisher implements Runnable {
         return requestFuture;
     }
 
-    public <T> void set(final String endpoint, final Map<String, Object> requestFilter, final Class<T> dataType, final T domainObject, final RbacProvider... rbacProvider) {
-        final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-        final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
-        ioClassSerialiser.getDataBuffer().reset();
-        ioClassSerialiser.setMatchedIoSerialiser(matchingSerialiser);
-        ioClassSerialiser.serialiseObject(domainObject);
-        final byte[] requestBody = Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position());
-        newFuture(endpoint, requestFilter, requestBody, dataType, DataSourceFilter.ReplyType.GET, requestId);
-
-        // signal socket for get with endpoint and request id
-        final ZMsg msg = new ZMsg();
-        msg.add(new byte[] { DataSourceFilter.ReplyType.SET.getID() });
-        msg.add(requestId);
-        msg.add(endpoint);
-        if (requestFilter != null) {
-            ioClassSerialiser.getDataBuffer().reset();
-            ioClassSerialiser.setMatchedIoSerialiser(matchingSerialiser); // needs to be converted in DataSource impl
-            ioClassSerialiser.serialiseObject(requestFilter);
-            msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
-        } else {
-            msg.add(EMPTY_FRAME);
-        }
-        if (requestBody != null) {
-            msg.add(requestBody);
-        } else {
-            msg.add(EMPTY_FRAME); // todo: should this be an error, set without body doesn't seem to be useful
-        }
-        // RBAC
-        if (rbacProvider.length > 0 || this.rbacProvider != null) {
-            final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
-            // rbac.sign(msg); // todo: sign message and add rbac token and signature
-        } else {
-            msg.add(EMPTY_FRAME);
-        }
-
-        msg.send(perThreadControlSocket.get());
-        //TODO: do we need the following 'remove()'
-        perThreadControlSocket.remove();
-    }
-
     public <T> void subscribe(final String endpoint, final Class<T> requestedDomainObjType) {
         subscribe(endpoint, requestedDomainObjType, null, null);
     }
 
-    public <R> void subscribe(final String endpoint, final Class<R> requestedDomainObjType, final Map<String, Object> requestFilter, final Object requestBody, final RbacProvider... rbacProvider) {
-        final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-        final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
-        newFuture(endpoint, requestFilter, requestBody, requestedDomainObjType, DataSourceFilter.ReplyType.SUBSCRIBE, requestId);
-
-        // signal socket for get with endpoint and request id
-        final ZMsg msg = new ZMsg();
-        msg.add(new byte[] { DataSourceFilter.ReplyType.SUBSCRIBE.getID() });
-        msg.add(requestId);
-        msg.add(endpoint);
-        if (requestFilter != null) {
-            ioClassSerialiser.getDataBuffer().reset();
-            ioClassSerialiser.serialiseObject(requestFilter);
-            msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
-        } else {
-            msg.add(EMPTY_FRAME);
-        }
-        if (requestBody != null) {
-            ioClassSerialiser.getDataBuffer().reset();
-            ioClassSerialiser.setMatchedIoSerialiser(matchingSerialiser); // needs to be converted in DataSource impl
-            ioClassSerialiser.serialiseObject(requestBody);
-            msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
-        } else {
-            msg.add(EMPTY_FRAME);
-        }
-        // RBAC
-        if (rbacProvider.length > 0 || this.rbacProvider != null) {
-            final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : this.rbacProvider;
-            // rbac.sign(msg); // todo: sign message and add rbac token and signature
-        } else {
-            msg.add(EMPTY_FRAME);
-        }
-
-        msg.send(perThreadControlSocket.get());
-        //TODO: do we need the following 'remove()'
-        perThreadControlSocket.remove();
+    public <R> String subscribe(final String endpoint, final Class<R> requestedDomainObjType, final Map<String, Object> requestFilter, final Object requestBody, final RbacProvider... rbacProvider) {
+        ThePromisedFuture<R> future = request(DataSourceFilter.ReplyType.SUBSCRIBE, endpoint, requestFilter, requestBody, requestedDomainObjType, rbacProvider);
+        return future.internalRequestID;
     }
 
-    public void unsubscribe(String endpoint) {
-        final String requestId = clientId + internalReqIdGenerator.incrementAndGet(); // should this use the req id from the subscription?
+    public void unsubscribe(String requestId) {
         // signal socket for get with endpoint and request id
         final ZMsg msg = new ZMsg();
         msg.add(new byte[] { DataSourceFilter.ReplyType.UNSUBSCRIBE.getID() });
         msg.add(requestId);
-        msg.add(endpoint);
+        msg.add(requestFutureMap.get(requestId).endpoint);
         msg.send(perThreadControlSocket.get());
         //TODO: do we need the following 'remove()'
         perThreadControlSocket.remove();
@@ -366,23 +312,22 @@ public class DataSourcePublisher implements Runnable {
                 dataAvailable |= handleControlSocket();
             }
 
-            nextHousekeeping = clients.stream().mapToLong(DataSource::housekeeping).min().orElse(System.currentTimeMillis() + 1000);
+            nextHousekeeping = clientMap.values().stream().mapToLong(DataSource::housekeeping).min().orElse(System.currentTimeMillis() + 1000);
             tout = nextHousekeeping - System.currentTimeMillis();
         }
-        LOGGER.atDebug().addArgument(clients).log("poller returned negative value - abort run() - clients = {}");
+        LOGGER.atDebug().addArgument(clientMap.values()).log("poller returned negative value - abort run() - clients = {}");
     }
 
     public void start() {
-        new Thread(this).start();
+        new Thread(this).start(); // NOPMD - not a webapp
     }
 
     protected boolean handleControlSocket() {
-        boolean dataAvailable = false;
         final ZMsg controlMsg = ZMsg.recvMsg(controlSocket, false);
         if (controlMsg == null) {
             return false; // no more data available on control socket
         }
-        if (controlMsg.size() < 3) { // msgType, requestId and endpoint have to be always present
+        if (controlMsg.size() < MIN_FRAMES_INTERNAL_MSG) { // msgType, requestId and endpoint have to be always present
             LOGGER.atDebug().log("ignoring invalid message");
             return true; // ignore invalid partial message
         }
@@ -393,10 +338,10 @@ public class DataSourcePublisher implements Runnable {
         final byte[] data = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
         final byte[] rbacToken = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
 
-        final DataSource client = getClient(endpoint, filters); // get client for endpoint
+        final DataSource client = getClient(endpoint); // get client for endpoint
         switch (msgType) {
         case SUBSCRIBE: // subscribe: 0b, requestId, addr/dev/prop?sel&filters, [filter]
-            client.subscribe(requestId, rbacToken); // issue get request
+            client.subscribe(requestId, endpoint, rbacToken); // issue get request
             break;
         case GET: // get: 1b, reqId, addr/dev/prop?sel&filters, [filter]
             client.get(requestId, endpoint, filters, data, rbacToken); // issue get request
@@ -405,19 +350,19 @@ public class DataSourcePublisher implements Runnable {
             client.set(requestId, endpoint, filters, data, rbacToken);
             break;
         case UNSUBSCRIBE: //unsub: 3b, reqId, endpoint
-            client.unsubscribe();
+            client.unsubscribe(requestId);
             requestFutureMap.remove(requestId);
             break;
         case UNKNOWN:
         default:
             throw new UnsupportedOperationException("Illegal operation type");
         }
-        return dataAvailable;
+        return true;
     }
 
     protected boolean handleDataSourceSockets() {
         boolean dataAvailable = false;
-        for (DataSource entry : clients) {
+        for (DataSource entry : clientMap.values()) {
             final ZMsg reply = entry.getMessage();
             if (reply == null) {
                 continue; // no data received, queue empty
@@ -435,9 +380,9 @@ public class DataSourcePublisher implements Runnable {
                         : "requestID mismatch";
                     requestFutureMap.remove(reqId);
                 }
-                final Endpoint endpoint = new Endpoint(reply.pollFirst().getString(Charset.defaultCharset()));
+                final Endpoint endpoint = new Endpoint(reply.pollFirst().getString(Charset.defaultCharset())); // NOPMD - need to create new Endpoint
                 event.arrivalTimeStamp = System.currentTimeMillis();
-                event.payload = new SharedPointer<>();
+                event.payload = new SharedPointer<>(); // NOPMD - need to create new shared pointer instance
                 event.payload.set(reply); // ZMsg containing header, body and exception frame
                 final DataSourceFilter dataSourceFilter = event.getFilter(DataSourceFilter.class);
                 dataSourceFilter.future = returnFuture;
@@ -457,17 +402,15 @@ public class DataSourcePublisher implements Runnable {
         return requestFuture;
     }
 
-    private DataSource getClient(final String endpoint, final byte[] filters) {
-        return clientMap.computeIfAbsent(endpoint.split("\\?")[0], requestedEndPoint -> {
-            final DataSource dataSource = DataSource.getFactory(requestedEndPoint).newInstance(context, endpoint, Duration.ofMillis(100), Long.toString(internalReqIdGenerator.incrementAndGet()), filters);
-            clients.add(dataSource);
-            clientsThreadsafe.add(dataSource);
+    private DataSource getClient(final String endpoint) {
+        return clientMap.computeIfAbsent(new Endpoint(endpoint).getAddress(), requestedEndPoint -> {
+            final DataSource dataSource = DataSource.getFactory(requestedEndPoint).newInstance(context, endpoint, Duration.ofMillis(100), Long.toString(internalReqIdGenerator.incrementAndGet()));
             poller.register(dataSource.getSocket(), ZMQ.Poller.POLLIN);
             return dataSource;
         });
     }
 
-    public static class ThePromisedFuture<R> extends CustomFuture<R> {
+    public static class ThePromisedFuture<R> extends CustomFuture<R> { // NOPMD - no need for setters/getters here
         private final String endpoint;
         private final Map<String, Object> requestFilter;
         private final Object requestBody;
@@ -475,7 +418,7 @@ public class DataSourcePublisher implements Runnable {
         private final DataSourceFilter.ReplyType replyType;
         private final String internalRequestID;
 
-        ThePromisedFuture(final String endpoint, final Map<String, Object> requestFilter, final Object requestBody, final Class<R> requestedDomainObjType, final DataSourceFilter.ReplyType replyType, final String internalRequestID) {
+        public ThePromisedFuture(final String endpoint, final Map<String, Object> requestFilter, final Object requestBody, final Class<R> requestedDomainObjType, final DataSourceFilter.ReplyType replyType, final String internalRequestID) {
             super();
             this.endpoint = endpoint;
             this.requestFilter = requestFilter;

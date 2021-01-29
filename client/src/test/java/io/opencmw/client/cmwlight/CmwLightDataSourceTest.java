@@ -9,13 +9,11 @@ import java.util.concurrent.locks.LockSupport;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
-import org.zeromq.SocketType;
-import org.zeromq.ZContext;
-import org.zeromq.ZFrame;
-import org.zeromq.ZMQ;
-import org.zeromq.ZMsg;
+import org.zeromq.*;
 
-class CmwLightClientTest {
+import io.opencmw.client.Endpoint;
+
+class CmwLightDataSourceTest {
     @Test
     void testCmwLightSubscription() throws CmwLightProtocol.RdaLightException {
         // setup zero mq socket to mock cmw server
@@ -23,7 +21,7 @@ class CmwLightClientTest {
         ZMQ.Socket socket = context.createSocket(SocketType.DEALER);
         socket.bind("tcp://localhost:7777");
 
-        final CmwLightClient client = new CmwLightClient(context, "rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1", Duration.ofSeconds(1), "testClientId", null);
+        final CmwLightDataSource client = new CmwLightDataSource(context, "rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1", "testClientId");
 
         client.connect();
         client.housekeeping();
@@ -44,11 +42,13 @@ class CmwLightClientTest {
         Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
             client.getMessage(); // Make client receive ack and update connection status
             client.housekeeping(); // allow the subscription to be sent out
-            return client.connectionState.get().equals(CmwLightClient.ConnectionState.CONNECTED);
+            return client.connectionState.get().equals(CmwLightDataSource.ConnectionState.CONNECTED);
         });
 
         // request subscription
-        client.subscribe(new CmwLightClient.Subscription("testdevice", "testprop", "test.selector", Map.of("nFilter", 1)));
+        final String reqId = "testId";
+        final String endpoint = "rda3://localhost:7777/testdevice/testprop?ctx=FAIR.SELECTOR.ALL&nFilter=int:1";
+        client.subscribe(reqId, endpoint, null);
 
         final CmwLightMessage subMsg = getNextNonHeartbeatMsg(socket, client, false);
         assertEquals(CmwLightProtocol.MessageType.CLIENT_REQ, subMsg.messageType);
@@ -59,30 +59,37 @@ class CmwLightClientTest {
         final long sourceId = 1337L;
         CmwLightProtocol.sendMsg(socket, CmwLightMessage.subscribeReply(subMsg.sessionId, subMsg.id, subMsg.deviceName, subMsg.propertyName, Map.of(CmwLightProtocol.FieldName.SOURCE_ID_TAG.value(), sourceId)));
 
-        final CmwLightMessage subMsgRec = getNextNonHeartbeatClientMsg(client, true);
-        assertEquals(CmwLightProtocol.MessageType.SERVER_REP, subMsgRec.messageType);
-        assertEquals(CmwLightProtocol.RequestType.SUBSCRIBE, subMsgRec.requestType);
+        // assert that the subscription was established
+        Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
+            client.getMessage(); // Make client receive ack and update connection status
+            client.housekeeping(); // allow the subscription to be sent out
+            return client.replyIdMap.containsKey(sourceId);
+        });
 
         // send 10 updates
-        long notificationId = 0;
         for (int i = 0; i < 10; i++) {
-            CmwLightProtocol.sendMsg(socket, CmwLightMessage.notificationReply(subMsg.sessionId, sourceId, "", "", new ZFrame("data"), notificationId,
-                                                     new CmwLightMessage.DataContext("test.context", 123456789, 123456788, null), CmwLightProtocol.UpdateType.NORMAL));
+            final String cycleName = "FAIR.SELECTOR.C=" + (i + 1);
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.notificationReply(subMsg.sessionId, sourceId, "", "", new ZFrame("data"), i,
+                                                     new CmwLightMessage.DataContext(cycleName, 123456789, 123456788, null), CmwLightProtocol.UpdateType.NORMAL));
 
-            final CmwLightMessage updateMsg = getNextNonHeartbeatClientMsg(client, false);
-            assertEquals(CmwLightProtocol.MessageType.SERVER_REP, updateMsg.messageType);
-            assertEquals(CmwLightProtocol.RequestType.NOTIFICATION_DATA, updateMsg.requestType);
-            assertEquals(sourceId, updateMsg.id);
-            assertEquals(notificationId, updateMsg.notificationId);
-            assertEquals("data", updateMsg.bodyData.getString(Charset.defaultCharset()));
-            notificationId++;
+            // assert that the subscription update was received
+            Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
+                final ZMsg reply = client.getMessage(); // Make client receive ack and update connection status
+                client.housekeeping(); // allow the subscription to be sent out
+
+                return reply.size() == 5 && reply.pollFirst().getString(Charset.defaultCharset()).equals("testId")
+                        && reply.pollFirst().getString(Charset.defaultCharset()).equals(new Endpoint(endpoint).getEndpointForContext(cycleName))
+                        && reply.pollFirst().getData().length == 0
+                        && reply.pollFirst().getString(Charset.defaultCharset()).equals("data")
+                        && reply.pollFirst().getData().length == 0;
+            });
         }
     }
 
     /*
     / get next message sent from client to server ignoring heartbeats, periodically send heartbeat and perform housekeeping
     */
-    private CmwLightMessage getNextNonHeartbeatMsg(final ZMQ.Socket socket, final CmwLightClient client, boolean debug) throws CmwLightProtocol.RdaLightException {
+    private CmwLightMessage getNextNonHeartbeatMsg(final ZMQ.Socket socket, final CmwLightDataSource client, boolean debug) throws CmwLightProtocol.RdaLightException {
         int i = 0;
         while (true) {
             final ZMsg msg = ZMsg.recvMsg(socket, false);
@@ -104,27 +111,6 @@ class CmwLightClientTest {
             client.getMessage();
             LockSupport.parkNanos(100000);
             i++;
-        }
-    }
-
-    /*
-    / get next message ignoring heartbeats, periodically send heartbeat and perform housekeeping
-    */
-    private CmwLightMessage getNextNonHeartbeatClientMsg(final CmwLightClient client, boolean debug) throws CmwLightProtocol.RdaLightException {
-        while (true) {
-            final CmwLightMessage result = client.receiveData();
-            if (debug) {
-                if (result == null) {
-                    System.out.print('.');
-                } else {
-                    System.out.println(result);
-                }
-            }
-            if (result != null && result.messageType != CmwLightProtocol.MessageType.SERVER_HB) {
-                return result;
-            }
-            client.housekeeping();
-            LockSupport.parkNanos(100000);
         }
     }
 }

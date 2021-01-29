@@ -277,8 +277,6 @@ public class CmwLightMessage {
             case UNSUBSCRIBE:
                 sb.append("\n  requestContext=").append(requestContext);
                 break;
-            case CONNECT:
-                break;
             case REPLY:
             case NOTIFICATION_DATA:
                 sb.append(", notificationId=").append(notificationId).append("\n  bodyData=").append(bodyData).append("\n  dataContext=").append(dataContext);
@@ -288,10 +286,11 @@ public class CmwLightMessage {
             case SUBSCRIBE_EXCEPTION:
                 sb.append("\n  exceptionMessage=").append(exceptionMessage);
                 break;
-            case EVENT:
-                break;
             case SESSION_CONFIRM:
                 sb.append(", sessionBody='").append(sessionBody).append('\'');
+                break;
+            case CONNECT:
+            case EVENT:
                 break;
             default:
                 throw new IllegalStateException("unknown client request message type: " + messageType);
