@@ -90,7 +90,7 @@ class RestDataSourceTest {
             final RestDataSource dataSource = new RestDataSource(ctx, server.url("/sse").toString());
             assertNotNull(dataSource);
 
-            dataSource.subscribe("1", server.url("/sse").toString() , new byte[0]);
+            dataSource.subscribe("1", server.url("/sse").toString(), new byte[0]);
             receiveAndCheckData(dataSource, "io.opencmw.client.rest.RestDataSource#*", true);
 
             // test asynchronuous get

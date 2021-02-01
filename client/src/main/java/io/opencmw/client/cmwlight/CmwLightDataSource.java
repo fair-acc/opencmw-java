@@ -9,7 +9,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.opencmw.serialiser.spi.CmwLightSerialiser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.*;
@@ -17,6 +16,7 @@ import org.zeromq.*;
 import io.opencmw.client.DataSource;
 import io.opencmw.client.Endpoint;
 import io.opencmw.serialiser.IoSerialiser;
+import io.opencmw.serialiser.spi.CmwLightSerialiser;
 
 /**
  * A lightweight implementation of the CMW RDA3 client part.
@@ -70,7 +70,7 @@ public class CmwLightDataSource extends DataSource {
         this.context = context;
         this.socket = context.createSocket(SocketType.DEALER);
         this.sessionId = getSessionId(clientId);
-        this.address =  new Endpoint(endpoint).getAddress();
+        this.address = new Endpoint(endpoint).getAddress();
     }
 
     public static DirectoryLightClient getDirectoryLightClient() {
@@ -424,9 +424,9 @@ public class CmwLightDataSource extends DataSource {
     private void sendUnsubscribe(final Subscription sub) {
         try {
             CmwLightProtocol.sendMsg(socket, CmwLightMessage.unsubscribeRequest(
-                    sessionId, sub.updateId, sub.device, sub.property,
-                    Map.of(CmwLightProtocol.FieldName.SESSION_BODY_TAG.value(), Collections.<String, Object>emptyMap()),
-                    CmwLightProtocol.UpdateType.IMMEDIATE_UPDATE));
+                                                     sessionId, sub.updateId, sub.device, sub.property,
+                                                     Map.of(CmwLightProtocol.FieldName.SESSION_BODY_TAG.value(), Collections.<String, Object>emptyMap()),
+                                                     CmwLightProtocol.UpdateType.IMMEDIATE_UPDATE));
             sub.subscriptionState = SubscriptionState.UNSUBSCRIBE_SENT;
         } catch (CmwLightProtocol.RdaLightException e) {
             LOGGER.atError().addArgument(sub.property).log("failed to unsubscribe ");

@@ -1,14 +1,15 @@
 package io.opencmw.client.cmwlight;
 
-import io.opencmw.serialiser.IoClassSerialiser;
-import io.opencmw.serialiser.spi.CmwLightSerialiser;
-import io.opencmw.serialiser.spi.FastByteBuffer;
-import org.zeromq.ZContext;
-import org.zeromq.ZMQ;
-
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
+
+import org.zeromq.ZContext;
+import org.zeromq.ZMQ;
+
+import io.opencmw.serialiser.IoClassSerialiser;
+import io.opencmw.serialiser.spi.CmwLightSerialiser;
+import io.opencmw.serialiser.spi.FastByteBuffer;
 
 public class CmwLightExample { // NOPMD is not a utility class but a sample
     private final static String CMW_NAMESERVER = "cmwpro00a.acc.gsi.de:5021";
