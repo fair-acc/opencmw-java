@@ -23,7 +23,6 @@ import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.spi.helper.MyGenericClass;
 import io.opencmw.serialiser.utils.AssertUtils;
 
-
 /**
  *
  * @author rstein

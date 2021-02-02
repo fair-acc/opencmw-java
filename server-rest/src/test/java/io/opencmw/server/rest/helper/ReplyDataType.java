@@ -32,5 +32,4 @@ public class ReplyDataType {
     public String toString() {
         return "ReplyDataType{outputName='" + name + "', returnValue=" + intReturnValue + '}';
     }
-
 }

@@ -1,8 +1,8 @@
 package io.opencmw.client.rest;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import static java.util.concurrent.TimeUnit.SECONDS;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
@@ -25,7 +25,7 @@ class EventSourceRecorder extends EventSourceListener {
     }
 
     @Override
-    public void onEvent(@NotNull EventSource eventSource, String id, String type,@NotNull  String data) {
+    public void onEvent(@NotNull EventSource eventSource, String id, String type, @NotNull String data) {
         Platform.get().log("[ES] onEvent", Platform.INFO, null);
         events.add(new Event(id, type, data));
     }
