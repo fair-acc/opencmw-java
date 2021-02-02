@@ -54,7 +54,8 @@ import io.opencmw.utils.SystemProperties;
  * <small>N.B. heartbeat expires when last heartbeat message is more than HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS ms ago.
  * this implies also, that worker must either return their message within 'HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS ms'
  * or decouple their secondary handler interface into another thread.</small></li>
- * </p>
+ * </ul>
+ *
  */
 @MetaInfo(description = "default BasicMdpWorker implementation")
 @SuppressWarnings({ "PMD.GodClass", "PMD.ExcessiveImports", "PMD.TooManyStaticImports", "PMD.DoNotUseThreads", "PMD.TooManyFields", "PMD.TooManyMethods" }) // makes the code more readable/shorter lines

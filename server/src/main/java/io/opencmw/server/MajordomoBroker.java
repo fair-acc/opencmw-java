@@ -57,7 +57,6 @@ import io.opencmw.utils.SystemProperties;
  * <li>'OpenCMW.dnsTimeOut' [s]: default (60) DNS time-out after which an unresponsive client is dropped from the DNS table
  * <small>N.B. if registered, a HEARTBEAT challenge will be send that needs to be replied with a READY command/re-registering</small></li>
  * </ul>
- * <p>
  */
 @SuppressWarnings({ "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.CommentSize" }) // package private explicitly needed for MmiServiceHelper, thread-safe/performance use of HashMap
 public class MajordomoBroker extends Thread {
@@ -84,7 +83,7 @@ public class MajordomoBroker extends Thread {
     protected final List<String> routerSockets = new NoDuplicatesList<>(); // Sockets for clients & public external workers
     protected final SortedSet<RbacRole<?>> rbacRoles;
     final Map<String, Service> services = new HashMap<>(); // NOPMD known services Map<'service name', Service>
-    protected final Map<String, Worker> workers = new HashMap<>(); // NOPMD known workers Map<addressHex, Worker>
+    protected final Map<String, Worker> workers = new HashMap<>(); // NOPMD known workers Map<addressHex, Worker
     protected final Map<String, Client> clients = new HashMap<>(); // NOPMD
     private final AtomicBoolean run = new AtomicBoolean(false);
     private final Deque<Worker> waiting = new ArrayDeque<>(); // idle workers
@@ -93,12 +92,12 @@ public class MajordomoBroker extends Thread {
     private long dnsHeartbeatAt = System.currentTimeMillis() + DNS_TIMEOUT; // When to send a DNS HEARTBEAT
 
     /**
-   * Initialize broker state.
-   *
-   * @param brokerName specific Majordomo Broker name this instance is known for in the world
-   * @param rbacRoles RBAC-based roles (used for IO prioritisation and service
-   *     access control
-   */
+     * Initialize broker state.
+     *
+     * @param brokerName specific Majordomo Broker name this instance is known for in the world
+     * @param dnsAddress specifc of other Majordomo broker that acts as primary DNS
+     * @param rbacRoles  RBAC-based roles (used for IO prioritisation and service access control
+     */
     public MajordomoBroker(@NotNull final String brokerName, @NotNull final String dnsAddress, final RbacRole<?>... rbacRoles) {
         super();
         this.brokerName = brokerName;
@@ -159,6 +158,11 @@ public class MajordomoBroker extends Thread {
         LOGGER.atInfo().log("broker started");
     }
 
+    /**
+     * Add internal service.
+     *
+     * @param worker the worker
+     */
     public void addInternalService(final BasicMdpWorker worker) {
         assert worker != null : "worker must not be null";
         requireService(worker.getServiceName(), worker);
@@ -168,14 +172,9 @@ public class MajordomoBroker extends Thread {
      * Bind broker to endpoint, can call this multiple times. We use a single
      * socket for both clients and workers.
      * <p>
-     * The protocol definition
-     * <ul>
-     * <li>'mdp://' corresponds to a SocketType.ROUTER socket</li>
-     * <li>'mds://' corresponds to a SocketType.XPUB socket</li>
-     * <li>'tcp://' internally falls back to 'mdp://' and ROUTER socket</li>
-     * </ul>
      *
-     * </p>
+     * @param endpoint the URI-based 'scheme://ip:port' endpoint definition the server should listen to <p> The protocol definition <ul> <li>'mdp://' corresponds to a SocketType.ROUTER socket</li> <li>'mds://' corresponds to a SocketType.XPUB socket</li> <li>'tcp://' internally falls back to 'mdp://' and ROUTER socket</li> </ul>
+     * @return the string
      */
     public String bind(String endpoint) {
         final boolean isRouterSocket = !endpoint.contains("mds://");
@@ -207,6 +206,8 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
+     * Gets router sockets.
+     *
      * @return unmodifiable list of registered external sockets
      */
     public List<String> getRouterSockets() {
@@ -294,12 +295,18 @@ public class MajordomoBroker extends Thread {
         sendDnsHeartbeats(true); // initial register of default routes
     }
 
+    /**
+     * Stop broker.
+     */
     public void stopBroker() {
         run.set(false);
     }
 
     /**
      * Deletes worker from all data structures, and destroys worker.
+     *
+     * @param worker     internal reference to worker
+     * @param disconnect true: send a disconnect message to worker
      */
     protected void deleteWorker(Worker worker, boolean disconnect) {
         assert (worker != null);
@@ -328,6 +335,8 @@ public class MajordomoBroker extends Thread {
 
     /**
      * Dispatch requests to waiting workers as possible
+     *
+     * @param service dispatch message for this service
      */
     protected void dispatch(Service service) {
         assert (service != null);
@@ -349,6 +358,13 @@ public class MajordomoBroker extends Thread {
         }
     }
 
+    /**
+     * Handle received message boolean.
+     *
+     * @param receiveSocket the receive socket
+     * @param msg           the to be processed msg
+     * @return true if request was implemented and has been processed
+     */
     protected boolean handleReceivedMessage(final Socket receiveSocket, final MdpMessage msg) {
         switch (msg.protocol) {
         case PROT_CLIENT:
@@ -420,8 +436,11 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-   * Process message sent to us by a worker.
-   */
+     * Process message sent to us by a worker.
+     *
+     * @param receiveSocket the socket the message was received at
+     * @param msg           the received and to be processed message
+     */
     protected void processWorker(final Socket receiveSocket, final MdpMessage msg) {
         final String senderIdHex = strhex(msg.senderID);
         final String serviceName = msg.getServiceName();
@@ -582,11 +601,12 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-   * Locates the service (creates if necessary).
-   *
-   * @param serviceName      service name
-   * @param worker optional worker implementation (may be null)
-   */
+     * Locates the service (creates if necessary).
+     *
+     * @param serviceName service name
+     * @param worker      optional worker implementation (may be null)
+     * @return the existing (or new if absent) service this worker is responsible for
+     */
     protected Service requireService(final String serviceName, final BasicMdpWorker... worker) {
         assert (serviceName != null);
         final BasicMdpWorker w = worker.length > 0 ? worker[0] : null;
@@ -599,6 +619,12 @@ public class MajordomoBroker extends Thread {
 
     /**
      * Finds the worker (creates if necessary).
+     *
+     * @param socket      the socket
+     * @param address     the address
+     * @param addressHex  the address hex
+     * @param serviceName the service name
+     * @return the worker
      */
     protected @NotNull Worker requireWorker(final Socket socket, final byte[] address, final String addressHex, final byte[] serviceName) {
         assert (addressHex != null);
@@ -628,6 +654,7 @@ public class MajordomoBroker extends Thread {
 
     /**
      * Send heartbeats to the DNS server if necessary
+     *
      * @param force sending regardless of time-out
      */
     protected void sendDnsHeartbeats(boolean force) {
@@ -649,6 +676,8 @@ public class MajordomoBroker extends Thread {
 
     /**
      * This worker is now waiting for work.
+     *
+     * @param worker the worker
      */
     protected void workerWaiting(Worker worker) {
         // Queue to broker and service waiting lists
@@ -665,8 +694,8 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-   * This defines a client service.
-   */
+     * This defines a client service.
+     */
     protected static class Client {
         protected final Socket socket; // Socket client is connected to
         protected final MdpSubProtocol protocol;
@@ -676,7 +705,7 @@ public class MajordomoBroker extends Thread {
         private final Deque<MdpMessage> requests = new ArrayDeque<>(); // List of client requests
         protected long expiry = System.currentTimeMillis() + CLIENT_TIMEOUT; // Expires at unless heartbeat
 
-        public Client(final Socket socket, final MdpSubProtocol protocol, final String name, final byte[] nameBytes) {
+        private Client(final Socket socket, final MdpSubProtocol protocol, final String name, final byte[] nameBytes) {
             this.socket = socket;
             this.protocol = protocol;
             this.name = name;
@@ -684,12 +713,12 @@ public class MajordomoBroker extends Thread {
             this.nameHex = strhex(nameBytes);
         }
 
-        public void offerToQueue(final MdpMessage msg) {
+        private void offerToQueue(final MdpMessage msg) {
             expiry = System.currentTimeMillis() + CLIENT_TIMEOUT;
             requests.offer(msg);
         }
 
-        public MdpMessage pop() {
+        private MdpMessage pop() {
             return requests.isEmpty() ? null : requests.poll();
         }
     }
@@ -706,7 +735,7 @@ public class MajordomoBroker extends Thread {
         protected Service service; // Owning service, if known
         protected long expiry; // Expires at unless heartbeat
 
-        protected Worker(final Socket socket, final byte[] address, final String addressHex, final byte[] serviceName) { // NOPMD direct storage of address OK
+        private Worker(final Socket socket, final byte[] address, final String addressHex, final byte[] serviceName) { // NOPMD direct storage of address OK
             this.socket = socket;
             this.address = address;
             this.addressHex = addressHex;
@@ -729,7 +758,7 @@ public class MajordomoBroker extends Thread {
         protected final List<URI> uri = new NoDuplicatesList<>();
         protected long expiry; // Expires at unless heartbeat
 
-        protected DnsServiceItem(final byte[] address, final String serviceName) { // NOPMD direct storage of address OK
+        private DnsServiceItem(final byte[] address, final String serviceName) { // NOPMD direct storage of address OK
             this.address = address;
             this.serviceName = serviceName;
             updateExpiryTimeStamp();
@@ -787,7 +816,7 @@ public class MajordomoBroker extends Thread {
         protected final List<Thread> internalWorkers = new ArrayList<>();
         protected byte[] serviceDescription; // service OpenAPI description TODO: fully implement
 
-        public Service(final String name, final byte[] nameBytes, final BasicMdpWorker mdpWorker) {
+        private Service(final String name, final byte[] nameBytes, final BasicMdpWorker mdpWorker) {
             this.name = name;
             this.nameBytes = nameBytes == null ? name.getBytes(UTF_8) : nameBytes;
             if (mdpWorker != null) {
@@ -797,15 +826,12 @@ public class MajordomoBroker extends Thread {
             requests.put(BasicRbacRole.NULL, new ArrayDeque<>()); // add default queue
         }
 
-        public boolean requestsPending() {
+        private boolean requestsPending() {
             return requests.entrySet().stream().anyMatch(
                     map -> !map.getValue().isEmpty());
         }
 
-        /**
-         * @return next RBAC prioritised message or 'null' if there aren't any
-         */
-        protected final MdpMessage getNextPrioritisedMessage() {
+        private MdpMessage getNextPrioritisedMessage() {
             for (RbacRole<?> role : rbacRoles) {
                 final Queue<MdpMessage> queue = requests.get(role); // matched non-empty queue
                 if (!queue.isEmpty()) {
@@ -816,7 +842,7 @@ public class MajordomoBroker extends Thread {
             return queue.isEmpty() ? null : queue.poll();
         }
 
-        protected void putPrioritisedMessage(final MdpMessage queuedMessage) {
+        private void putPrioritisedMessage(final MdpMessage queuedMessage) {
             if (queuedMessage.hasRbackToken()) {
                 // find proper RBAC queue
                 final RbacToken rbacToken = RbacToken.from(queuedMessage.rbacToken);

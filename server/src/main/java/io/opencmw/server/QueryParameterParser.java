@@ -121,11 +121,16 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
     }
 
     /**
+     * Parse query parameter t.
      *
-     * @param clazz storage class type
+     * @param <T>         generic storage class type to be returned
+     * @param clazz       storage class type
      * @param queryString a <a href="https://tools.ietf.org/html/rfc3986">rfc3986</a> query parameter string
-     * @param <T> generic storage class type to be returned
      * @return PoJo with those parameters that could be matched (N.B. flat map only)
+     * @throws NoSuchMethodException     in case the class does not have a accessible constructor
+     * @throws IllegalAccessException    in case the class cannot be instantiated
+     * @throws InvocationTargetException in case the class cannot be instantiated
+     * @throws InstantiationException    in case the class cannot be instantiated
      */
     public static <T> T parseQueryParameter(Class<T> clazz, final String queryString) throws NoSuchMethodException, IllegalAccessException, InvocationTargetException, InstantiationException {
         final ClassFieldDescription fieldDescription = ClassUtils.getFieldDescription(clazz);
