@@ -305,7 +305,7 @@ public class MajordomoBroker extends Thread {
         assert (worker != null);
         if (disconnect) {
             new MdpMessage(worker.address, PROT_WORKER, DISCONNECT,
-                    worker.service.nameBytes, EMPTY_FRAME,
+                    worker.serviceName, EMPTY_FRAME,
                     URI.create(worker.service.name), EMPTY_FRAME, "", RBAC)
                     .send(worker.socket);
         }
@@ -426,7 +426,7 @@ public class MajordomoBroker extends Thread {
         final String senderIdHex = strhex(msg.senderID);
         final String serviceName = msg.getServiceName();
         final boolean workerReady = workers.containsKey(senderIdHex);
-        final Worker worker = requireWorker(receiveSocket, msg.senderID, senderIdHex);
+        final Worker worker = requireWorker(receiveSocket, msg.senderID, senderIdHex, msg.serviceNameBytes);
 
         switch (msg.command) {
         case READY:
@@ -436,7 +436,7 @@ public class MajordomoBroker extends Thread {
             workerWaiting(worker);
             worker.service.serviceDescription = Arrays.copyOf(msg.data, msg.data.length);
 
-            if (msg.topic != null && !msg.topic.toString().isBlank() && msg.topic.getScheme() != null) {
+            if (!msg.topic.toString().isBlank() && msg.topic.getScheme() != null) {
                 routerSockets.add(msg.topic.toString());
                 DnsServiceItem ret = dnsCache.computeIfAbsent(brokerName, s -> new DnsServiceItem(msg.senderID, brokerName));
                 ret.uri.add(msg.topic);
@@ -454,7 +454,7 @@ public class MajordomoBroker extends Thread {
             }
             break;
         case W_HEARTBEAT:
-            if (workerReady && worker != null) {
+            if (workerReady) {
                 worker.updateExpiryTimeStamp();
             } else {
                 deleteWorker(worker, true);
@@ -600,13 +600,13 @@ public class MajordomoBroker extends Thread {
     /**
      * Finds the worker (creates if necessary).
      */
-    protected Worker requireWorker(final Socket socket, final byte[] address, final String addressHex) {
+    protected @NotNull Worker requireWorker(final Socket socket, final byte[] address, final String addressHex, final byte[] serviceName) {
         assert (addressHex != null);
         return workers.computeIfAbsent(addressHex, identity -> {
             if (LOGGER.isInfoEnabled()) {
                 LOGGER.atInfo().addArgument(addressHex).log("registering new worker: '{}'");
             }
-            return new Worker(socket, address, addressHex);
+            return new Worker(socket, address, addressHex, serviceName);
         });
     }
 
@@ -701,14 +701,16 @@ public class MajordomoBroker extends Thread {
         protected final Socket socket; // Socket worker is connected to
         protected final byte[] address; // Address ID frame to route to
         protected final String addressHex; // Address ID frame of worker expressed as hex-String
+        protected final byte[] serviceName; // service name of worker
 
         protected Service service; // Owning service, if known
         protected long expiry; // Expires at unless heartbeat
 
-        protected Worker(final Socket socket, final byte[] address, final String addressHex) { // NOPMD direct storage of address OK
+        protected Worker(final Socket socket, final byte[] address, final String addressHex, final byte[] serviceName) { // NOPMD direct storage of address OK
             this.socket = socket;
             this.address = address;
             this.addressHex = addressHex;
+            this.serviceName = serviceName;
             updateExpiryTimeStamp();
         }
 
