@@ -2,7 +2,6 @@ package io.opencmw.serialiser.benchmark;
 
 import java.io.IOException;
 
-import io.opencmw.serialiser.utils.TestDataClass;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Param;
@@ -10,6 +9,8 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
+
+import io.opencmw.serialiser.utils.TestDataClass;
 
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;

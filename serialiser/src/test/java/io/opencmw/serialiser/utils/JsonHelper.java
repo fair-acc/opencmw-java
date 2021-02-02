@@ -5,14 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.opencmw.serialiser.DataType;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoSerialiser;
+import io.opencmw.serialiser.benchmark.SerialiserQuickBenchmark;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 import io.opencmw.serialiser.spi.JsonSerialiser;
 import io.opencmw.serialiser.spi.WireDataFieldDescription;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.jsoniter.JsonIterator;
 import com.jsoniter.extra.PreciseFloatSupport;
@@ -20,8 +22,6 @@ import com.jsoniter.output.EncodingMode;
 import com.jsoniter.output.JsonStream;
 import com.jsoniter.spi.DecodingMode;
 import com.jsoniter.spi.JsonException;
-
-import io.opencmw.serialiser.benchmark.SerialiserQuickBenchmark;
 
 public final class JsonHelper {
     private static final Logger LOGGER = LoggerFactory.getLogger(SerialiserQuickBenchmark.class); // N.B. SerialiserQuickBenchmark reference on purpose

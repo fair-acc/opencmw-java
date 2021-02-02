@@ -10,20 +10,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Predicate;
 
-import io.opencmw.utils.Cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.opencmw.filter.EvtTypeFilter;
+import io.opencmw.filter.TimingCtx;
+import io.opencmw.utils.Cache;
+import io.opencmw.utils.NoDuplicatesList;
+import io.opencmw.utils.SharedPointer;
 
 import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.Sequence;
 import com.lmax.disruptor.SequenceReportingEventHandler;
 import com.lmax.disruptor.TimeoutHandler;
-
-import io.opencmw.filter.EvtTypeFilter;
-import io.opencmw.filter.TimingCtx;
-import io.opencmw.utils.NoDuplicatesList;
-import io.opencmw.utils.SharedPointer;
 
 /**
  * Dispatches aggregation workers upon seeing new values for a specified event field.

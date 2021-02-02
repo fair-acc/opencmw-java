@@ -3,11 +3,12 @@ package io.opencmw.serialiser.spi.iobuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import de.gsi.dataset.AxisDescription;
-import de.gsi.dataset.spi.DefaultAxisDescription;
 import io.opencmw.serialiser.FieldSerialiser;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.ClassFieldDescription;
+
+import de.gsi.dataset.AxisDescription;
+import de.gsi.dataset.spi.DefaultAxisDescription;
 
 /**
  * FieldSerialiser implementation for List&lt;AxisDescription&gt; to IoBuffer-backed byte-buffer
@@ -36,6 +37,7 @@ public class FieldListAxisDescription extends FieldSerialiser<List<AxisDescripti
 
         final int nElements = ioSerialiser.getBuffer().getInt(); // number of elements
         // N.B. cast should fail at runtime (points to lib inconsistency)
+        @SuppressWarnings("unchecked")
         List<AxisDescription> setVal = isListPresent ? (List<AxisDescription>) field.getField().get(obj) : new ArrayList<>(nElements); // NOPMD
         if (isListPresent) {
             setVal.clear();
@@ -55,6 +57,7 @@ public class FieldListAxisDescription extends FieldSerialiser<List<AxisDescripti
     }
 
     protected void execFieldWriter(final IoSerialiser ioSerialiser, Object obj, ClassFieldDescription field) {
+        @SuppressWarnings("unchecked")
         final List<AxisDescription> axisDescriptions = (List<AxisDescription>) field.getField().get(obj); // NOPMD
         // N.B. cast should fail at runtime (points to lib inconsistency)
 

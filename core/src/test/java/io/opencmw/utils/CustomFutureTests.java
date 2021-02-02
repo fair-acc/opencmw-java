@@ -2,12 +2,9 @@ package io.opencmw.utils;
 
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
+import java.net.ProtocolException;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -23,7 +20,7 @@ class CustomFutureTests {
     void testWithoutWaiting() throws ExecutionException, InterruptedException {
         final CustomFuture<String> future = new CustomFuture<>();
 
-        assertTrue(future.running.get(), "future is running");
+        assertFalse(future.done.get(), "future is active");
         assertFalse(future.isCancelled());
         future.setReply("TestString");
 
@@ -34,7 +31,7 @@ class CustomFutureTests {
     @Test
     void testWithWaiting() {
         final CustomFuture<String> future = new CustomFuture<>();
-        assertTrue(future.running.get(), "future is running");
+        assertFalse(future.done.get(), "future is active");
         assertFalse(future.isCancelled());
 
         final AtomicReference<String> result = new AtomicReference<>();
@@ -59,9 +56,33 @@ class CustomFutureTests {
     }
 
     @Test
+    void testWithExecutionException() {
+        final CustomFuture<String> future = new CustomFuture<>();
+        assertFalse(future.done.get(), "future is active");
+        assertFalse(future.isCancelled());
+        future.setException(new ProtocolException("specific exception"));
+
+        assertThrows(ExecutionException.class, future::get);
+
+        assertThrows(IllegalStateException.class, () -> future.setException(new ProtocolException("specific exception")));
+    }
+
+    @Test
+    void testWithExecutionExceptionWhileWaiting() {
+        final CustomFuture<String> future = new CustomFuture<>();
+        assertFalse(future.done.get(), "future is active");
+
+        new Thread(() -> {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
+            future.setException(new ProtocolException("specific exception"));
+        }).start();
+        assertThrows(ExecutionException.class, () -> future.get(1000, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
     void testWithCancelWhileWaiting() {
         final CustomFuture<String> future = new CustomFuture<>();
-        assertTrue(future.running.get(), "future is running");
+        assertFalse(future.done.get(), "future is active");
         assertFalse(future.isCancelled());
 
         final AtomicReference<String> result = new AtomicReference<>();
@@ -86,7 +107,7 @@ class CustomFutureTests {
     @Test
     void testWithTimeout() {
         final CustomFuture<String> future = new CustomFuture<>();
-        assertTrue(future.running.get(), "future is running");
+        assertFalse(future.done.get(), "future is active");
         assertThrows(TimeoutException.class, () -> future.get(100, TimeUnit.MILLISECONDS));
     }
 
@@ -108,7 +129,7 @@ class CustomFutureTests {
     @Test
     void testWithCancelBeforeWaiting() {
         final CustomFuture<String> future = new CustomFuture<>();
-        assertTrue(future.running.get(), "future is running");
+        assertFalse(future.done.get(), "future is active");
         assertFalse(future.isCancelled());
         assertTrue(future.cancel(true));
         assertFalse(future.cancel(true));
@@ -124,5 +145,13 @@ class CustomFutureTests {
         await().alias("wait for thread to finish").atMost(1, TimeUnit.SECONDS).until(run::get, equalTo(false));
 
         assertNull(result.get());
+    }
+
+    @Test
+    void testWithNullReply() throws ExecutionException, InterruptedException {
+        final CustomFuture<String> future = new CustomFuture<>();
+        assertFalse(future.done.get(), "future is active");
+        future.setReply(null);
+        assertNull(future.get());
     }
 }

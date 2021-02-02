@@ -3,10 +3,11 @@ package io.opencmw.serialiser.spi.helper;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import io.opencmw.serialiser.spi.BinarySerialiser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.spi.LoggingEventBuilder;
+
+import io.opencmw.serialiser.spi.BinarySerialiser;
 
 /**
  * Generic test class to verify serialiser forward/backward identities.

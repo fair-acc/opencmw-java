@@ -5,11 +5,11 @@ import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
-import com.lmax.disruptor.RingBuffer;
-
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.utils.SharedPointer;
+
+import com.lmax.disruptor.RingBuffer;
 
 /**
  * An event Source to generate Events with different timing characteristics/orderings.
@@ -86,7 +86,7 @@ public class AggregateEventHandlerTestSource implements Runnable {
 
     private Event generateEventFromToken(final String[] tokens, final long timeOffset, final long lastEvent, final int repetitionCount) {
         String device = tokens[0].substring(0, 1);
-        long bpcts = Long.parseLong(tokens[0].substring(1)) + repetitionCount * 1000;
+        long bpcts = Long.parseLong(tokens[0].substring(1)) + repetitionCount * 1000L;
         String payload = device + bpcts;
         long sourceTime = lastEvent + DEFAULT_DELTA;
         long publishTime = sourceTime;
@@ -107,7 +107,7 @@ public class AggregateEventHandlerTestSource implements Runnable {
                 publishTime = Long.parseLong(keyvalue[1]) + timeOffset;
                 break;
             case "bpcts":
-                bpcts = Long.parseLong(keyvalue[1]) + repetitionCount * 1000;
+                bpcts = Long.parseLong(keyvalue[1]) + repetitionCount * 1000L;
                 break;
             case "chain":
                 chain = Integer.parseInt(keyvalue[1]);

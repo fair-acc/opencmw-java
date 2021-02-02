@@ -1,13 +1,6 @@
 package io.opencmw.serialiser.spi;
 
-import static sun.misc.Unsafe.ARRAY_BOOLEAN_BASE_OFFSET; // NOSONAR NOPMD
-import static sun.misc.Unsafe.ARRAY_BYTE_BASE_OFFSET;
-import static sun.misc.Unsafe.ARRAY_CHAR_BASE_OFFSET;
-import static sun.misc.Unsafe.ARRAY_DOUBLE_BASE_OFFSET;
-import static sun.misc.Unsafe.ARRAY_FLOAT_BASE_OFFSET;
-import static sun.misc.Unsafe.ARRAY_INT_BASE_OFFSET;
-import static sun.misc.Unsafe.ARRAY_LONG_BASE_OFFSET;
-import static sun.misc.Unsafe.ARRAY_SHORT_BASE_OFFSET;
+import static sun.misc.Unsafe.*; // NOSONAR NOPMD not an issue: contained and performance-related use
 
 import java.lang.reflect.Field;
 import java.util.Objects;
@@ -17,6 +10,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.utils.AssertUtils;
 import io.opencmw.serialiser.utils.ByteArrayCache;
+
 import sun.misc.Unsafe;
 
 // import static jdk.internal.misc.Unsafe; // NOPMD by rstein TODO replaces sun in JDK11
@@ -59,6 +53,7 @@ public class FastByteBuffer implements IoBuffer {
     static {
         // get an instance of the otherwise private 'Unsafe' class
         try {
+            @SuppressWarnings("Java9ReflectionClassVisibility")
             Class<?> cls = Class.forName("jdk.internal.module.IllegalAccessLogger"); // NOSONAR NOPMD
             Field logger = cls.getDeclaredField("logger");
 
@@ -482,7 +477,7 @@ public class FastByteBuffer implements IoBuffer {
         final int arraySize = getInt(); // for C++ zero terminated string
         checkAvailable(arraySize);
         //alt safe-fallback final String str = new String(buffer,  position, arraySize - 1, StandardCharsets.ISO_8859_1)
-        final String str = new String(buffer, 0, position, arraySize - 1); //NOSONAR //NOPMD fastest alternative that is public API
+        final String str = new String(buffer, 0, position, arraySize - 1); // NOSONAR NOPMD fastest alternative that is public API
         // final String str = FastStringBuilder.iso8859BytesToString(buffer, position, arraySize - 1)
         position += arraySize; // N.B. +1 larger to be compatible with C++ zero terminated string
         return str;

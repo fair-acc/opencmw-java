@@ -27,6 +27,7 @@
             <artifactId>chartfx-dataset</artifactId>
             <version>${version.chartfx}</version>
             <optional>true</optional>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.zeromq</groupId>

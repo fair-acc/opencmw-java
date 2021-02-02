@@ -1,8 +1,6 @@
 package io.opencmw.server.rest.login;
 
-import static io.javalin.apibuilder.ApiBuilder.before;
-import static io.javalin.apibuilder.ApiBuilder.get;
-import static io.javalin.apibuilder.ApiBuilder.post;
+import static io.javalin.apibuilder.ApiBuilder.*;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -91,11 +89,10 @@ public class LoginController { // NOPMD - nomen est omen
             if (loginRedirect != null) {
                 ctx.redirect(loginRedirect);
             }
-            ctx.render(TEMPLATE_LOGIN, model);
         } else {
             model.put(AUTHENTICATION_FAILED, true);
-            ctx.render(TEMPLATE_LOGIN, model);
         }
+        ctx.render(TEMPLATE_LOGIN, model);
     };
 
     @OpenApi(
@@ -217,7 +214,6 @@ public class LoginController { // NOPMD - nomen est omen
         final Set<RbacRole> intersection = new HashSet<>(permittedRbacRoles);
         intersection.retainAll(userRoles);
         if (permittedRbacRoles.isEmpty() || permittedRbacRoles.contains(BasicRbacRole.ANYONE) || !intersection.isEmpty()) {
-            System.err.println("handle path = " + ctx.path());
             handler.handle(ctx);
         } else {
             LOGGER.atWarn().addArgument(ctx.path()).addArgument(permittedRbacRoles).addArgument(intersection).log("could not log into '{}' permitted roles {} vs. have {}");

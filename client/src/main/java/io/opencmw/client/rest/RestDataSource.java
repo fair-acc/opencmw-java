@@ -36,6 +36,7 @@ import io.opencmw.MimeType;
 import io.opencmw.datasource.DataSource;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.JsonSerialiser;
+
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.OkHttpClient;
@@ -95,7 +96,7 @@ public class RestDataSource extends DataSource implements Runnable {
     };
 
     protected RestDataSource(final ZContext ctx, final String endpoint) {
-            this(ctx, endpoint, Duration.ofMillis(0), RestDataSource.class.getName(), null);
+        this(ctx, endpoint, Duration.ofMillis(0), RestDataSource.class.getName(), null);
     }
 
     /**
@@ -107,13 +108,13 @@ public class RestDataSource extends DataSource implements Runnable {
      * @param filters The serialised filters which will determine which data to update
      */
     public RestDataSource(final ZContext ctx, final String endpoint, final Duration timeOut, final String clientID, final byte[] filters) {
-       super(ctx, endpoint, timeOut, clientID, filters);
-       synchronized (LOGGER) { // prevent race condition between multiple constructor invocations
-           if (okClient == null) {
-               okClient = new OkHttpClient();
-               eventSourceFactory = EventSources.createFactory(okClient);
-           }
-       }
+        super(ctx, endpoint, timeOut, clientID, filters);
+        synchronized (LOGGER) { // prevent race condition between multiple constructor invocations
+            if (okClient == null) {
+                okClient = new OkHttpClient();
+                eventSourceFactory = EventSources.createFactory(okClient);
+            }
+        }
 
         if (timeOut == null) {
             throw new IllegalArgumentException("timeOut is null");
@@ -208,7 +209,7 @@ public class RestDataSource extends DataSource implements Runnable {
         final Request request = new Request.Builder().url(endpoint).build();
         sseSource = eventSourceFactory.newEventSource(request, new EventSourceListener() {
             @Override
-            public void onEvent(final @NotNull EventSource eventSource, final String id, final String type,final @NotNull String data) {
+            public void onEvent(final @NotNull EventSource eventSource, final String id, final String type, final @NotNull String data) {
                 final String pubKey = clientID + "#" + PUBLICATION_COUNTER.getAndIncrement();
                 getRequest(pubKey, endpoint, MimeType.TEXT); // poll actual endpoint
             }

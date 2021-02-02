@@ -1,6 +1,14 @@
 package io.opencmw.client.cmwlight;
 
-import io.opencmw.utils.AssertUtils;
+import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.zeromq.ZFrame;
+import org.zeromq.ZMQ;
+import org.zeromq.ZMsg;
+
 import io.opencmw.serialiser.DataType;
 import io.opencmw.serialiser.FieldDescription;
 import io.opencmw.serialiser.IoBuffer;
@@ -8,14 +16,7 @@ import io.opencmw.serialiser.IoClassSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 import io.opencmw.serialiser.spi.WireDataFieldDescription;
-import org.zeromq.ZFrame;
-import org.zeromq.ZMQ;
-import org.zeromq.ZMsg;
-
-import java.nio.charset.Charset;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import io.opencmw.utils.AssertUtils;
 
 /**
  * A lightweight implementation of the CMW RDA client protocol part.

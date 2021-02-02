@@ -2,8 +2,9 @@ package io.opencmw.serialiser.spi;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.opencmw.serialiser.FieldDescription;
 import org.junit.jupiter.api.Test;
+
+import io.opencmw.serialiser.FieldDescription;
 
 public class CmwLightSerialiserTests {
     @Test

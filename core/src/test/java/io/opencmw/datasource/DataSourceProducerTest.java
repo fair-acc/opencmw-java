@@ -1,5 +1,7 @@
 package io.opencmw.datasource;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -7,15 +9,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.*;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.opencmw.filter.DataSourceFilter;
-import io.opencmw.serialiser.IoClassSerialiser;
-import io.opencmw.serialiser.IoSerialiser;
-import io.opencmw.serialiser.spi.BinarySerialiser;
-import io.opencmw.serialiser.spi.FastByteBuffer;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.zeromq.SocketType;
@@ -24,10 +25,13 @@ import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
 
 import io.opencmw.EventStore;
+import io.opencmw.filter.DataSourceFilter;
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
-
-import static org.junit.jupiter.api.Assertions.*;
+import io.opencmw.serialiser.IoClassSerialiser;
+import io.opencmw.serialiser.IoSerialiser;
+import io.opencmw.serialiser.spi.BinarySerialiser;
+import io.opencmw.serialiser.spi.FastByteBuffer;
 
 class DataSourceProducerTest {
     private static final AtomicReference<TestObject> testObject = new AtomicReference<>();

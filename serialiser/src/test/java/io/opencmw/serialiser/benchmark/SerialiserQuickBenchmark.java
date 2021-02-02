@@ -1,13 +1,13 @@
 package io.opencmw.serialiser.benchmark;
 
-import io.opencmw.serialiser.utils.CmwLightHelper;
-import io.opencmw.serialiser.utils.JsonHelper;
-import io.opencmw.serialiser.utils.SerialiserHelper;
-import io.opencmw.serialiser.utils.TestDataClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.opencmw.serialiser.utils.CmwLightHelper;
 import io.opencmw.serialiser.utils.FlatBuffersHelper;
+import io.opencmw.serialiser.utils.JsonHelper;
+import io.opencmw.serialiser.utils.SerialiserHelper;
+import io.opencmw.serialiser.utils.TestDataClass;
 
 /**
  * Simple (rough) benchmark of various internal and external serialiser protocols.

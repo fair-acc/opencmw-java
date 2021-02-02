@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ public final class ClassUtils { //NOPMD nomen est omen
     private static final Map<Class<?>, Class<?>> wrapperPrimitiveMap = new HashMap<>();
     private static final Map<Class<?>, Class<?>> primitiveArrayBoxedMap = new HashMap<>();
     private static final Map<Class<?>, Class<?>> boxedArrayPrimitiveMap = new HashMap<>();
+    public static final Map<Class<?>, String> DO_NOT_PARSE_MAP = new HashMap<>(); // NOPMD should not be a threading issue - static one-time/init write, multiple reads afterwards are safe
     private static final Map<Integer, ClassFieldDescription> CLASS_FIELD_DESCRIPTION_MAP = new ConcurrentHashMap<>();
     private static final Map<String, Class<?>> CLASS_STRING_MAP = new ConcurrentHashMap<>();
     private static final Map<Class<?>, Map<String, Method>> CLASS_METHOD_MAP = new ConcurrentHashMap<>();
@@ -56,6 +58,10 @@ public final class ClassUtils { //NOPMD nomen est omen
         add(primitiveArrayBoxedMap, boxedArrayPrimitiveMap, String[].class, String[].class);
 
         // boxed arrays
+
+        // do not parse following classes
+        DO_NOT_PARSE_MAP.put(Thread.class, "recursive definitions"); // NOPMD - not an issue/not a use within a J2EE context
+        DO_NOT_PARSE_MAP.put(AtomicBoolean.class, "does not like to be parsed");
     }
     private ClassUtils() {
         // utility class

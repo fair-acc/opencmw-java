@@ -1,17 +1,8 @@
 package io.opencmw.concepts.majordomo;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpClientCommand;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpClientMessage;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpMessage;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpSubProtocol;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.receiveMdpMessage;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.sendClientMessage;
+import static io.opencmw.concepts.majordomo.MajordomoProtocol.*;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

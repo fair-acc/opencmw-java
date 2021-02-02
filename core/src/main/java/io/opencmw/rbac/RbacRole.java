@@ -1,11 +1,12 @@
 package io.opencmw.rbac;
 
-import javax.validation.constraints.NotNull;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import javax.validation.constraints.NotNull;
 
 /**
  * Interface for Role-Based-Access-Control (RBAC) roles

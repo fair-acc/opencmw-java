@@ -5,17 +5,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.opencmw.serialiser.DataType;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoClassSerialiser;
 import io.opencmw.serialiser.IoSerialiser;
+import io.opencmw.serialiser.benchmark.SerialiserQuickBenchmark;
 import io.opencmw.serialiser.spi.BinarySerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 import io.opencmw.serialiser.spi.WireDataFieldDescription;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.opencmw.serialiser.benchmark.SerialiserQuickBenchmark;
 
 @SuppressWarnings("PMD") // complexity is part of the very large use-case surface that is being tested
 public final class SerialiserHelper {

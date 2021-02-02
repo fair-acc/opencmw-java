@@ -1,36 +1,30 @@
 package io.opencmw.server;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import static org.zeromq.ZMQ.Socket;
 import static org.zeromq.util.ZData.strhex;
 
-import static io.opencmw.OpenCmwProtocol.Command.DISCONNECT;
-import static io.opencmw.OpenCmwProtocol.Command.FINAL;
-import static io.opencmw.OpenCmwProtocol.Command.W_HEARTBEAT;
-import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
-import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
-import static io.opencmw.OpenCmwProtocol.MdpMessage;
+import static io.opencmw.OpenCmwProtocol.*;
+import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;
-import static io.opencmw.OpenCmwProtocol.MdpSubProtocol;
+import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
+import static io.opencmw.server.MmiServiceHelper.*;
 
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.net.UnknownHostException;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
+import javax.validation.constraints.NotNull;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,60 +32,80 @@ import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
+import org.zeromq.util.ZData;
 
-import io.opencmw.utils.SystemProperties;
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.rbac.RbacToken;
+import io.opencmw.utils.NoDuplicatesList;
+import io.opencmw.utils.SystemProperties;
 
 /**
  * Majordomo Protocol broker -- a minimal implementation of http://rfc.zeromq.org/spec:7 and spec:8 and following the OpenCMW specification
+ *
  * <p>
- * default heart-beat time-out [ms] is set by system property: 'OpenCMW.heartBeat' // default: 2500 [ms]
- * default heart-beat liveness is set by system property: 'OpenCMW.heartBeatLiveness' // [counts] 3-5 is reasonable
- * N.B. heartbeat expires when last heartbeat message is more than HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS ms ago.
- * this implies also, that worker must either return their message within 'HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS ms' or decouple their secondary handler interface into another thread.
- * <p>
- * default client time-out [s] is set by system property: 'OpenCMW.clientTimeOut' // default: 3600 [s] -- after which unanswered client messages and infos are being deleted
+ * The broker is controlled by the following environment variables:
+ * <ul>
+ * <li> 'OpenCMW.heartBeat' [ms]: default (2500 ms) heart-beat time-out [ms]</li>
+ * <li> 'OpenCMW.heartBeatLiveness' []: default (3) heart-beat liveness - 3-5 is reasonable
+ * <small>N.B. heartbeat expires when last heartbeat message is more than HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS ms ago.
+ * this implies also, that worker must either return their message within 'HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS ms'
+ * or decouple their secondary handler interface into another thread.</small></li>
+ *
+ * <li>'OpenCMW.clientTimeOut' [s]: default (3600, i.e. 1h) time-out after which unanswered client messages/infos are being deleted</li>
+ * <li>'OpenCMW.nIoThreads' []: default (2) IO threads dedicated to network IO (ZeroMQ recommendation 1 thread per 1 GBit/s)</li>
+ * <li>'OpenCMW.dnsTimeOut' [s]: default (60) DNS time-out after which an unresponsive client is dropped from the DNS table
+ * <small>N.B. if registered, a HEARTBEAT challenge will be send that needs to be replied with a READY command/re-registering</small></li>
+ * </ul>
  */
+@SuppressWarnings({ "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.CommentSize" }) // package private explicitly needed for MmiServiceHelper, thread-safe/performance use of HashMap
 public class MajordomoBroker extends Thread {
-    private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoBroker.class);
     public static final byte[] RBAC = new byte[] {}; // TODO: implement RBAC between Majordomo and Worker
-    private static final String INTERNAL_SERVICE_PREFIX = "mmi.";
-    private static final byte[] INTERNAL_SERVICE_PREFIX_BYTES = INTERNAL_SERVICE_PREFIX.getBytes(StandardCharsets.UTF_8);
+    public static final byte[] DEFAULT_SUB_CMD = { 1 }; // default ZeroMQ subscribe command
+    // ----------------- default service names -----------------------------
+    public static final String INTERNAL_ADDRESS_BROKER = "inproc://broker";
+    public static final String INTERNAL_ADDRESS_PUBLISHER = "inproc://publish";
+    private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoBroker.class);
     private static final long HEARTBEAT_LIVENESS = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeatLiveness", 3); // [counts] 3-5 is reasonable
     private static final long HEARTBEAT_INTERVAL = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeat", 2500); // [ms]
     private static final long HEARTBEAT_EXPIRY = HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS;
-    private static final int CLIENT_TIMEOUT = SystemProperties.getValueIgnoreCase("OpenCMW.clientTimeOut", 0); // [s]
+    private static final long CLIENT_TIMEOUT = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase("OpenCMW.clientTimeOut", 0)); // [s]
+    private static final int N_IO_THREAD = SystemProperties.getValueIgnoreCase("OpenCMW.nIoThreads", 1); // [] typ. 1 for < 1 GBit/s
+    private static final long DNS_TIMEOUT = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase("OpenCMW.dnsTimeOut", 10)); // [ms] time when
     private static final AtomicInteger BROKER_COUNTER = new AtomicInteger();
-
     // ---------------------------------------------------------------------
-    private final ZContext ctx;
-    private final Socket routerSocket;
-    private final Socket pubSocket;
-    private final List<String> routerSockets = new ArrayList<>(); // Sockets for clients & public external workers
-    private final List<String> pubSockets = new ArrayList<>(); // Sockets for client subscriptions
+    protected final ZContext ctx;
+    protected final Socket routerSocket;
+    protected final Socket pubSocket;
+    protected final Socket dnsSocket;
+    protected final String brokerName;
+    protected final String dnsAddress;
+    protected final List<String> routerSockets = new NoDuplicatesList<>(); // Sockets for clients & public external workers
+    protected final SortedSet<RbacRole<?>> rbacRoles;
+    final Map<String, Service> services = new HashMap<>(); // NOPMD known services Map<'service name', Service>
+    protected final Map<String, Worker> workers = new HashMap<>(); // NOPMD known workers Map<addressHex, Worker
+    protected final Map<String, Client> clients = new HashMap<>(); // NOPMD
     private final AtomicBoolean run = new AtomicBoolean(false);
-    private final SortedSet<RbacRole<?>> rbacRoles;
-    private final Map<String, Service> services = new HashMap<>(); // known services Map<'service name', Service>
-    private final Map<String, Worker> workers = new HashMap<>(); // known workers Map<addressHex, Worker>
-    private final Map<String, Client> clients = new HashMap<>();
-
     private final Deque<Worker> waiting = new ArrayDeque<>(); // idle workers
+    final Map<String, DnsServiceItem> dnsCache = new HashMap<>(); // NOPMD <server name, DnsServiceItem>
     private long heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL; // When to send HEARTBEAT
+    private long dnsHeartbeatAt = System.currentTimeMillis() + DNS_TIMEOUT; // When to send a DNS HEARTBEAT
 
     /**
-   * Initialize broker state.
-   *
-   * @param ioThreads number of threads dedicated to network IO (recommendation
-   *     1 thread per 1 GBit/s)
-   * @param rbacRoles RBAC-based roles (used for IO prioritisation and service
-   *     access control
-   */
-    public MajordomoBroker(final int ioThreads, final RbacRole<?>... rbacRoles) {
-        this.setName(MajordomoBroker.class.getSimpleName() + "#" + BROKER_COUNTER.getAndIncrement());
+     * Initialize broker state.
+     *
+     * @param brokerName specific Majordomo Broker name this instance is known for in the world
+     * @param dnsAddress specifc of other Majordomo broker that acts as primary DNS
+     * @param rbacRoles  RBAC-based roles (used for IO prioritisation and service access control
+     */
+    public MajordomoBroker(@NotNull final String brokerName, @NotNull final String dnsAddress, final RbacRole<?>... rbacRoles) {
+        super();
+        this.brokerName = brokerName;
+        final URI dnsService = URI.create(dnsAddress);
+        this.dnsAddress = dnsAddress.isBlank() ? "" : "tcp://" + dnsService.getAuthority() + dnsService.getPath();
+        this.setName(MajordomoBroker.class.getSimpleName() + "(" + brokerName + ")#" + BROKER_COUNTER.getAndIncrement());
 
-        ctx = new ZContext(ioThreads);
+        ctx = new ZContext(N_IO_THREAD);
 
         // initialise RBAC role-based priority queues
         this.rbacRoles = Collections.unmodifiableSortedSet(new TreeSet<>(Set.of(rbacRoles)));
@@ -99,47 +113,88 @@ public class MajordomoBroker extends Thread {
         // generate and register internal default inproc socket
         routerSocket = ctx.createSocket(SocketType.ROUTER);
         routerSocket.setHWM(0);
-        routerSocket.bind("inproc://broker"); // NOPMD
+        routerSocket.bind(INTERNAL_ADDRESS_BROKER); // NOPMD
         pubSocket = ctx.createSocket(SocketType.XPUB);
         pubSocket.setHWM(0);
-        pubSocket.bind("inproc://publish"); // NOPMD
+        pubSocket.setXpubVerbose(true);
+        pubSocket.bind(INTERNAL_ADDRESS_PUBLISHER); // NOPMD
 
         registerDefaultServices(rbacRoles); // NOPMD
+
+        dnsSocket = ctx.createSocket(SocketType.DEALER);
+        dnsSocket.setHWM(0);
+        if (this.dnsAddress.isBlank()) {
+            dnsSocket.connect(INTERNAL_ADDRESS_BROKER);
+        } else {
+            dnsSocket.connect(this.dnsAddress);
+        }
+
+        LOGGER.atInfo().addArgument(getName()).addArgument(this.dnsAddress).log("register new '{}' broker with DNS: '{}'");
     }
 
-    public void
-    addInternalService(final MajordomoWorker worker) {
+    /**
+     * Main method - create and start new broker.
+     *
+     * @param args use '-v' for putting worker in verbose mode
+     */
+    public static void main(String[] args) {
+        MajordomoBroker broker = new MajordomoBroker("TestMdpBroker", "tcp://*:5555", BasicRbacRole.values());
+        LOGGER.atInfo().log("broker initialised");
+        // broker.setDaemon(true); // use this if running in another app that
+        // controls threads Can be called multiple times with different endpoints
+        broker.bind("tcp://*:5555");
+        broker.bind("tcp://*:5556");
+        LOGGER.atInfo().log("broker bound");
+
+        for (int i = 0; i < 10; i++) {
+            // simple internalSock echo
+            BasicMdpWorker workerSession = new BasicMdpWorker(broker.getContext(), "inproc.echo", BasicRbacRole.ADMIN); // NOPMD safe instantiation
+            workerSession.registerHandler(ctx -> ctx.rep.data = ctx.req.data); //  output = input : echo service is complex :-)
+            workerSession.start();
+        }
+        LOGGER.atInfo().log("added services");
+
+        broker.start();
+        LOGGER.atInfo().log("broker started");
+    }
+
+    /**
+     * Add internal service.
+     *
+     * @param worker the worker
+     */
+    public void addInternalService(final BasicMdpWorker worker) {
         assert worker != null : "worker must not be null";
-        services.computeIfAbsent(worker.getServiceName(), s -> new Service(s, s.getBytes(StandardCharsets.UTF_8), worker));
-        worker.start();
+        requireService(worker.getServiceName(), worker);
     }
 
     /**
-   * Bind broker to endpoint, can call this multiple times. We use a single
-   * socket for both clients and workers.
-   */
-    public Socket bind(String endpoint) {
-        routerSocket.bind(endpoint);
-        routerSockets.add(endpoint);
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.atDebug().addArgument(endpoint).log(
-                    "Majordomo broker/0.1 is active at '{}'");
+     * Bind broker to endpoint, can call this multiple times. We use a single
+     * socket for both clients and workers.
+     * <p>
+     *
+     * @param endpoint the URI-based 'scheme://ip:port' endpoint definition the server should listen to <p> The protocol definition <ul> <li>'mdp://' corresponds to a SocketType.ROUTER socket</li> <li>'mds://' corresponds to a SocketType.XPUB socket</li> <li>'tcp://' internally falls back to 'mdp://' and ROUTER socket</li> </ul>
+     * @return the string
+     */
+    public String bind(String endpoint) {
+        final boolean isRouterSocket = !endpoint.contains("mds://");
+        final String endpointAdjusted;
+        if (isRouterSocket) {
+            routerSocket.bind(endpoint.replace("mdp", "tcp"));
+            endpointAdjusted = endpoint.replace("tcp://", "mdp://");
+        } else {
+            pubSocket.bind(endpoint.replace("mds", "tcp"));
+            endpointAdjusted = endpoint.replace("tcp://", "mds://");
         }
-        return routerSocket;
-    }
-
-    /**
-   * Bind broker to endpoint, can call this multiple times. We use a single
-   * socket for both clients and workers.
-   */
-    public Socket bindPub(String endpoint) {
-        pubSocket.bind(endpoint);
-        pubSockets.add(endpoint);
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.atDebug().addArgument(endpoint).log(
-                    "Majordomo broker/0.1 publication is active at '{}'");
+        final String adjustedAddressPublic = endpointAdjusted.replace("*", getLocalHostName());
+        routerSockets.add(adjustedAddressPublic);
+        if (endpoint.contains("*")) {
+            routerSockets.add(endpointAdjusted.replace("*", "localhost"));
         }
-        return pubSocket;
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.atDebug().addArgument(adjustedAddressPublic).log("Majordomo broker/0.1 is active at '{}'");
+        }
+        return adjustedAddressPublic;
     }
 
     public ZContext getContext() {
@@ -151,14 +206,12 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-   * @return unmodifiable list of registered external sockets
-   */
+     * Gets router sockets.
+     *
+     * @return unmodifiable list of registered external sockets
+     */
     public List<String> getRouterSockets() {
         return Collections.unmodifiableList(routerSockets);
-    }
-
-    public List<String> getPubSockets() {
-        return Collections.unmodifiableList(pubSockets);
     }
 
     public Collection<Service> getServices() {
@@ -171,23 +224,18 @@ public class MajordomoBroker extends Thread {
 
     public void removeService(final String serviceName) {
         final Service ret = services.remove(serviceName);
-        ret.mdpWorker.forEach(MajordomoWorker::stopWorker);
-        ret.waiting.forEach(worker
-                -> new MdpMessage(worker.address, PROT_WORKER,
-                        DISCONNECT, worker.service.nameBytes,
-                        EMPTY_FRAME,
-                        URI.create(worker.service.name),
-                        EMPTY_FRAME, "", RBAC)
-                           .send(worker.socket));
+        ret.mdpWorker.forEach(BasicMdpWorker::stopWorker);
+        ret.waiting.forEach(worker -> new MdpMessage(worker.address, PROT_WORKER, DISCONNECT, worker.service.nameBytes, EMPTY_FRAME, URI.create(worker.service.name), EMPTY_FRAME, "", RBAC).send(worker.socket));
     }
 
     /**
-   * main broker work happens here
-   */
+     * main broker work happens here
+     */
     @Override
     public void run() {
         try (final ZMQ.Poller items = ctx.createPoller(routerSockets.size())) {
             items.register(routerSocket, ZMQ.Poller.POLLIN);
+            items.register(dnsSocket, ZMQ.Poller.POLLIN);
             items.register(pubSocket, ZMQ.Poller.POLLIN);
             while (run.get() && !Thread.currentThread().isInterrupted() && items.poll(HEARTBEAT_INTERVAL) != -1) {
                 int loopCount = 0;
@@ -197,28 +245,28 @@ public class MajordomoBroker extends Thread {
                     final MdpMessage routerMsg = receive(routerSocket, false);
                     if (routerMsg != null) {
                         if (LOGGER.isTraceEnabled()) {
-                            LOGGER.atTrace().addArgument(routerMsg).log(
-                                    "Majordomo broker received new message: '{}'");
+                            LOGGER.atTrace().addArgument(routerMsg).log("Majordomo broker received new message: '{}'");
                         }
-                        receivedMsg |= handleReceivedMessage(routerSocket, routerMsg);
+                        receivedMsg = handleReceivedMessage(routerSocket, routerMsg);
+                    }
+
+                    final MdpMessage dnsMsg = receive(dnsSocket, false);
+                    if (dnsMsg != null) {
+                        if (LOGGER.isTraceEnabled()) {
+                            LOGGER.atTrace().addArgument(dnsMsg).log("Majordomo broker received new DNS message: '{}'");
+                        }
+                        receivedMsg = handleReceivedMessage(dnsSocket, dnsMsg);
                     }
 
                     final ZMsg subMsg = ZMsg.recvMsg(pubSocket, false);
                     if (subMsg != null) {
                         if (LOGGER.isTraceEnabled()) {
-                            LOGGER.atTrace().addArgument(subMsg).log(
-                                    "Majordomo broker received new message: '{}'");
+                            LOGGER.atTrace().addArgument(subMsg).log("Majordomo broker received new message: '{}'");
                         }
-                        final byte[] subMessage = !subMsg.isEmpty() ? subMsg.getFirst().getData()
-                                                                    : new byte[] { 1 }; // TODO: refactor into an
-                        // enum/class representation
+                        final byte[] subMessage = subMsg.isEmpty() ? DEFAULT_SUB_CMD : subMsg.getFirst().getData(); // TODO: refactor into an enum/class representation
                         final String subType = subMessage[0] == 1 ? "subscribe" : "unsubscribe";
-                        final String subTopic = subMessage.length > 1
-                                                        ? new String(subMessage, 1, subMessage.length - 1,
-                                                                StandardCharsets.UTF_8)
-                                                        : "*";
-                        LOGGER.atDebug().addArgument(subType).addArgument(subTopic).log(
-                                "received subscription request: {} to '{}'");
+                        final String subTopic = subMessage.length > 1 ? new String(subMessage, 1, subMessage.length - 1, UTF_8) : "*"; // NOPMD
+                        LOGGER.atDebug().addArgument(subType).addArgument(subTopic).log("received subscription request: {} to '{}'");
                         receivedMsg = true;
                     }
 
@@ -228,7 +276,9 @@ public class MajordomoBroker extends Thread {
                         // iteration
                         purgeWorkers();
                         purgeClients();
+                        purgeDnsServices();
                         sendHeartbeats();
+                        sendDnsHeartbeats(false);
                     }
                     loopCount++;
                 }
@@ -240,24 +290,29 @@ public class MajordomoBroker extends Thread {
     @Override
     public synchronized void start() {
         run.set(true);
-        services.forEach(
-                (serviceName,
-                        service) -> service.internalWorkers.forEach(Thread::start));
+        services.forEach((serviceName, service) -> service.internalWorkers.forEach(Thread::start));
         super.start();
+        sendDnsHeartbeats(true); // initial register of default routes
     }
 
+    /**
+     * Stop broker.
+     */
     public void stopBroker() {
         run.set(false);
     }
 
     /**
-   * Deletes worker from all data structures, and destroys worker.
-   */
+     * Deletes worker from all data structures, and destroys worker.
+     *
+     * @param worker     internal reference to worker
+     * @param disconnect true: send a disconnect message to worker
+     */
     protected void deleteWorker(Worker worker, boolean disconnect) {
         assert (worker != null);
         if (disconnect) {
             new MdpMessage(worker.address, PROT_WORKER, DISCONNECT,
-                    worker.service.nameBytes, EMPTY_FRAME,
+                    worker.serviceName, EMPTY_FRAME,
                     URI.create(worker.service.name), EMPTY_FRAME, "", RBAC)
                     .send(worker.socket);
         }
@@ -268,8 +323,8 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-   * Disconnect all workers, destroy context.
-   */
+     * Disconnect all workers, destroy context.
+     */
     protected void destroy() {
         Worker[] deleteList = workers.values().toArray(new Worker[0]);
         for (Worker worker : deleteList) {
@@ -279,8 +334,10 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-   * Dispatch requests to waiting workers as possible
-   */
+     * Dispatch requests to waiting workers as possible
+     *
+     * @param service dispatch message for this service
+     */
     protected void dispatch(Service service) {
         assert (service != null);
         purgeWorkers();
@@ -301,17 +358,35 @@ public class MajordomoBroker extends Thread {
         }
     }
 
-    protected boolean handleReceivedMessage(final Socket receiveSocket,
-            final MdpMessage msg) {
+    /**
+     * Handle received message boolean.
+     *
+     * @param receiveSocket the receive socket
+     * @param msg           the to be processed msg
+     * @return true if request was implemented and has been processed
+     */
+    protected boolean handleReceivedMessage(final Socket receiveSocket, final MdpMessage msg) {
         switch (msg.protocol) {
         case PROT_CLIENT:
         case PROT_CLIENT_HTTP:
             // Set reply return address to client sender
+            switch (msg.command) {
+            case READY:
+                if (msg.topic != null && msg.topic.getScheme() != null) {
+                    // register potentially new service
+                    DnsServiceItem ret = dnsCache.computeIfAbsent(msg.getServiceName(), s -> new DnsServiceItem(msg.senderID, msg.getServiceName()));
+                    ret.uri.add(msg.topic);
+                    ret.updateExpiryTimeStamp();
+                }
+                return true;
+            case W_HEARTBEAT:
+                sendDnsHeartbeats(true);
+                return true;
+            default:
+            }
+
             final String senderName = msg.getSenderName();
-            final Client client = clients.computeIfAbsent(
-                    senderName,
-                    s
-                    -> new Client(receiveSocket, msg.protocol, senderName, msg.senderID));
+            final Client client = clients.computeIfAbsent(senderName, s -> new Client(receiveSocket, msg.protocol, senderName, msg.senderID));
             client.offerToQueue(msg);
             return true;
         case PROT_WORKER:
@@ -329,8 +404,8 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-   * Process a request coming from a client.
-   */
+     * Process a request coming from a client.
+     */
     protected void processClients() {
         // round-robbin
         clients.forEach((name, client) -> {
@@ -338,6 +413,7 @@ public class MajordomoBroker extends Thread {
             if (clientMessage == null) {
                 return;
             }
+
             // dispatch client message to worker queue
             final Service service = services.get(clientMessage.getServiceName());
             if (service == null) {
@@ -346,8 +422,8 @@ public class MajordomoBroker extends Thread {
                 new MdpMessage(clientMessage.senderID, client.protocol, FINAL,
                         clientMessage.serviceNameBytes,
                         clientMessage.clientRequestID,
-                        URI.create("mdp/UnknownService"),
-                        "501".getBytes(StandardCharsets.UTF_8), "", RBAC)
+                        URI.create(INTERNAL_SERVICE_NAMES),
+                        "501".getBytes(UTF_8), "unknown service (error 501): '" + clientMessage.getServiceName() + '\'', RBAC)
                         .send(client.socket);
                 return;
             }
@@ -360,20 +436,51 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-   * Process message sent to us by a worker.
-   */
-    protected void processWorker(final Socket receiveSocket,
-            final MdpMessage msg) {
+     * Process message sent to us by a worker.
+     *
+     * @param receiveSocket the socket the message was received at
+     * @param msg           the received and to be processed message
+     */
+    protected void processWorker(final Socket receiveSocket, final MdpMessage msg) {
         final String senderIdHex = strhex(msg.senderID);
         final String serviceName = msg.getServiceName();
         final boolean workerReady = workers.containsKey(senderIdHex);
-        final Worker worker = requireWorker(receiveSocket, msg.senderID, senderIdHex);
+        final Worker worker = requireWorker(receiveSocket, msg.senderID, senderIdHex, msg.serviceNameBytes);
 
         switch (msg.command) {
         case READY:
+            LOGGER.atTrace().addArgument(serviceName).log("log new local/external worker for service {} - " + msg);
             // Attach worker to service and mark as idle
-            worker.service = requireService(serviceName, msg.serviceNameBytes);
+            worker.service = requireService(serviceName);
             workerWaiting(worker);
+            worker.service.serviceDescription = Arrays.copyOf(msg.data, msg.data.length);
+
+            if (!msg.topic.toString().isBlank() && msg.topic.getScheme() != null) {
+                routerSockets.add(msg.topic.toString());
+                DnsServiceItem ret = dnsCache.computeIfAbsent(brokerName, s -> new DnsServiceItem(msg.senderID, brokerName));
+                ret.uri.add(msg.topic);
+            }
+
+            // notify potential listener
+            msg.data = msg.serviceNameBytes;
+            msg.serviceNameBytes = INTERNAL_SERVICE_NAMES.getBytes(UTF_8);
+            msg.command = W_NOTIFY;
+            msg.clientRequestID = this.getName().getBytes(UTF_8);
+            msg.topic = URI.create(INTERNAL_SERVICE_NAMES);
+            msg.errors = "";
+            if (!pubSocket.sendMore(INTERNAL_SERVICE_NAMES) || !msg.send(pubSocket)) {
+                LOGGER.atWarn().addArgument(msg.getServiceName()).log("could not notify service change for '{}'");
+            }
+            break;
+        case W_HEARTBEAT:
+            if (workerReady) {
+                worker.updateExpiryTimeStamp();
+            } else {
+                deleteWorker(worker, true);
+            }
+            break;
+        case DISCONNECT:
+            deleteWorker(worker, false);
             break;
         case PARTIAL:
         case FINAL:
@@ -394,6 +501,9 @@ public class MajordomoBroker extends Thread {
             }
             break;
         case W_NOTIFY:
+            String queryString = msg.topic.getQuery();
+            String replyService = msg.topic.getPath() + (queryString == null || queryString.isBlank() ? "" : ("?" + queryString));
+            pubSocket.sendMore(replyService);
             msg.send(pubSocket);
 
             final Client client = clients.get(msg.getServiceName());
@@ -408,31 +518,20 @@ public class MajordomoBroker extends Thread {
             msg.serviceNameBytes = serviceID;
             msg.send(client.socket);
             break;
-        case W_HEARTBEAT:
-            if (workerReady && worker != null) {
-                worker.expiry = System.currentTimeMillis() + HEARTBEAT_EXPIRY;
-            } else {
-                deleteWorker(worker, true);
-            }
-            break;
-        case DISCONNECT:
-            deleteWorker(worker, false);
-            break;
         default:
             // N.B. not too verbose logging since we do not want that sloppy clients
             // can bring down the broker through warning or info messages
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.atDebug().addArgument(msg).log(
-                        "Majordomo broker invalid message: '{}'");
+                LOGGER.atDebug().addArgument(msg).log("Majordomo broker invalid message: '{}'");
             }
             break;
         }
     }
 
     /**
-   * Look for &amp; kill expired clients.
-   */
-    protected /*synchronized*/ void purgeClients() {
+     * Look for &amp; kill expired clients.
+     */
+    protected void purgeClients() {
         if (CLIENT_TIMEOUT <= 0) {
             return;
         }
@@ -450,21 +549,42 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-   * Look for &amp; kill expired workers. Workers are oldest to most recent, so
-   * we stop at the first alive worker.
-   */
-    protected /*synchronized*/ void purgeWorkers() {
-        for (Worker w = waiting.peekFirst();
-                w != null && w.expiry < System.currentTimeMillis();
-                w = waiting.peekFirst()) {
+     * Look for &amp; kill expired workers. Workers are oldest to most recent, so
+     * we stop at the first alive worker.
+     */
+    protected void purgeWorkers() {
+        for (Worker w = waiting.peekFirst(); w != null && w.expiry < System.currentTimeMillis(); w = waiting.peekFirst()) {
             if (LOGGER.isInfoEnabled()) {
-                LOGGER.atInfo()
-                        .addArgument(w.addressHex)
-                        .addArgument(w.service == null ? "(unknown)" : w.service.name)
-                        .log(
-                                "Majordomo broker deleting expired worker: '{}' - service: '{}'");
+                LOGGER.atInfo().addArgument(w.addressHex).addArgument(w.service == null ? "(unknown)" : w.service.name).log("Majordomo broker deleting expired worker: '{}' - service: '{}'");
             }
             deleteWorker(waiting.pollFirst(), false);
+        }
+    }
+
+    /**
+     * Look for &amp; kill expired workers. Workers are oldest to most recent, so
+     * we stop at the first alive worker.
+     */
+    protected void purgeDnsServices() {
+        if (System.currentTimeMillis() >= dnsHeartbeatAt) {
+            List<DnsServiceItem> cachedList = new ArrayList<>(dnsCache.values());
+            final MdpMessage challengeMessage = new MdpMessage(null, PROT_CLIENT, W_HEARTBEAT, null, "dnsChallenge".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
+            for (DnsServiceItem registeredService : cachedList) {
+                if (registeredService.serviceName.equalsIgnoreCase(brokerName)) {
+                    registeredService.updateExpiryTimeStamp();
+                }
+                // challenge remote broker with a HEARTBEAT
+                challengeMessage.senderID = registeredService.address;
+                challengeMessage.serviceNameBytes = registeredService.serviceName.getBytes(UTF_8);
+                challengeMessage.send(routerSocket); // NOPMD
+                if (System.currentTimeMillis() > registeredService.expiry) {
+                    if (LOGGER.isInfoEnabled()) {
+                        LOGGER.atInfo().addArgument(registeredService).log("Majordomo broker deleting expired dns service: '{}'");
+                    }
+                    dnsCache.remove(registeredService.serviceName);
+                }
+            }
+            dnsHeartbeatAt = System.currentTimeMillis() + DNS_TIMEOUT;
         }
     }
 
@@ -472,91 +592,94 @@ public class MajordomoBroker extends Thread {
         // add simple internal Majordomo worker
         final int nServiceThreads = 3;
 
-        // Majordomo Management Interface (MMI) as defined in http://rfc.zeromq.org/spec:8
-        MajordomoWorker mmiService = new MajordomoWorker(ctx, "mmi.service", rbacRoles);
-        mmiService.registerHandler(context -> {
-            final String serviceName = (context.req.data != null) ? new String(context.req.data, StandardCharsets.UTF_8) : "";
-            final String returnCode;
-            if (!serviceName.isBlank()) {
-                returnCode = services.containsKey(serviceName) ? "200" : "400";
-            } else {
-                returnCode = services.keySet().stream().sorted().collect(
-                        Collectors.joining(","));
-            }
-            context.rep.data = returnCode.getBytes(StandardCharsets.UTF_8);
-        });
-        addInternalService(mmiService);
-
-        MajordomoWorker mmiDns = new MajordomoWorker(ctx, "mmi.dns", rbacRoles);
-        mmiDns.registerHandler(ctx -> {
-            final String returnCode = routerSockets.stream()
-                                              .map(s -> s.toLowerCase(Locale.UK).replace("tcp", "mdp"))
-                                              .collect(Collectors.joining(","));
-            ctx.rep.data = returnCode.getBytes(StandardCharsets.UTF_8);
-        });
-        addInternalService(mmiDns);
-
-        // echo service
+        addInternalService(new MmiService(this, rbacRoles));
+        addInternalService(new MmiOpenApi(this, rbacRoles));
+        addInternalService(new MmiDns(this, rbacRoles));
         for (int i = 0; i < nServiceThreads; i++) {
-            MajordomoWorker echoService = new MajordomoWorker(ctx, "mmi.echo", rbacRoles);
-            echoService.registerHandler(
-                    ctx
-                    -> ctx.rep.data = ctx.req.data); //  output = input : echo service is complex :-)
-            addInternalService(echoService);
+            addInternalService(new MmiEcho(this, rbacRoles)); // NOPMD valid instantiation inside loop
         }
-
-        // Hello World service
-        MajordomoWorker httpDemoService = new MajordomoWorker(ctx, "mmi.hello", rbacRoles);
-        httpDemoService.registerHandler(
-                ctx -> ctx.rep.data = "Hello World!".getBytes(StandardCharsets.UTF_8));
-        addInternalService(httpDemoService);
     }
 
     /**
-   * Locates the service (creates if necessary).
-   *
-   * @param serviceName      service name
-   * @param serviceNameBytes UTF-8 encoded service name
-   */
-    protected Service requireService(final String serviceName,
-            final byte[] serviceNameBytes) {
-        assert (serviceNameBytes != null);
-        return services.computeIfAbsent(
-                serviceName, s -> new Service(serviceName, serviceNameBytes, null));
+     * Locates the service (creates if necessary).
+     *
+     * @param serviceName service name
+     * @param worker      optional worker implementation (may be null)
+     * @return the existing (or new if absent) service this worker is responsible for
+     */
+    protected Service requireService(final String serviceName, final BasicMdpWorker... worker) {
+        assert (serviceName != null);
+        final BasicMdpWorker w = worker.length > 0 ? worker[0] : null;
+        final Service service = services.computeIfAbsent(serviceName, s -> new Service(serviceName, serviceName.getBytes(UTF_8), w));
+        if (w != null) {
+            w.start();
+        }
+        return service;
     }
 
     /**
      * Finds the worker (creates if necessary).
+     *
+     * @param socket      the socket
+     * @param address     the address
+     * @param addressHex  the address hex
+     * @param serviceName the service name
+     * @return the worker
      */
-    protected Worker requireWorker(final Socket socket, final byte[] address,
-            final String addressHex) {
+    protected @NotNull Worker requireWorker(final Socket socket, final byte[] address, final String addressHex, final byte[] serviceName) {
         assert (addressHex != null);
         return workers.computeIfAbsent(addressHex, identity -> {
             if (LOGGER.isInfoEnabled()) {
                 LOGGER.atInfo().addArgument(addressHex).log("registering new worker: '{}'");
             }
-            return new Worker(socket, address, addressHex);
+            return new Worker(socket, address, addressHex, serviceName);
         });
     }
 
     /**
-   * Send heartbeats to idle workers if it's time
-   */
-    protected /*synchronized*/ void sendHeartbeats() {
+     * Send heartbeats to idle workers if it's time
+     */
+    protected void sendHeartbeats() {
         // Send heartbeats to idle workers if it's time
         if (System.currentTimeMillis() >= heartbeatAt) {
+            final MdpMessage heartbeatMsg = new MdpMessage(null, PROT_WORKER, W_HEARTBEAT, null, EMPTY_FRAME, EMPTY_URI, EMPTY_FRAME, "", RBAC);
             for (Worker worker : waiting) {
-                final byte[] clientRequestID = new byte[0];
-                new MdpMessage(worker.address, PROT_WORKER, W_HEARTBEAT, worker.service.nameBytes, clientRequestID, EMPTY_URI, EMPTY_FRAME, "", RBAC).send(worker.socket);
+                heartbeatMsg.senderID = worker.address;
+                heartbeatMsg.serviceNameBytes = worker.service.nameBytes;
+                heartbeatMsg.send(worker.socket);
             }
             heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
         }
     }
 
     /**
-   * This worker is now waiting for work.
-   */
-    protected /*synchronized*/ void workerWaiting(Worker worker) {
+     * Send heartbeats to the DNS server if necessary
+     *
+     * @param force sending regardless of time-out
+     */
+    protected void sendDnsHeartbeats(boolean force) {
+        // Send heartbeats to idle workers if it's time
+        if (System.currentTimeMillis() >= dnsHeartbeatAt || force) {
+            final MdpMessage readyMsg = new MdpMessage(null, PROT_CLIENT, READY, brokerName.getBytes(UTF_8), "clientID".getBytes(UTF_8), URI.create(""), EMPTY_FRAME, "", RBAC);
+            for (String routerAddress : this.getRouterSockets()) {
+                readyMsg.topic = URI.create(routerAddress);
+                if (!dnsAddress.isBlank()) {
+                    readyMsg.send(dnsSocket); // register with external DNS
+                }
+                // register with internal DNS
+                DnsServiceItem ret = dnsCache.computeIfAbsent(brokerName, s -> new DnsServiceItem(dnsSocket.getIdentity(), brokerName)); // NOPMD instantiation in loop necessary
+                ret.uri.add(URI.create(routerAddress));
+                ret.updateExpiryTimeStamp();
+            }
+        }
+    }
+
+    /**
+     * This worker is now waiting for work.
+     *
+     * @param worker the worker
+     */
+    protected void workerWaiting(Worker worker) {
         // Queue to broker and service waiting lists
         waiting.addLast(worker);
         // TODO: evaluate addLast vs. push (addFirst) - latter should be more
@@ -566,39 +689,13 @@ public class MajordomoBroker extends Thread {
         // workers (load balancing across different machines perhaps?!=)
         // worker.service.waiting.addLast(worker);
         worker.service.waiting.push(worker);
-        worker.expiry = System.currentTimeMillis() + HEARTBEAT_EXPIRY;
+        worker.updateExpiryTimeStamp();
         dispatch(worker.service);
     }
 
     /**
-   * Main method - create and start new broker.
-   *
-   * @param args use '-v' for putting worker in verbose mode
-   */
-    public static void main(String[] args) {
-        MajordomoBroker broker = new MajordomoBroker(1, BasicRbacRole.values());
-        LOGGER.atInfo().log("broker initialised");
-        // broker.setDaemon(true); // use this if running in another app that
-        // controls threads Can be called multiple times with different endpoints
-        broker.bind("tcp://*:5555");
-        broker.bind("tcp://*:5556");
-        LOGGER.atInfo().log("broker bound");
-
-        for (int i = 0; i < 10; i++) {
-            // simple internalSock echo
-            MajordomoWorker workerSession = new MajordomoWorker(broker.getContext(), "inproc.echo", BasicRbacRole.ADMIN);
-            workerSession.registerHandler(ctx -> ctx.rep.data = ctx.req.data); //  output = input : echo service is complex :-)
-            workerSession.start();
-        }
-        LOGGER.atInfo().log("added services");
-
-        broker.start();
-        LOGGER.atInfo().log("broker started");
-    }
-
-    /**
-   * This defines a client service.
-   */
+     * This defines a client service.
+     */
     protected static class Client {
         protected final Socket socket; // Socket client is connected to
         protected final MdpSubProtocol protocol;
@@ -606,41 +703,122 @@ public class MajordomoBroker extends Thread {
         protected final byte[] nameBytes; // client name as byte array
         protected final String nameHex; // client name as hex String
         private final Deque<MdpMessage> requests = new ArrayDeque<>(); // List of client requests
-        protected long expiry = System.currentTimeMillis() + CLIENT_TIMEOUT * 1000L; // Expires at unless heartbeat
+        protected long expiry = System.currentTimeMillis() + CLIENT_TIMEOUT; // Expires at unless heartbeat
 
-        public Client(final Socket socket, final MdpSubProtocol protocol,
-                final String name, final byte[] nameBytes) {
+        private Client(final Socket socket, final MdpSubProtocol protocol, final String name, final byte[] nameBytes) {
             this.socket = socket;
             this.protocol = protocol;
             this.name = name;
-            this.nameBytes = nameBytes == null ? name.getBytes(StandardCharsets.UTF_8) : nameBytes;
+            this.nameBytes = nameBytes == null ? name.getBytes(UTF_8) : nameBytes;
             this.nameHex = strhex(nameBytes);
         }
 
-        public void offerToQueue(final MdpMessage msg) {
-            expiry = System.currentTimeMillis() + CLIENT_TIMEOUT * 1000L;
+        private void offerToQueue(final MdpMessage msg) {
+            expiry = System.currentTimeMillis() + CLIENT_TIMEOUT;
             requests.offer(msg);
         }
 
-        public MdpMessage pop() {
+        private MdpMessage pop() {
             return requests.isEmpty() ? null : requests.poll();
         }
     }
 
     /**
-   * This defines a single service.
-   */
+     * This defines one worker, idle or active.
+     */
+    protected static class Worker {
+        protected final Socket socket; // Socket worker is connected to
+        protected final byte[] address; // Address ID frame to route to
+        protected final String addressHex; // Address ID frame of worker expressed as hex-String
+        protected final byte[] serviceName; // service name of worker
+
+        protected Service service; // Owning service, if known
+        protected long expiry; // Expires at unless heartbeat
+
+        private Worker(final Socket socket, final byte[] address, final String addressHex, final byte[] serviceName) { // NOPMD direct storage of address OK
+            this.socket = socket;
+            this.address = address;
+            this.addressHex = addressHex;
+            this.serviceName = serviceName;
+            updateExpiryTimeStamp();
+        }
+
+        private void updateExpiryTimeStamp() {
+            expiry = System.currentTimeMillis() + HEARTBEAT_EXPIRY;
+        }
+    }
+
+    /**
+     * This defines one DNS service item, idle or active.
+     */
+    @SuppressWarnings("PMD.CommentDefaultAccessModifier") // needed for utility classes in the same package
+    static class DnsServiceItem {
+        protected final byte[] address; // Address ID frame to route to
+        protected final String serviceName;
+        protected final List<URI> uri = new NoDuplicatesList<>();
+        protected long expiry; // Expires at unless heartbeat
+
+        private DnsServiceItem(final byte[] address, final String serviceName) { // NOPMD direct storage of address OK
+            this.address = address;
+            this.serviceName = serviceName;
+            updateExpiryTimeStamp();
+        }
+
+        private void updateExpiryTimeStamp() {
+            expiry = System.currentTimeMillis() + DNS_TIMEOUT * HEARTBEAT_LIVENESS;
+        }
+
+        @Override
+        public String toString() {
+            final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.UK);
+            return "DnsServiceItem{address=" + ZData.toString(address) + ", serviceName='" + serviceName + "', uri= '" + uri + "',expiry=" + expiry + " - " + sdf.format(expiry) + '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            } else if (!(o instanceof DnsServiceItem)) {
+                return false;
+            }
+            DnsServiceItem that = (DnsServiceItem) o;
+            return serviceName.equals(that.serviceName);
+        }
+
+        public String getDnsEntry() {
+            return '[' + serviceName + ": " + uri.stream().map(URI::toString).collect(Collectors.joining(",")) + ']';
+        }
+
+        public String getDnsEntryHtml() {
+            Optional<URI> webHandler = uri.stream().filter(u -> "https".equalsIgnoreCase(u.getScheme())).findFirst();
+            if (webHandler.isEmpty()) {
+                webHandler = uri.stream().filter(u -> "http".equalsIgnoreCase(u.getScheme())).findFirst();
+            }
+            final String wrappedService = webHandler.isEmpty() ? serviceName : wrapInAnchor(serviceName, webHandler.get());
+            return '[' + wrappedService + ": " + uri.stream().map(u -> wrapInAnchor(u.toString(), u)).collect(Collectors.joining(",")) + "]";
+        }
+
+        @Override
+        public int hashCode() {
+            return serviceName.hashCode();
+        }
+    }
+
+    /**
+     * This defines a single service.
+     */
     protected class Service {
         protected final String name; // Service name
         protected final byte[] nameBytes; // Service name as byte array
-        protected final List<MajordomoWorker> mdpWorker = new ArrayList<>();
+        protected final List<BasicMdpWorker> mdpWorker = new ArrayList<>();
         protected final Map<RbacRole<?>, Queue<MdpMessage>> requests = new HashMap<>(); // RBAC-based queuing
         protected final Deque<Worker> waiting = new ArrayDeque<>(); // List of waiting workers
         protected final List<Thread> internalWorkers = new ArrayList<>();
+        protected byte[] serviceDescription; // service OpenAPI description TODO: fully implement
 
-        public Service(final String name, final byte[] nameBytes, final MajordomoWorker mdpWorker) {
+        private Service(final String name, final byte[] nameBytes, final BasicMdpWorker mdpWorker) {
             this.name = name;
-            this.nameBytes = nameBytes == null ? name.getBytes(StandardCharsets.UTF_8) : nameBytes;
+            this.nameBytes = nameBytes == null ? name.getBytes(UTF_8) : nameBytes;
             if (mdpWorker != null) {
                 this.mdpWorker.add(mdpWorker);
             }
@@ -648,15 +826,12 @@ public class MajordomoBroker extends Thread {
             requests.put(BasicRbacRole.NULL, new ArrayDeque<>()); // add default queue
         }
 
-        public boolean requestsPending() {
+        private boolean requestsPending() {
             return requests.entrySet().stream().anyMatch(
                     map -> !map.getValue().isEmpty());
         }
 
-        /**
-     * @return next RBAC prioritised message or 'null' if there aren't any
-     */
-        protected final MdpMessage getNextPrioritisedMessage() {
+        private MdpMessage getNextPrioritisedMessage() {
             for (RbacRole<?> role : rbacRoles) {
                 final Queue<MdpMessage> queue = requests.get(role); // matched non-empty queue
                 if (!queue.isEmpty()) {
@@ -667,7 +842,7 @@ public class MajordomoBroker extends Thread {
             return queue.isEmpty() ? null : queue.poll();
         }
 
-        protected void putPrioritisedMessage(final MdpMessage queuedMessage) {
+        private void putPrioritisedMessage(final MdpMessage queuedMessage) {
             if (queuedMessage.hasRbackToken()) {
                 // find proper RBAC queue
                 final RbacToken rbacToken = RbacToken.from(queuedMessage.rbacToken);
@@ -681,23 +856,21 @@ public class MajordomoBroker extends Thread {
         }
     }
 
-    /**
-   * This defines one worker, idle or active.
-   */
-    protected class Worker {
-        protected final Socket socket; // Socket worker is connected to
-        protected final byte[] address; // Address ID frame to route to
-        protected final String addressHex; // Address ID frame of worker expressed as hex-String
+    protected static String getLocalHostName() {
+        String ip;
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.connect(InetAddress.getByName("8.8.8.8"), 10_002); // NOPMD - bogus hardcoded IP acceptable in this context
+            if (socket.getLocalAddress() == null) {
+                throw new UnknownHostException("bogus exception can be ignored");
+            }
+            ip = socket.getLocalAddress().getHostAddress();
 
-        protected final boolean external;
-        protected Service service; // Owning service, if known
-        protected long expiry = System.currentTimeMillis() + HEARTBEAT_LIVENESS; // Expires at unless heartbeat
-
-        public Worker(final Socket socket, final byte[] address, final String addressHex) {
-            this.socket = socket;
-            this.external = true;
-            this.address = address;
-            this.addressHex = addressHex;
+            if (ip != null) {
+                return ip;
+            }
+        } catch (final SocketException | UnknownHostException e) {
+            LOGGER.atError().setCause(e).log("getLocalHostName()");
         }
+        return "localhost";
     }
 }

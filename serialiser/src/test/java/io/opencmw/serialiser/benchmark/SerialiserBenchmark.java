@@ -1,7 +1,5 @@
 package io.opencmw.serialiser.benchmark;
 
-import io.opencmw.serialiser.utils.JsonHelper;
-import io.opencmw.serialiser.utils.TestDataClass;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Param;
@@ -10,14 +8,16 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import io.opencmw.serialiser.utils.CmwLightHelper;
+import io.opencmw.serialiser.utils.FlatBuffersHelper;
+import io.opencmw.serialiser.utils.JsonHelper;
+import io.opencmw.serialiser.utils.SerialiserHelper;
+import io.opencmw.serialiser.utils.TestDataClass;
+
 import com.jsoniter.JsonIterator;
 import com.jsoniter.output.EncodingMode;
 import com.jsoniter.output.JsonStream;
 import com.jsoniter.spi.DecodingMode;
-
-import io.opencmw.serialiser.utils.CmwLightHelper;
-import io.opencmw.serialiser.utils.FlatBuffersHelper;
-import io.opencmw.serialiser.utils.SerialiserHelper;
 
 /**
  * More thorough (JMH-based)) benchmark of various internal and external serialiser protocols.

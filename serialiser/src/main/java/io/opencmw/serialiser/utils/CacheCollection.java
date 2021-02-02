@@ -2,7 +2,13 @@ package io.opencmw.serialiser.utils;
 
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
-import java.util.*;
+import java.util.AbstractCollection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+
+import org.jetbrains.annotations.NotNull;
 
 import de.gsi.dataset.utils.ByteArrayCache;
 
@@ -56,7 +62,7 @@ public class CacheCollection<T> extends AbstractCollection<T> {
     }
 
     @Override
-    public Iterator<T> iterator() {
+    public @NotNull Iterator<T> iterator() {
         synchronized (contents) {
             return new CacheCollectionIterator<>(contents.iterator());
         }

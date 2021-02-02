@@ -2,28 +2,10 @@ package io.opencmw.concepts.majordomo;
 
 import static org.zeromq.ZMQ.Socket;
 
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpClientCommand;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpClientMessage;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpMessage;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpSubProtocol;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpWorkerCommand;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpWorkerMessage;
-import static io.opencmw.concepts.majordomo.MajordomoProtocol.receiveMdpMessage;
+import static io.opencmw.concepts.majordomo.MajordomoProtocol.*;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -55,9 +37,9 @@ public class MajordomoBroker extends Thread {
     private static final byte[] INTERNAL_SENDER_ID = null;
     private static final String INTERNAL_SERVICE_PREFIX = "mmi.";
     private static final byte[] INTERNAL_SERVICE_PREFIX_BYTES = INTERNAL_SERVICE_PREFIX.getBytes(StandardCharsets.UTF_8);
-    private static final int HEARTBEAT_LIVENESS = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeatLiveness", 3); // [counts] 3-5 is reasonable
-    private static final int HEARTBEAT_INTERVAL = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeat", 2500); // [ms]
-    private static final int HEARTBEAT_EXPIRY = HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS;
+    private static final long HEARTBEAT_LIVENESS = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeatLiveness", 3); // [counts] 3-5 is reasonable
+    private static final long HEARTBEAT_INTERVAL = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeat", 2500); // [ms]
+    private static final long HEARTBEAT_EXPIRY = HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS;
     private static final int CLIENT_TIMEOUT = SystemProperties.getValueIgnoreCase("OpenCMW.clientTimeOut", 0); // [s]
     private static final AtomicInteger BROKER_COUNTER = new AtomicInteger();
     private static final AtomicInteger WORKER_COUNTER = new AtomicInteger();
@@ -207,7 +189,7 @@ public class MajordomoBroker extends Thread {
     protected void deleteWorker(Worker worker, boolean disconnect) {
         assert (worker != null);
         if (disconnect) {
-            MajordomoProtocol.sendWorkerMessage(worker.socket, MdpWorkerCommand.W_DISCONNECT, worker.address, null);
+            sendWorkerMessage(worker.socket, MdpWorkerCommand.W_DISCONNECT, worker.address, null);
         }
         if (worker.service != null) {
             worker.service.waiting.remove(worker);
@@ -241,7 +223,7 @@ public class MajordomoBroker extends Thread {
             }
             Worker worker = service.waiting.pop();
             waiting.remove(worker);
-            MajordomoProtocol.sendWorkerMessage(worker.socket, MdpWorkerCommand.W_REQUEST, worker.address, msg.senderID, msg.payload);
+            sendWorkerMessage(worker.socket, MdpWorkerCommand.W_REQUEST, worker.address, msg.senderID, msg.payload);
         }
     }
 
@@ -278,7 +260,7 @@ public class MajordomoBroker extends Thread {
             final Service service = services.get(clientMessage.serviceName);
             if (service == null) {
                 // not implemented -- according to Majordomo Management Interface (MMI) as defined in http://rfc.zeromq.org/spec:8
-                MajordomoProtocol.sendClientMessage(client.socket, MdpClientCommand.C_UNKNOWN, clientMessage.senderID, clientMessage.serviceNameBytes, "501".getBytes(StandardCharsets.UTF_8));
+                sendClientMessage(client.socket, MdpClientCommand.C_UNKNOWN, clientMessage.senderID, clientMessage.serviceNameBytes, "501".getBytes(StandardCharsets.UTF_8));
                 return;
             }
             // queue new client message RBAC-priority-based
@@ -292,7 +274,7 @@ public class MajordomoBroker extends Thread {
                     assert false : "getNextPrioritisedMessage should not be null";
                     return;
                 }
-                MajordomoProtocol.sendWorkerMessage(service.internalDispatchSocket, MdpWorkerCommand.W_REQUEST, null, msg.senderID, msg.payload);
+                sendWorkerMessage(service.internalDispatchSocket, MdpWorkerCommand.W_REQUEST, null, msg.senderID, msg.payload);
             } else {
                 //dispatch(requireService(clientMessage.serviceName, clientMessage.serviceNameBytes));
                 dispatch(service);
@@ -329,7 +311,7 @@ public class MajordomoBroker extends Thread {
                 }
 
                 if (client.protocol == MdpSubProtocol.C_CLIENT) { // OpenCMW
-                    MajordomoProtocol.sendClientMessage(client.socket, MdpClientCommand.C_UNKNOWN, msg.clientSourceID, serviceName, msg.payload);
+                    sendClientMessage(client.socket, MdpClientCommand.C_UNKNOWN, msg.clientSourceID, serviceName, msg.payload);
                 } else {
                     // TODO: add other branches for:
                     // * CmwLight
@@ -445,7 +427,7 @@ public class MajordomoBroker extends Thread {
         // Send heartbeats to idle workers if it's time
         if (System.currentTimeMillis() >= heartbeatAt) {
             for (Worker worker : waiting) {
-                MajordomoProtocol.sendWorkerMessage(worker.socket, MdpWorkerCommand.W_HEARTBEAT, worker.address, null);
+                sendWorkerMessage(worker.socket, MdpWorkerCommand.W_HEARTBEAT, worker.address, null);
             }
             heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
         }
@@ -497,18 +479,18 @@ public class MajordomoBroker extends Thread {
         protected final byte[] nameBytes; // Service name as byte array
         protected final String nameHex; // Service name as hex String
         private final Deque<MdpClientMessage> requests = new ArrayDeque<>(); // List of client requests
-        protected long expiry = System.currentTimeMillis() + CLIENT_TIMEOUT * 1000; // Expires at unless heartbeat
+        protected long expiry = System.currentTimeMillis() + CLIENT_TIMEOUT * 1000L; // Expires at unless heartbeat
 
         public Client(final Socket socket, final MdpSubProtocol protocol, final String name, final byte[] nameBytes) {
             this.socket = socket;
             this.protocol = protocol;
             this.name = name;
             this.nameBytes = nameBytes == null ? name.getBytes(StandardCharsets.UTF_8) : nameBytes;
-            this.nameHex = MajordomoProtocol.strhex(nameBytes);
+            this.nameHex = strhex(nameBytes);
         }
 
         public void offerToQueue(final MdpClientMessage msg) {
-            expiry = System.currentTimeMillis() + CLIENT_TIMEOUT * 1000;
+            expiry = System.currentTimeMillis() + CLIENT_TIMEOUT * 1000L;
             requests.offer(msg);
         }
 
@@ -641,7 +623,7 @@ public class MajordomoBroker extends Thread {
                         final MdpMessage reply = service.mdpWorker.processRequest(msg, msg.clientSourceID);
 
                         if (reply != null) {
-                            MajordomoProtocol.sendWorkerMessage(sendSocket, MdpWorkerCommand.W_REPLY, INTERNAL_SENDER_ID, msg.clientSourceID, reply.payload);
+                            sendWorkerMessage(sendSocket, MdpWorkerCommand.W_REPLY, INTERNAL_SENDER_ID, msg.clientSourceID, reply.payload);
                         }
                     }
                 }

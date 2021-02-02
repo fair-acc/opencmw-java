@@ -1,11 +1,6 @@
 package io.opencmw.client.rest;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -15,6 +10,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -27,6 +23,7 @@ import org.zeromq.ZMQException;
 import org.zeromq.ZMsg;
 
 import io.opencmw.MimeType;
+
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.mockwebserver.Dispatcher;
@@ -82,7 +79,7 @@ class RestDataSourceTest {
         RestDataSource dataSource = new RestDataSource(null, server.url("/sse").toString());
         assertNotNull(dataSource);
         assertNotNull(dataSource.getEndpoint());
-        assertDoesNotThrow(() -> dataSource.housekeeping());
+        assertDoesNotThrow(dataSource::housekeeping);
     }
 
     @Test
@@ -214,7 +211,7 @@ class RestDataSourceTest {
     private static class CustomDispatcher extends Dispatcher {
         public BlockingQueue<MockResponse> enquedEvents = new LinkedBlockingQueue<>();
         @Override
-        public MockResponse dispatch(RecordedRequest request) {
+        public @NotNull MockResponse dispatch(@NotNull RecordedRequest request) {
             if (!enquedEvents.isEmpty()) {
                 // dispatch enqued events
                 return enquedEvents.poll();

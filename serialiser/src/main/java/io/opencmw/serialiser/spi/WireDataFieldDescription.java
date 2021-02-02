@@ -4,11 +4,11 @@ import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.opencmw.serialiser.DataType;
-import io.opencmw.serialiser.FieldDescription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.opencmw.serialiser.DataType;
+import io.opencmw.serialiser.FieldDescription;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.utils.ClassUtils;
 
@@ -93,10 +93,9 @@ public class WireDataFieldDescription implements FieldDescription {
 
     @Override
     public FieldDescription findChildField(final int fieldNameHashCode, final String fieldName) {
-        for (int i = 0; i < children.size(); i++) { //NOSONAR
-            final FieldDescription field = children.get(i);
+        for (final FieldDescription field : children) { //NOSONAR
             final String name = field.getFieldName();
-            if (name == fieldName) { //NOSONAR //NOPMD early return if the same String object reference
+            if (name == fieldName) { // NOSONAR NOPMD early return if the same String object reference
                 return field;
             }
             if (field.hashCode() == fieldNameHashCode && name.equals(fieldName)) {

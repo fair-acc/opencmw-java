@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ruleset xmlns="http://pmd.sourceforge.net/ruleset/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 http://pmd.sourceforge.net/ruleset_2_0_0.xsd"
-    name="CSCOAP PMD Rules">
+    xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 http://pmd.sourceforge.net/ruleset_2_0_0.xsd"  name="CSCOAP PMD Rules">
 
     <description>PMD rules for CSCOAP at GSI Java Applications</description>
 
@@ -20,16 +19,22 @@
         <exclude name="GuardLogStatement"/>
         <exclude name="JUnitTestContainsTooManyAsserts"/>
         <exclude name="UseVarargs"/>
+        <exclude name="UnusedImports"/> <!-- re-enable once Codacy moved to new version -->
+    </rule>
+    <rule ref="category/java/documentation.xml/CommentSize">
+        <properties>
+            <property name="maxLines" value="1000" />  <!-- do not limit code-based documentation -->
+            <property name="maxLineLength" value="200" />
+        </properties>
     </rule>
     <rule ref="category/java/bestpractices.xml/JUnitTestContainsTooManyAsserts">
         <properties>
             <property name="maximumAsserts" value="10"/>
         </properties>
     </rule>
-    <rule ref="rulesets/java/j2ee.xml">
+    <rule ref="category/java/multithreading.xml">
         <!--Rule disabled - This is not a J2EE project.-->
         <exclude name="DoNotUseThreads"/>
-        <exclude name="DoNotCallSystemExit"/>
     </rule>
     <rule ref="category/java/codestyle.xml">
         <exclude name="AtLeastOneConstructor"/>

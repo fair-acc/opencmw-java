@@ -1,9 +1,9 @@
 package io.opencmw.client.cmwlight;
 
-import org.zeromq.ZFrame;
-
 import java.util.Map;
 import java.util.Objects;
+
+import org.zeromq.ZFrame;
 
 /**
  * Data representation for all Messages exchanged between CMW client and server

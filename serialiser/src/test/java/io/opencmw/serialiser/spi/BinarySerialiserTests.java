@@ -1,12 +1,6 @@
 package io.opencmw.serialiser.spi;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
@@ -19,15 +13,15 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
-import io.opencmw.serialiser.DataType;
-import io.opencmw.serialiser.IoBuffer;
-import io.opencmw.serialiser.spi.helper.MyGenericClass;
-import io.opencmw.serialiser.utils.AssertUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import io.opencmw.serialiser.DataType;
+import io.opencmw.serialiser.IoBuffer;
+import io.opencmw.serialiser.spi.helper.MyGenericClass;
+import io.opencmw.serialiser.utils.AssertUtils;
 
 /**
  *

@@ -1,9 +1,5 @@
 package io.opencmw.rbac;
 
-import static org.junit.jupiter.api.Assertions.*;
-
-import org.junit.jupiter.api.Test;
-
 class BasicRbacRoleTest {
     //    @Test
     //    void testBasicRbac() {

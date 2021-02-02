@@ -15,10 +15,16 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.opencmw.serialiser.spi.*;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import io.opencmw.serialiser.spi.BinarySerialiser;
+import io.opencmw.serialiser.spi.ByteBuffer;
+import io.opencmw.serialiser.spi.CmwLightSerialiser;
+import io.opencmw.serialiser.spi.FastByteBuffer;
+import io.opencmw.serialiser.spi.JsonSerialiser;
+import io.opencmw.serialiser.spi.WireDataFieldDescription;
 
 import de.gsi.dataset.DataSet;
 import de.gsi.dataset.spi.DefaultErrorDataSet;
@@ -42,7 +48,7 @@ class IoClassSerialiserTests {
     @ParameterizedTest(name = "Serialiser class - {0}")
     @ValueSource(classes = { CmwLightSerialiser.class, BinarySerialiser.class, JsonSerialiser.class })
     @ResourceLock(value = GLOBAL_LOCK, mode = READ_WRITE)
-    void testChangingBuffers(final Class<? extends IoSerialiser> serialiserClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
+    void testChangingBuffers(final Class<? extends IoSerialiser> serialiserClass) throws IllegalArgumentException, SecurityException {
         final CustomClass2 classUnderTest = new CustomClass2(1.337, 42, "pi equals exactly three!");
         final CustomClass2 classAfterTest = new CustomClass2();
 
@@ -139,6 +145,7 @@ class IoClassSerialiserTests {
 
     @ParameterizedTest(name = "IoBuffer class - {0}")
     @ValueSource(classes = { ByteBuffer.class, FastByteBuffer.class })
+    @SuppressWarnings("unchecked")
     void testGenericSerialiserIdentity(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
         assertNotNull(bufferClass, "bufferClass being not null");
         assertNotNull(bufferClass.getConstructor(int.class), "Constructor(Integer) present");

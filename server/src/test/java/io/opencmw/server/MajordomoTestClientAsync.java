@@ -8,12 +8,13 @@ import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
-import io.opencmw.OpenCmwProtocol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
+
+import io.opencmw.OpenCmwProtocol;
 
 /**
  * Majordomo Protocol Client API, asynchronous Java version. Implements the
@@ -28,7 +29,7 @@ public class MajordomoTestClientAsync {
     private ZMQ.Poller poller;
 
     public MajordomoTestClientAsync(final String broker) {
-        this.broker = broker;
+        this.broker = broker.replace("mdp://", "tcp://");
         ctx = new ZContext();
         reconnectToBroker();
     }

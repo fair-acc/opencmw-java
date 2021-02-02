@@ -6,18 +6,19 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.stream.Stream;
 
-import io.opencmw.serialiser.DataType;
-import io.opencmw.serialiser.IoBuffer;
-import io.opencmw.serialiser.IoClassSerialiser;
-import io.opencmw.serialiser.spi.BinarySerialiser;
-import io.opencmw.serialiser.spi.ByteBuffer;
-import io.opencmw.serialiser.spi.FastByteBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import io.opencmw.serialiser.DataType;
+import io.opencmw.serialiser.IoBuffer;
+import io.opencmw.serialiser.IoClassSerialiser;
+import io.opencmw.serialiser.spi.BinarySerialiser;
+import io.opencmw.serialiser.spi.ByteBuffer;
+import io.opencmw.serialiser.spi.FastByteBuffer;
 
 import de.gsi.dataset.DataSet;
 import de.gsi.dataset.DataSet2D;

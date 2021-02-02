@@ -7,12 +7,6 @@ import static de.gsi.dataset.DataSet.DIM_X;
 import java.lang.reflect.InvocationTargetException;
 import java.util.stream.Stream;
 
-import io.opencmw.serialiser.utils.CmwLightHelper;
-import io.opencmw.serialiser.utils.JsonHelper;
-import io.opencmw.serialiser.utils.SerialiserHelper;
-import io.opencmw.serialiser.utils.TestDataClass;
-import io.opencmw.serialiser.spi.*;
-import io.opencmw.serialiser.spi.helper.MyGenericClass;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +16,18 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import io.opencmw.serialiser.spi.BinarySerialiser;
+import io.opencmw.serialiser.spi.ByteBuffer;
+import io.opencmw.serialiser.spi.CmwLightSerialiser;
+import io.opencmw.serialiser.spi.FastByteBuffer;
+import io.opencmw.serialiser.spi.JsonSerialiser;
+import io.opencmw.serialiser.spi.WireDataFieldDescription;
+import io.opencmw.serialiser.spi.helper.MyGenericClass;
+import io.opencmw.serialiser.utils.CmwLightHelper;
+import io.opencmw.serialiser.utils.JsonHelper;
+import io.opencmw.serialiser.utils.SerialiserHelper;
+import io.opencmw.serialiser.utils.TestDataClass;
 
 import de.gsi.dataset.DataSet;
 import de.gsi.dataset.spi.DoubleDataSet;

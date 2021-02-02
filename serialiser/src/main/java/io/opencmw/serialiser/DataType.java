@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
+import io.opencmw.serialiser.spi.BinarySerialiser;
+
 import de.gsi.dataset.spi.utils.MultiArrayBoolean;
 import de.gsi.dataset.spi.utils.MultiArrayByte;
 import de.gsi.dataset.spi.utils.MultiArrayChar;
@@ -16,7 +18,6 @@ import de.gsi.dataset.spi.utils.MultiArrayInt;
 import de.gsi.dataset.spi.utils.MultiArrayLong;
 import de.gsi.dataset.spi.utils.MultiArrayObject;
 import de.gsi.dataset.spi.utils.MultiArrayShort;
-import io.opencmw.serialiser.spi.BinarySerialiser;
 
 /**
  * Enum definition for data primitives in the context of serialisation and includes definitions for: 

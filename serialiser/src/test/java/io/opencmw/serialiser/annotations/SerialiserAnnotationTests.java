@@ -1,20 +1,23 @@
 package io.opencmw.serialiser.annotations;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.InvocationTargetException;
 
-import io.opencmw.serialiser.FieldDescription;
-import io.opencmw.serialiser.IoBuffer;
-import io.opencmw.serialiser.IoClassSerialiser;
-import io.opencmw.serialiser.spi.*;
-import io.opencmw.serialiser.utils.ClassUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import io.opencmw.serialiser.FieldDescription;
+import io.opencmw.serialiser.IoBuffer;
+import io.opencmw.serialiser.IoClassSerialiser;
+import io.opencmw.serialiser.spi.BinarySerialiser;
+import io.opencmw.serialiser.spi.ByteBuffer;
+import io.opencmw.serialiser.spi.ClassFieldDescription;
+import io.opencmw.serialiser.spi.FastByteBuffer;
+import io.opencmw.serialiser.spi.WireDataFieldDescription;
+import io.opencmw.serialiser.utils.ClassUtils;
 
 class SerialiserAnnotationTests {
     private static final int BUFFER_SIZE = 40000;
