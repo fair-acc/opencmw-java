@@ -1,6 +1,5 @@
 package io.opencmw.client.cmwlight;
 
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.nio.charset.Charset;
@@ -68,7 +67,7 @@ class CmwLightClientTest {
         long notificationId = 0;
         for (int i = 0; i < 10; i++) {
             CmwLightProtocol.sendMsg(socket, CmwLightMessage.notificationReply(subMsg.sessionId, sourceId, "", "", new ZFrame("data"), notificationId,
-                    new CmwLightMessage.DataContext("test.context", 123456789, 123456788, null), CmwLightProtocol.UpdateType.NORMAL));
+                                                     new CmwLightMessage.DataContext("test.context", 123456789, 123456788, null), CmwLightProtocol.UpdateType.NORMAL));
 
             final CmwLightMessage updateMsg = getNextNonHeartbeatClientMsg(client, false);
             assertEquals(CmwLightProtocol.MessageType.SERVER_REP, updateMsg.messageType);
@@ -85,7 +84,7 @@ class CmwLightClientTest {
     */
     private CmwLightMessage getNextNonHeartbeatMsg(final ZMQ.Socket socket, final CmwLightClient client, boolean debug) throws CmwLightProtocol.RdaLightException {
         int i = 0;
-        while(true) {
+        while (true) {
             final ZMsg msg = ZMsg.recvMsg(socket, false);
             final CmwLightMessage result = msg == null ? null : CmwLightProtocol.parseMsg(msg);
             if (debug) {
@@ -112,7 +111,7 @@ class CmwLightClientTest {
     / get next message ignoring heartbeats, periodically send heartbeat and perform housekeeping
     */
     private CmwLightMessage getNextNonHeartbeatClientMsg(final CmwLightClient client, boolean debug) throws CmwLightProtocol.RdaLightException {
-        while(true) {
+        while (true) {
             final CmwLightMessage result = client.receiveData();
             if (debug) {
                 if (result == null) {
