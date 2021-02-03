@@ -6,6 +6,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * OpenCMW thread pool factory and default definitions
  *
@@ -13,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @author rstein
  */
+@SuppressWarnings("PMD.DoNotUseThreads")
 public class WorkerThreadFactory implements ThreadFactory {
     private static final int MAX_THREADS = Math.max(Math.max(4, Runtime.getRuntime().availableProcessors()), //
             Integer.parseInt(System.getProperties().getProperty("OpenCMW.defaultPoolSize", "10")));
@@ -31,7 +34,7 @@ public class WorkerThreadFactory implements ThreadFactory {
     public WorkerThreadFactory(final String poolName, final int nThreads) {
         this.poolName = poolName;
         this.nThreads = nThreads <= 0 ? MAX_THREADS : nThreads;
-        this.pool = Executors.newFixedThreadPool(this.nThreads, SELF == null ? this : SELF);
+        this.pool = Executors.newFixedThreadPool(this.nThreads, this);
         if (this.pool instanceof ThreadPoolExecutor) {
             ((ThreadPoolExecutor) pool).setRejectedExecutionHandler((runnable, executor) -> {
                 try {
@@ -45,7 +48,7 @@ public class WorkerThreadFactory implements ThreadFactory {
     }
 
     @Override
-    public Thread newThread(final Runnable r) {
+    public Thread newThread(final @NotNull Runnable r) {
         final Thread thread = DEFAULT_FACTORY.newThread(r);
         TREAD_COUNTER.incrementAndGet();
         thread.setName(poolName + "#" + TREAD_COUNTER.intValue());
