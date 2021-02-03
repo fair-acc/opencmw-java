@@ -15,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
  *
  * @author rstein
  */
+@SuppressWarnings("PMD.DoNotUseThreads")
 public class WorkerThreadFactory implements ThreadFactory {
     private static final int MAX_THREADS = Math.max(Math.max(4, Runtime.getRuntime().availableProcessors()), //
             Integer.parseInt(System.getProperties().getProperty("OpenCMW.defaultPoolSize", "10")));
