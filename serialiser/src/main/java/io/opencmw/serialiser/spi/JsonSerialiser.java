@@ -316,9 +316,8 @@ public class JsonSerialiser implements IoSerialiser {
         }
         final Iterator<E> iter = collection.iterator();
         builder.append(iter.next().toString());
-        E element;
-        while ((element = iter.next()) != null) {
-            builder.append(", ").append(element.toString());
+        while (iter.hasNext()) {
+            builder.append(", ").append(iter.next().toString());
         }
         builder.append(']');
         hasFieldBefore = true;
