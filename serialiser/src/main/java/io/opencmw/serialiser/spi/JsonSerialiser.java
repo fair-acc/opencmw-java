@@ -350,7 +350,7 @@ public class JsonSerialiser implements IoSerialiser {
             }
             builder.append('\"').append(entry.getKey()).append('\"').append(':');
 
-            switch (DataType.fromClassType((Class<?>) value)) {
+            switch (DataType.fromClassType(value.getClass())) {
             case CHAR:
                 builder.append((int) value);
                 break;
