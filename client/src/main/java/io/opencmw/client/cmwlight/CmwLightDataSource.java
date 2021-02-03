@@ -107,11 +107,11 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     }
     @Override
     public ZMsg getMessage() { // return maintenance objects instead of replies
-        final long currentTime = System.currentTimeMillis(); // NOPMD
         CmwLightMessage reply = receiveData();
         if (reply == null) {
             return null;
         }
+        final long currentTime = System.currentTimeMillis(); // NOPMD
         switch (reply.messageType) {
         case SERVER_CONNECT_ACK:
             if (connectionState.get().equals(ConnectionState.CONNECTING)) {
@@ -147,24 +147,15 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     }
 
     private ZMsg handleServerReply(final CmwLightMessage reply, final long currentTime) { //NOPMD
-        final ZMsg result = new ZMsg();
         switch (reply.requestType) {
         case REPLY:
             Request requestForReply = pendingRequests.remove(reply.id);
-            result.add(requestForReply.requestId);
-            result.add(new Endpoint(requestForReply.endpoint).getEndpointForContext(reply.dataContext.cycleName));
-            result.add(new ZFrame(new byte[0])); // header
-            result.add(reply.bodyData); // body
-            result.add(new ZFrame(new byte[0])); // exception
-            return result;
+            return createInternalMsg(requestForReply.requestId,
+                    new Endpoint(requestForReply.endpoint).getEndpointForContext(reply.dataContext.cycleName),
+                    null, reply.bodyData, null);
         case EXCEPTION:
             final Request requestForException = pendingRequests.remove(reply.id);
-            result.add(requestForException.requestId);
-            result.add(requestForException.endpoint);
-            result.add(new ZFrame(new byte[0])); // header
-            result.add(new ZFrame(new byte[0])); // body
-            result.add(reply.exceptionMessage.message); // exception
-            return result;
+            return createInternalMsg(requestForException.requestId, requestForException.endpoint, null, null, reply.exceptionMessage.message);
         case SUBSCRIBE:
             final long id = reply.id;
             final Subscription sub = subscriptions.get(id);
@@ -173,49 +164,35 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             sub.subscriptionState = SubscriptionState.SUBSCRIBED;
             LOGGER.atDebug().addArgument(sub.device).addArgument(sub.property).log("subscription successful: {}/{}");
             sub.backOff = 20;
-            return result;
+            return new ZMsg();
         case UNSUBSCRIBE:
             // successfully removed subscription
             final Subscription subscriptionForUnsub = subscriptions.remove(reply.id);
             subscriptionsByReqId.remove(subscriptionForUnsub.idString);
             replyIdMap.remove(subscriptionForUnsub.updateId);
-            return result;
+            return new ZMsg();
         case NOTIFICATION_DATA:
             final Subscription subscriptionForNotification = replyIdMap.get(reply.id);
             if (subscriptionForNotification == null) {
                 LOGGER.atInfo().addArgument(reply.toString()).log("Got unsolicited subscription data: {}");
-                return result;
+                return new ZMsg();
             }
-            result.add(subscriptionForNotification.idString);
-            result.add(new Endpoint(subscriptionForNotification.endpoint).getEndpointForContext(reply.dataContext.cycleName));
-            result.add(new ZFrame(new byte[0])); // header
-            result.add(reply.bodyData); // body
-            result.add(new ZFrame(new byte[0])); // exception
-            return result;
+            final String endpointForNotificationContext = new Endpoint(subscriptionForNotification.endpoint).getEndpointForContext(reply.dataContext.cycleName);
+            return createInternalMsg(subscriptionForNotification.idString, endpointForNotificationContext, null, reply.bodyData, null);
         case NOTIFICATION_EXC:
             final Subscription subscriptionForNotifyExc = replyIdMap.get(reply.id);
             if (subscriptionForNotifyExc == null) {
                 LOGGER.atInfo().addArgument(reply.toString()).log("Got unsolicited subscription notification error: {}");
-                return result;
+                return new ZMsg();
             }
-            result.add(subscriptionForNotifyExc.idString);
-            result.add(subscriptionForNotifyExc.endpoint);
-            result.add(new ZFrame(new byte[0])); // header
-            result.add(new ZFrame(new byte[0])); // body
-            result.add(reply.exceptionMessage.message); // exception
-            return result;
+            return createInternalMsg(subscriptionForNotifyExc.idString, subscriptionForNotifyExc.endpoint, null, null, reply.exceptionMessage.message);
         case SUBSCRIBE_EXCEPTION:
             final Subscription subForSubExc = subscriptions.get(reply.id);
             subForSubExc.subscriptionState = SubscriptionState.UNSUBSCRIBED;
             subForSubExc.timeoutValue = currentTime + subForSubExc.backOff;
             subForSubExc.backOff *= 2;
             LOGGER.atDebug().addArgument(subForSubExc.device).addArgument(subForSubExc.property).log("exception during subscription, retrying: {}/{}");
-            result.add(subForSubExc.idString);
-            result.add(subForSubExc.endpoint);
-            result.add(new ZFrame(new byte[0])); // header
-            result.add(new ZFrame(new byte[0])); // body
-            result.add(reply.exceptionMessage.message); // exception
-            return result;
+            return createInternalMsg(subForSubExc.idString, subForSubExc.endpoint, null, null, reply.exceptionMessage.message);
         // unsupported or non-actionable replies
         case GET:
         case SET:
@@ -223,8 +200,18 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         case EVENT:
         case SESSION_CONFIRM:
         default:
-            return result;
+            return new ZMsg();
         }
+    }
+
+    private ZMsg createInternalMsg(final String reqId, final String endpoint, final byte[] header, final ZFrame body, final String exception) {
+        final ZMsg result = new ZMsg();
+        result.add(reqId);
+        result.add(endpoint);
+        result.add(header == null ? new byte[0] : header);
+        result.add(body == null ? new ZFrame(new byte[0]) : body);
+        result.add(exception == null ? new ZFrame(new byte[0]) : new ZFrame(exception));
+        return result;
     }
 
     public enum ConnectionState {
@@ -523,8 +510,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                 final String endpoint,
                 final byte[] filters, // NOPMD - zero copy contract
                 final byte[] data, // NOPMD - zero copy contract
-                final byte[] rbacToken // NOPMD - zero copy contract
-        ) {
+                final byte[] rbacToken) { // NOPMD - zero copy contract
             this.requestType = requestType;
             this.id = REQUEST_ID_GENERATOR.incrementAndGet();
             this.requestId = requestId;
