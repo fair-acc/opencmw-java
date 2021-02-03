@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 import io.opencmw.EventStore;
 import io.opencmw.client.cmwlight.CmwLightExample;
 import io.opencmw.client.cmwlight.DirectoryLightClient;
-import io.opencmw.datasource.DataSourcePublisher;
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
 

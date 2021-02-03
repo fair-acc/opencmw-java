@@ -8,7 +8,6 @@ open module io.opencmw {
     requires org.jetbrains.annotations;
 
     exports io.opencmw;
-    exports io.opencmw.datasource;
     exports io.opencmw.filter;
     exports io.opencmw.rbac;
     exports io.opencmw.utils;

@@ -1,4 +1,4 @@
-package io.opencmw.datasource;
+package io.opencmw.client;
 
 import java.time.Duration;
 import java.util.List;
@@ -24,13 +24,9 @@ public abstract class DataSource {
 
     /**
      * Constructor
-     * @param context ZeroMQ context to use
      * @param endpoint Endpoint to subscribe to
-     * @param timeOut after which the request defaults to a time-out exception (no data)
-     * @param clientId client id to be able to process the notification updates.
-     * @param filters The serialised filters which will determine which data to update
      */
-    public DataSource(final ZContext context, final String endpoint, final Duration timeOut, final String clientId, final byte[] filters) {
+    public DataSource(final String endpoint) {
         if (endpoint == null || endpoint.isBlank() || !getFactory().matches(endpoint)) {
             throw new UnsupportedOperationException(this.getClass().getName() + " DataSource Implementation does not support endpoint: " + endpoint);
         }
@@ -39,7 +35,8 @@ public abstract class DataSource {
     /**
      * Factory method to get a DataSource for a given endpoint
      * @param endpoint endpoint address
-     * @return if there is a DataSource implementation for the protocol of the endpoint return a Factory to create a new Instance of this DataSource
+     * @return if there is a DataSource implementation for the protocol of the endpoint return a Factory to create a new
+     *         Instance of this DataSource
      * @throws UnsupportedOperationException in case there is no valid implementation
      */
     public static Factory getFactory(final String endpoint) {
@@ -52,7 +49,7 @@ public abstract class DataSource {
     }
 
     public static void register(final Factory factory) {
-        IMPLEMENTATIONS.add(factory);
+        IMPLEMENTATIONS.add(0, factory); // custom added implementations are added in front to be discovered first
     }
 
     /**
@@ -64,13 +61,6 @@ public abstract class DataSource {
     public abstract Socket getSocket();
 
     protected abstract Factory getFactory();
-
-    /**
-     * Address format is protocol://[server[:port]/]device/property?ctx=selector&amp;filter=stringvalue&amp;anotherFilter=int:5.
-     * If the server part is omitted, a name service should be consulted to get the server address for the device.
-     * @return the address this DataSource is connected to/reading from.
-     */
-    public abstract String getEndpoint();
 
     /**
      * Gets called whenever data is available on the DataSoure's socket.
@@ -91,38 +81,38 @@ public abstract class DataSource {
      * @param reqId the id to join the result of this subscribe with
      * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
      */
-    public abstract void subscribe(final String reqId, final byte[] rbacToken);
+    public abstract void subscribe(final String reqId, final String endpoint, final byte[] rbacToken);
 
     /**
      * Unsubscribe from the endpoint of this DataSource.
      */
-    public abstract void unsubscribe(); // N.B. no argument needed since DataSource == 1 get/set/subscribe topic
+    public abstract void unsubscribe(final String reqId);
 
     /**
      * Perform a get request on this endpoint.
      * @param requestId request id which later allows to match the returned value to this query.
      *                  This is the only mandatory parameter, all the following may be null.
-     * @param filterPattern extend the filters originally supplied to the endpoint e.g. "ctx=selector&amp;channel=chanA"
+     * @param endpoint extend the filters originally supplied to the endpoint e.g. "ctx=selector&amp;channel=chanA"
      * @param filters The serialised filters which will determine which data to update
      * @param data The serialised data which can be used by the get call
      * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
      */
-    public abstract void get(final String requestId, final String filterPattern, final byte[] filters, final byte[] data, final byte[] rbacToken);
+    public abstract void get(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken);
 
     /**
      * Perform a set request on this endpoint using additional filters
      * @param requestId request id which later allows to match the returned value to this query.
      *                  This is the only mandatory parameter, all the following may be null.
-     * @param filterPattern extend the filters originally supplied to the endpoint e.g. "ctx=selector&amp;channel=chanA"
+     * @param endpoint extend the filters originally supplied to the endpoint e.g. "ctx=selector&amp;channel=chanA"
      * @param filters The serialised filters which will determine which data to update
      * @param data The serialised data which can be used by the get call
      * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
      */
-    public abstract void set(final String requestId, final String filterPattern, final byte[] filters, final byte[] data, final byte[] rbacToken);
+    public abstract void set(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken);
 
     protected interface Factory {
         boolean matches(final String endpoint);
         Class<? extends IoSerialiser> getMatchingSerialiserType(final String endpoint);
-        DataSource newInstance(final ZContext context, final String endpoint, final Duration timeout, final String clientId, final byte[] filters);
+        DataSource newInstance(final ZContext context, final String endpoint, final Duration timeout, final String clientId);
     }
 }

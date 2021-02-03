@@ -1,4 +1,4 @@
-package io.opencmw.datasource;
+package io.opencmw.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
