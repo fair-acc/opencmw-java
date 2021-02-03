@@ -793,6 +793,7 @@ public class JsonSerialiser implements IoSerialiser {
         builder.append(LINE_BREAK).append(indentation).append(BRACKET_CLOSE).append(LINE_BREAK);
         hasFieldBefore = true;
         final byte[] outputStrBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
+        buffer.ensureAdditionalCapacity(outputStrBytes.length);
         System.arraycopy(outputStrBytes, 0, buffer.elements(), buffer.position(), outputStrBytes.length);
         buffer.position(buffer.position() + outputStrBytes.length);
         builder.setLength(0);
