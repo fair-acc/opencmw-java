@@ -313,7 +313,7 @@ public class MajordomoBroker extends Thread {
         if (disconnect) {
             new MdpMessage(worker.address, PROT_WORKER, DISCONNECT,
                     worker.serviceName, EMPTY_FRAME,
-                    URI.create(worker.service.name), EMPTY_FRAME, "", RBAC)
+                    URI.create(new String(worker.serviceName, UTF_8)), EMPTY_FRAME, "", RBAC)
                     .send(worker.socket);
         }
         if (worker.service != null) {

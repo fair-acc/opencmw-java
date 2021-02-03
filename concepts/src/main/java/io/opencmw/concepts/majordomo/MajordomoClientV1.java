@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Formatter;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import org.zeromq.ZContext;
 import org.zeromq.ZFrame;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
+import org.zeromq.util.ZData;
 
 /**
 * Majordomo Protocol Client API, Java version Implements the OpenCmwProtocol/Worker spec at
@@ -115,7 +117,7 @@ public class MajordomoClientV1 {
         int retriesLeft = retries;
         while (retriesLeft > 0 && !Thread.currentThread().isInterrupted()) {
             if (!MajordomoProtocol.sendClientMessage(clientSocket, MajordomoProtocol.MdpClientCommand.C_UNKNOWN, null, service, msgs)) {
-                throw new IllegalStateException("could not send request " + Arrays.toString(msgs));
+                throw new IllegalStateException("could not send request " + Arrays.stream(msgs).map(ZData::toString).collect(Collectors.joining(",", "[", "]")));
             }
 
             // Poll socket for a reply, with timeout
@@ -140,7 +142,7 @@ public class MajordomoClientV1 {
                 header.destroy();
 
                 ZFrame replyService = msg.pop();
-                assert (Arrays.equals(service, replyService.getData()));
+                assert Arrays.equals(service, replyService.getData()); // NOSONAR NOPMD only read, not mutation of service
                 replyService.destroy();
 
                 reply = msg;

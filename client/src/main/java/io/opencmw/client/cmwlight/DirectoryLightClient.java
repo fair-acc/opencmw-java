@@ -111,21 +111,22 @@ public class DirectoryLightClient {
         final ArrayList<Device> result = new ArrayList<>();
         try (final Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(nameserver, nameserverPort));
-            final PrintWriter writer = new PrintWriter(socket.getOutputStream());
-            final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            writer.write(getDeviceMsg(devices));
-            writer.flush();
-            // read query result, one line per requested device or ERROR followed by error message
-            while (true) {
-                final String line = bufferedReader.readLine();
-                if (line == null) {
-                    break;
+            try (PrintWriter writer = new PrintWriter(socket.getOutputStream());
+                    BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                writer.write(getDeviceMsg(devices));
+                writer.flush();
+                // read query result, one line per requested device or ERROR followed by error message
+                while (true) {
+                    final String line = bufferedReader.readLine();
+                    if (line == null) {
+                        break;
+                    }
+                    if (line.equals(ERROR_STRING)) {
+                        final String errorMsg = bufferedReader.lines().collect(Collectors.joining("\n")).strip();
+                        throw new DirectoryClientException(errorMsg);
+                    }
+                    result.add(parseDeviceInfo(line));
                 }
-                if (line.equals(ERROR_STRING)) {
-                    final String errorMsg = bufferedReader.lines().collect(Collectors.joining("\n")).strip();
-                    throw new DirectoryClientException(errorMsg);
-                }
-                result.add(parseDeviceInfo(line));
             }
         } catch (IOException e) {
             throw new DirectoryClientException("Nameserver error: ", e);
