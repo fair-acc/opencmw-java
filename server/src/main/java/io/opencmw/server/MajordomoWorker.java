@@ -6,6 +6,8 @@ import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
 
 import java.net.URI;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 import javax.validation.constraints.NotNull;
 
@@ -16,8 +18,8 @@ import org.zeromq.ZContext;
 import io.opencmw.MimeType;
 import io.opencmw.OpenCmwProtocol;
 import io.opencmw.OpenCmwProtocol.MdpMessage;
-import io.opencmw.domain.BinaryData;
 import io.opencmw.rbac.RbacRole;
+import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoClassSerialiser;
 import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.serialiser.spi.BinarySerialiser;
@@ -39,8 +41,8 @@ import io.opencmw.serialiser.spi.JsonSerialiser;
 public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoWorker.class);
     private static final int MAX_BUFFER_SIZE = 4000;
-    protected final FastByteBuffer defaultBuffer = new FastByteBuffer(MAX_BUFFER_SIZE);
-    protected final FastByteBuffer defaultSendBuffer = new FastByteBuffer(MAX_BUFFER_SIZE);
+    protected final IoBuffer defaultBuffer = new FastByteBuffer(MAX_BUFFER_SIZE, true, null);
+    protected final IoBuffer defaultSendBuffer = new FastByteBuffer(MAX_BUFFER_SIZE, true, null);
     protected final IoClassSerialiser deserialiser = new IoClassSerialiser(defaultBuffer);
     protected final IoClassSerialiser serialiser = new IoClassSerialiser(defaultBuffer);
     protected final Class<C> contextClassType;
@@ -74,7 +76,6 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
         this.outputClassType = outputClassType;
         serialiser.setAutoMatchSerialiser(false);
         serialiser.setMatchedIoSerialiser(BinarySerialiser.class);
-        defaultSendBuffer.setAutoResize(true);
 
         try {
             // check if velocity is available
@@ -88,8 +89,9 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
             final URI reqTopic = c.req.topic;
             final String queryString = reqTopic.getQuery();
             final C requestCtx = QueryParameterParser.parseQueryParameter(contextClassType, c.req.topic.getQuery());
-            final C replyCtx = QueryParameterParser.parseQueryParameter(contextClassType, c.req.topic.getQuery()); // reply is initially a copy of request
-            final MimeType requestedMimeType = QueryParameterParser.getMimeType(queryString);
+            final Map<String, List<String>> uriMap = QueryParameterParser.getMap(queryString);
+            final List<String> mimeTypes = uriMap.get("contentType");
+            final MimeType requestedMimeType = mimeTypes == null || mimeTypes.isEmpty() ? MimeType.UNKNOWN : MimeType.getEnum(mimeTypes.get(mimeTypes.size() - 1));
 
             final I input;
             if (c.req.data.length > 0) {
@@ -99,7 +101,6 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
                 switch (requestedMimeType) {
                 case HTML:
                     //TODO: add velocity/form data retrieval
-                    System.err.println("form data retrieval not yet implemented");
                     input = null;
                     break;
                 case JSON:
@@ -122,17 +123,15 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
                 input = inputClassType.getDeclaredConstructor().newInstance();
             }
 
+            final C replyCtx = contextClassType.getDeclaredConstructor().newInstance();
             final O output = outputClassType.getDeclaredConstructor().newInstance();
 
             // call user-handler
             handler.handle(c, requestCtx, input, replyCtx, output);
-
-            final String replyQuery = QueryParameterParser.generateQueryParameter(replyCtx);
-            c.rep.topic = new URI(reqTopic.getScheme(), reqTopic.getAuthority(), reqTopic.getPath(), replyQuery, reqTopic.getFragment());
-            final MimeType replyMimeType = QueryParameterParser.getMimeType(replyQuery);
+            c.rep.topic = new URI(reqTopic.getScheme(), reqTopic.getAuthority(), reqTopic.getPath(), QueryParameterParser.generateQueryParameter(replyCtx), reqTopic.getFragment());
 
             defaultBuffer.reset();
-            switch (replyMimeType) {
+            switch (requestedMimeType) {
             case HTML:
                 htmlHandler.handle(c, requestCtx, input, replyCtx, output);
                 break;
@@ -145,18 +144,13 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
                 c.rep.data = Arrays.copyOf(defaultBuffer.elements(), defaultBuffer.limit() + 4); //TODO: investigate why we need 4 bytes of buffer at the end
                 break;
             case BINARY:
+            case UNKNOWN:
+            default:
                 serialiser.setMatchedIoSerialiser(BinarySerialiser.class);
                 serialiser.getMatchedIoSerialiser().setBuffer(defaultBuffer);
                 serialiser.serialiseObject(output);
                 defaultBuffer.flip();
                 c.rep.data = Arrays.copyOf(defaultBuffer.elements(), defaultBuffer.limit() + 4); //TODO: investigate why we need 4 bytes of buffer at the end
-                break;
-            case UNKNOWN:
-            default:
-                if (output instanceof BinaryData) {
-                    c.rep.data = ((BinaryData) output).data;
-                }
-                // return c.rep.data as defined in the user handler
                 break;
             }
         });
