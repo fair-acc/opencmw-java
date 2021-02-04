@@ -43,7 +43,6 @@ public class DefaultHtmlHandler<C, I, O> implements MajordomoWorker.Handler<C, I
 
     @Override
     public void handle(OpenCmwProtocol.Context rawCtx, C requestCtx, I request, C replyCtx, O reply) {
-        final ClassFieldDescription fieldDescription = mdpWorkerClass == null ? null : ClassUtils.getFieldDescription(mdpWorkerClass);
         final String queryString = rawCtx.req.topic.getQuery();
         final boolean noMenu = queryString != null && queryString.contains(NO_MENU);
 
@@ -52,11 +51,12 @@ public class DefaultHtmlHandler<C, I, O> implements MajordomoWorker.Handler<C, I
 
         context.put(NO_MENU, noMenu);
         try {
-            context.put("requestedURI",rawCtx.req.topic.toString());
+            context.put("requestedURI", rawCtx.req.topic.toString());
             context.put("requestedURInoFrame", QueryParameterParser.appendQueryParameter(rawCtx.req.topic, NO_MENU).toString());
         } catch (URISyntaxException e) {
             throw new IllegalStateException("appendURI error for " + rawCtx.req.topic, e);
         }
+        final ClassFieldDescription fieldDescription = mdpWorkerClass == null ? null : ClassUtils.getFieldDescription(mdpWorkerClass);
         context.put("service", StringUtils.stripStart(rawCtx.req.topic.getPath(), "/"));
         context.put("mdpClass", mdpWorkerClass);
         context.put("mdpMetaData", fieldDescription);

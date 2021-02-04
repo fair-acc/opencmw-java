@@ -37,6 +37,28 @@ class MajordomoBrokerTests {
     private static final String DEFAULT_REQUEST_MESSAGE = "Hello World!";
     private static final byte[] DEFAULT_REQUEST_MESSAGE_BYTES = DEFAULT_REQUEST_MESSAGE.getBytes(UTF_8);
 
+    /**
+     * Main method - create and start new broker.
+     *
+     * @param args none
+     */
+    public static void main(String[] args) {
+        MajordomoBroker broker = new MajordomoBroker("TestMdpBroker", "tcp://*:5555", BasicRbacRole.values());
+        // broker.setDaemon(true); // use this if running in another app that
+        // controls threads Can be called multiple times with different endpoints
+        broker.bind("tcp://*:5555");
+        broker.bind("tcp://*:5556");
+
+        for (int i = 0; i < 10; i++) {
+            // simple internalSock echo
+            BasicMdpWorker workerSession = new BasicMdpWorker(broker.getContext(), "inproc.echo", BasicRbacRole.ADMIN); // NOPMD safe instantiation
+            workerSession.registerHandler(ctx -> ctx.rep.data = ctx.req.data); //  output = input : echo service is complex :-)
+            workerSession.start();
+        }
+
+        broker.start();
+    }
+
     @Test
     void basicLowLevelRequestReplyTest() throws IOException {
         MajordomoBroker broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());

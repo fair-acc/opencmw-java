@@ -17,7 +17,7 @@ import io.opencmw.OpenCmwProtocol;
 import io.opencmw.rbac.BasicRbacRole;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class MmiServiceHelperTests {
+class MmiServiceHelperTests {
     private static final String DEFAULT_REQUEST_MESSAGE = "Hello World!";
     private static final byte[] DEFAULT_REQUEST_MESSAGE_BYTES = DEFAULT_REQUEST_MESSAGE.getBytes(UTF_8);
     private MajordomoBroker broker;

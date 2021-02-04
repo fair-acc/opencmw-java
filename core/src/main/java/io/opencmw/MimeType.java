@@ -4,6 +4,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+import com.jsoniter.spi.JsoniterSpi;
+
 /**
  * Definition and convenience methods for common MIME types according to RFC6838 and RFC4855
  * <p>
@@ -30,7 +32,7 @@ public enum MimeType {
 
     /* audio MIME types */
     AAC("audio/aac", "AAC audio", ".aac"),
-    MIDI("audio/midi audio/x-midi", "Musical Instrument Digital Interface (MIDI)", ".mid", ".midi"),
+    MIDI("audio/midi", "Musical Instrument Digital Interface (MIDI)", ".mid", ".midi"),
     MP3("audio/mpeg", "MP3 audio", ".mp3"),
     OTF("audio/opus", "Opus audio", ".opus"),
     WAV("audio/wav", "Waveform Audio Format", ".wav"),
@@ -55,6 +57,7 @@ public enum MimeType {
 
     /* application-specific audio MIME types -- mostly binary-type formats */
     BINARY("application/octet-stream", "Any kind of binary data", ".bin"),
+    CMWLIGHT("application/cmwlight", "proprietary CERN serialiser binary format", ".cmwlight"), // deprecated: do not use for new projects
     // BZIP("application/x-bzip", "BZip archive", ".bz"), // affected by patent
     BZIP2("application/x-bzip2", "BZip2 archive", ".bz2"),
     DOC("application/msword", "Microsoft Word", ".doc"),
@@ -65,7 +68,7 @@ public enum MimeType {
     ODS("application/vnd.oasis.opendocument.spreadsheet", "OpenDocument spreadsheet document", ".ods"),
     ODT("application/vnd.oasis.opendocument.text", "OpenDocument text document", ".odt"),
     OGG("application/ogg", "OGG Audio/Video File", ".ogx", ".ogv", ".oga"),
-    PDF("application/pdf", "Adobe Portable Document Format (PDF)", ".pdf"),
+    PDF("application/pdf", "Adobe Portable Document Format (PDF)", ".pdf"),
     PHP("application/x-httpd-php", "Hypertext Preprocessor (Personal Home Page)", ".php"),
     PPT("application/vnd.ms-powerpoint", "Microsoft PowerPoint", ".ppt"),
     PPTX("application/vnd.openxmlformats-officedocument.presentationml.presentation", "Microsoft PowerPoint (OpenXML)", ".pptx"),
@@ -79,7 +82,13 @@ public enum MimeType {
     ZIP("application/zip", "ZIP archive", ".zip"),
 
     /* fall-back */
-    UNKNOWN("application/octet-stream", "unknown data format");
+    UNKNOWN("unknown/unknown", "unknown data format");
+
+    static {
+        // custom decoder to bypass Jsoniter's Javaassist usage that uses
+        // 'toString()' rather than 'name()' to instantiate specific enum values
+        JsoniterSpi.registerTypeDecoder(MimeType.class, iter -> MimeType.getEnum(iter.readString()));
+    }
 
     private final String mediaType;
     private final String description;
@@ -136,6 +145,10 @@ public enum MimeType {
 
     @Override
     public String toString() {
+        return mediaType;
+    }
+
+    public String getMediaType() {
         return mediaType;
     }
 

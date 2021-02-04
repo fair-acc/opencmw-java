@@ -74,7 +74,7 @@ class JsonSerialiserTests {
         assertTrue(lines.next().matches(" {4}\"set\": \\[[123], [123], [123]],"));
         assertEquals("    \"queue\": [1, 2, 3],", lines.next());
         assertEquals("    \"map\": {\"1\": \"Item#1\", \"2\": \"Item#2\", \"3\": \"Item#3\"},", lines.next());
-        assertEquals("    \"enum\": ENUM", lines.next());
+        assertEquals("    \"enum\": \"ENUM\"", lines.next());
         assertEquals("  }", lines.next());
         assertEquals("", lines.next());
         assertEquals("}", lines.next());
@@ -95,7 +95,7 @@ class JsonSerialiserTests {
     @DisplayName("basic primitive array writer tests")
     @ParameterizedTest(name = "IoBuffer class - {0}")
     @ValueSource(classes = { ByteBuffer.class, FastByteBuffer.class })
-    void testParseIoStream(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
+    void testParseIoStream(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException { //NOSONAR NOPMD
         assertNotNull(bufferClass, "bufferClass being not null");
         assertNotNull(bufferClass.getConstructor(int.class), "Constructor(Integer) present");
         final IoBuffer buffer = bufferClass.getConstructor(int.class).newInstance(2 * BUFFER_SIZE); // a bit larger buffer since we test more cases at once

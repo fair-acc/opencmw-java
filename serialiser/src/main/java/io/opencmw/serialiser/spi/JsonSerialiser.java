@@ -215,7 +215,7 @@ public class JsonSerialiser implements IoSerialiser {
     }
 
     @Override
-    public <K, V, E> Map<K, V> getMap(final Map<K, V> map) {
+    public <K, V> Map<K, V> getMap(final Map<K, V> map) {
         return null;
     }
 
@@ -292,14 +292,14 @@ public class JsonSerialiser implements IoSerialiser {
     }
 
     @Override
-    public <K, V, E> void put(final FieldDescription fieldDescription, final Map<K, V> map, final Type keyType, final Type valueType) {
+    public <K, V> void put(final FieldDescription fieldDescription, final Map<K, V> map, final Type keyType, final Type valueType) {
         put(fieldDescription.getFieldName(), map, keyType, valueType);
     }
 
     @Override
     public <E> void put(final String fieldName, final Collection<E> collection, final Type valueType) {
         lineBreak();
-        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN + "[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE).append(ASSIGN).append('[');
         if (collection == null || collection.isEmpty()) {
             builder.append(']');
             return;
@@ -317,12 +317,12 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final Enum<?> enumeration) {
         lineBreak();
-        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append(enumeration);
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN + QUOTE).append(enumeration).append(QUOTE);
         hasFieldBefore = true;
     }
 
     @Override
-    public <K, V, E> void put(final String fieldName, final Map<K, V> map, final Type keyType, final Type valueType) {
+    public <K, V> void put(final String fieldName, final Map<K, V> map, final Type keyType, final Type valueType) {
         lineBreak();
         builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN + '{');
         if (map == null || map.isEmpty()) {
@@ -622,7 +622,7 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final float[] values, final int n) {
         lineBreak();
-        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE).append(ASSIGN).append('[');
         if (values == null || values.length <= 0) {
             builder.append(']');
             return;

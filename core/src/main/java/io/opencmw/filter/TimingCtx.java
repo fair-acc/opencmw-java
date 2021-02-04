@@ -8,6 +8,8 @@ import org.apache.commons.lang3.StringUtils;
 
 import io.opencmw.Filter;
 
+import com.jsoniter.spi.JsoniterSpi;
+
 public class TimingCtx implements Filter {
     public static final String WILD_CARD = "ALL";
     public static final int WILD_CARD_VALUE = -1;
@@ -27,7 +29,10 @@ public class TimingCtx implements Filter {
     /** stores the settings-supply related ctx name */
     public String ctxName;
     protected int hashCode = 0; // cached hash code
-
+    static {
+        // custom JsonIter decoder
+        JsoniterSpi.registerTypeDecoder(TimingCtx.class, iter -> TimingCtx.get(iter.readString()));
+    }
     public TimingCtx() {
         clear(); // NOPMD -- called during initialisation
     }

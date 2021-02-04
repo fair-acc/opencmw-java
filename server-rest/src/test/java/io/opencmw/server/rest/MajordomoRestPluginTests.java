@@ -1,44 +1,61 @@
 package io.opencmw.server.rest;
 
+import static org.awaitility.Awaitility.await;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
-import java.util.Locale;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.Objects;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.lang3.StringUtils;
+import javax.net.ssl.*;
+
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zeromq.ZContext;
 
 import io.opencmw.MimeType;
-import io.opencmw.domain.BinaryData;
-import io.opencmw.domain.NoData;
-import io.opencmw.filter.TimingCtx;
 import io.opencmw.rbac.BasicRbacRole;
-import io.opencmw.rbac.RbacRole;
-import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.server.MajordomoBroker;
-import io.opencmw.server.MajordomoWorker;
-import io.opencmw.server.rest.helper.ReplyDataType;
-import io.opencmw.server.rest.helper.RequestDataType;
-import io.opencmw.server.rest.helper.TestContext;
+import io.opencmw.server.rest.test.HelloWorldService;
+import io.opencmw.server.rest.test.ImageService;
 
-import com.google.common.io.ByteStreams;
-
+import okhttp3.Headers;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.sse.EventSource;
+import okhttp3.sse.EventSourceListener;
+import okhttp3.sse.EventSources;
 import zmq.util.Utils;
 
-public class MajordomoRestPluginTests {
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+class MajordomoRestPluginTests {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPluginTests.class);
+    private MajordomoBroker primaryBroker;
+    private String brokerRouterAddress;
+    private MajordomoBroker secondaryBroker;
+    private String secondaryBrokerRouterAddress;
+    private OkHttpClient okHttp;
 
-    public static void main(String[] args) throws IOException {
-        MajordomoBroker primaryBroker = new MajordomoBroker("PrimaryBroker", "", BasicRbacRole.values());
-        final String brokerRouterAddress = primaryBroker.bind("tcp://*:" + Utils.findOpenPort());
-        primaryBroker.bind("mds://*:" + Utils.findOpenPort());
+    @BeforeAll
+    void init() throws IOException {
+        okHttp = getUnsafeOkHttpClient(); // N.B. ignore SSL certificates
+        primaryBroker = new MajordomoBroker("PrimaryBroker", "", BasicRbacRole.values());
+        brokerRouterAddress = primaryBroker.bind("mdp://localhost:" + Utils.findOpenPort());
+        primaryBroker.bind("mds://localhost:" + Utils.findOpenPort());
         MajordomoRestPlugin restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "*:8080", BasicRbacRole.ADMIN);
         primaryBroker.start();
         restPlugin.start();
@@ -47,98 +64,174 @@ public class MajordomoRestPluginTests {
         // start simple test services/properties
         final HelloWorldService helloWorldService = new HelloWorldService(primaryBroker.getContext());
         helloWorldService.start();
-        final ImageService imageService = new ImageService(primaryBroker.getContext());
+        final ImageService imageService = new ImageService(primaryBroker.getContext(), 100);
         imageService.start();
 
         // TODO: add OpenCMW client requesting binary and json models
 
         // second broker to test DNS functionalities
-        MajordomoBroker secondaryBroker = new MajordomoBroker("SecondaryTestBroker", brokerRouterAddress, BasicRbacRole.values());
-        secondaryBroker.bind("tcp://*:" + Utils.findOpenPort());
+        secondaryBroker = new MajordomoBroker("SecondaryTestBroker", brokerRouterAddress, BasicRbacRole.values());
+        secondaryBrokerRouterAddress = secondaryBroker.bind("tcp://*:" + Utils.findOpenPort());
         secondaryBroker.start();
-
-        LOGGER.atInfo().log("added services");
     }
 
-    @MetaInfo(unit = "short description", description = "This is an example property implementation.<br>"
-                                                        + "Use this as a starting point for implementing your own properties<br>")
-    private static class HelloWorldService extends MajordomoWorker<TestContext, RequestDataType, ReplyDataType> {
-        public HelloWorldService(final ZContext ctx, final RbacRole<?>... rbacRoles) {
-            super(ctx, "helloWorld", TestContext.class, RequestDataType.class, ReplyDataType.class, rbacRoles);
+    @AfterAll
+    void finish() {
+        secondaryBroker.stopBroker();
+        primaryBroker.stopBroker();
+    }
 
-            this.setHandler((rawCtx, reqCtx, in, repCtx, out) -> {
-                // LOGGER.atInfo().addArgument(rawCtx).log("received rawCtx  = {}")
-                LOGGER.atInfo().addArgument(reqCtx).log("received reqCtx  = {}");
-                LOGGER.atInfo().addArgument(in.name).log("received in.name  = {}");
+    @ParameterizedTest
+    @ValueSource(strings = { "http://localhost:8080", "https://localhost:8443" })
+    void testDns(final String address) throws IOException {
+        final Request request = new Request.Builder().url(address + "/mmi.dns?noMenu").addHeader("accept", MimeType.HTML.getMediaType()).get().build();
+        final Response response = okHttp.newCall(request).execute();
+        final String body = Objects.requireNonNull(response.body()).string();
 
-                // some arbitrary data processing
-                final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.UK);
-                out.name = "Hello World! The local time is: " + sdf.format(System.currentTimeMillis());
-                out.byteArray = in.name.getBytes(StandardCharsets.UTF_8);
-                out.byteReturnType = 42;
-                out.timingCtx = TimingCtx.get("FAIR.SELECTOR.C=3");
-                out.timingCtx.bpcts = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
-                out.lsaContext = "MYFAIRCONTEXT.C1";
+        assertThat(body, containsString(brokerRouterAddress));
+        assertThat(body, containsString(secondaryBrokerRouterAddress));
+        assertThat(body, containsString("http://localhost:8080"));
+    }
 
-                repCtx.ctx = out.timingCtx;
-                repCtx.contentType = reqCtx.contentType;
-                repCtx.testFilter = "HelloWorld - reply topic = " + reqCtx.testFilter;
-
-                LOGGER.atInfo().addArgument(repCtx).log("received repCtx  = {}");
-                LOGGER.atInfo().addArgument(out.name).log("received out.name = {}");
-            });
+    @ParameterizedTest
+    @EnumSource(value = MimeType.class, names = { "HTML", "BINARY", "JSON", "CMWLIGHT", "TEXT", "UNKNOWN" })
+    void testGet(final MimeType contentType) throws IOException {
+        final Request request = new Request.Builder().url("http://localhost:8080/helloWorld?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
+        final Response response = okHttp.newCall(request).execute();
+        final Headers header = response.headers();
+        final String body = Objects.requireNonNull(response.body()).string();
+        switch (contentType) {
+        case HTML:
+            assertEquals(MimeType.HTML.getMediaType(), header.get("Content-Type"));
+            assertThat(body, containsString("byteReturnType"));
+            assertThat(body, containsString("Hello World! The local time is:"));
+            break;
+        case BINARY:
+            assertEquals(MimeType.BINARY.getMediaType(), header.get("Content-Type"));
+            assertThat(body, containsString("byteReturnType"));
+            assertThat(body, containsString("Hello World! The local time is:"));
+            break;
+        case JSON:
+            assertEquals(MimeType.JSON.getMediaType(), header.get("Content-Type"));
+            assertThat(body, containsString("\"byteReturnType\": 42,"));
+            break;
+        case CMWLIGHT:
+            assertEquals(MimeType.CMWLIGHT.getMediaType(), header.get("Content-Type"));
+            assertThat(body, containsString("byteReturnType"));
+            assertThat(body, containsString("Hello World! The local time is:"));
+            break;
+        case TEXT:
+            break;
+        case UNKNOWN:
+        default:
+            assertEquals("", body);
+            break;
         }
     }
 
-    @MetaInfo(unit = "test image service", description = "Simple test image service that rotates through"
-                                                         + " a couple of pre-defined images @0.5 Hz")
-    private static class ImageService extends MajordomoWorker<TestContext, NoData, BinaryData> {
-        private static final String PROPERTY_NAME = "testImage";
-        private static final String[] TEST_IMAGES = { "testimages/PM5544_test_signal.png", "testimages/SMPTE_Color_Bars.png" };
-        private final byte[][] imageData;
-        private final AtomicInteger selectedImage = new AtomicInteger();
+    @ParameterizedTest
+    @EnumSource(value = MimeType.class, names = { "HTML", "BINARY", "JSON", "CMWLIGHT", "TEXT", "UNKNOWN" })
+    void testGetException(final MimeType contentType) throws IOException {
+        final Request request = new Request.Builder().url("http://localhost:8080/mmi.openapi?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
+        final Response response = okHttp.newCall(request).execute();
+        final Headers header = response.headers();
+        final String body = Objects.requireNonNull(response.body()).string();
+        switch (contentType) {
+        case HTML:
+        case TEXT:
+            assertEquals(200, response.code());
+            assertThat(body, containsString("java.util.concurrent.ExecutionException: java.net.ProtocolException"));
+            break;
+        case BINARY:
+        case JSON:
+        case CMWLIGHT:
+        case UNKNOWN:
+            assertEquals(400, response.code());
+            break;
+        default:
+            throw new IllegalStateException("test case not covered");
+        }
+    }
 
-        public ImageService(final ZContext ctx, final RbacRole<?>... rbacRoles) {
-            super(ctx, PROPERTY_NAME, TestContext.class, NoData.class, BinaryData.class, rbacRoles);
-            imageData = new byte[TEST_IMAGES.length][];
-            for (int i = 0; i < TEST_IMAGES.length; i++) {
-                try (final InputStream in = this.getClass().getResourceAsStream(TEST_IMAGES[i])) {
-                    imageData[i] = ByteStreams.toByteArray(in);
-                    LOGGER.atInfo().addArgument(TEST_IMAGES[i]).addArgument(imageData[i].length).log("read test image file: '{}' - bytes: {}");
-                } catch (IOException e) {
-                    LOGGER.atError().setCause(e).addArgument(TEST_IMAGES[i]).log("could not read test image file: '{}'");
-                }
+    @ParameterizedTest
+    @EnumSource(value = MimeType.class, names = { "HTML", "JSON" })
+    void testSet(final MimeType contentType) throws IOException {
+        final Request setRequest = new Request.Builder() //
+                                           .url("http://localhost:8080/helloWorld?noMenu")
+                                           .addHeader("accept", contentType.getMediaType())
+                                           .post(new MultipartBody.Builder().setType(MultipartBody.FORM) //
+                                                           .addFormDataPart("name", "needsName")
+                                                           .addFormDataPart("customFilter", "myCustomName")
+                                                           .addFormDataPart("byteReturnType", "1984")
+                                                           .build())
+                                           .build();
+        final Response setResponse = okHttp.newCall(setRequest).execute();
+        assertEquals(200, setResponse.code());
+
+        final Request getRequest = new Request.Builder().url("http://localhost:8080/helloWorld?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
+        final Response response = okHttp.newCall(getRequest).execute();
+        final Headers header = response.headers();
+        final String body = Objects.requireNonNull(response.body()).string();
+        switch (contentType) {
+        case HTML:
+            assertThat(body, containsString("name=\"lsaContext\" value='myCustomName'"));
+            break;
+        case JSON:
+            assertThat(body, containsString("\"lsaContext\": \"myCustomName\","));
+            break;
+        default:
+            throw new IllegalStateException("test case not covered");
+        }
+    }
+
+    @Test
+    void testSSE() {
+        AtomicInteger eventCounter = new AtomicInteger();
+        Request request = new Request.Builder().url("http://localhost:8080/" + ImageService.PROPERTY_NAME).build();
+        EventSourceListener eventSourceListener = new EventSourceListener() {
+            private final BlockingQueue<Object> events = new LinkedBlockingDeque<>();
+            @Override
+            public void onEvent(final EventSource eventSource, final String id, final String type, String data) {
+                eventCounter.getAndIncrement();
             }
+        };
+        final EventSource source = EventSources.createFactory(okHttp).newEventSource(request, eventSourceListener);
+        await().alias("wait for thread to start worker").atMost(1, TimeUnit.SECONDS).until(eventCounter::get, greaterThanOrEqualTo(3));
+        assertThat(eventCounter.get(), greaterThanOrEqualTo(3));
+        source.cancel();
+    }
 
-            final Timer timer = new Timer();
-            timer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    selectedImage.set(selectedImage.incrementAndGet() % imageData.length);
-                    final TestContext replyCtx = new TestContext();
-                    BinaryData reply = new BinaryData();
-                    reply.resourceName = "test.png";
-                    reply.data = imageData[selectedImage.get()]; //TODO rotate through images
-                    replyCtx.contentType = MimeType.PNG;
-                    ImageService.this.notify(replyCtx, reply);
-                    // System.err.println("notify new image " + replyCtx)
-                }
-            }, TimeUnit.SECONDS.toMillis(1), TimeUnit.SECONDS.toMillis(2));
+    private static OkHttpClient getUnsafeOkHttpClient() {
+        try {
+            // Create a trust manager that does not validate certificate chains
+            final TrustManager[] trustAllCerts = new TrustManager[] {
+                new X509TrustManager(){
+                        @Override
+                        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType){}
 
-            this.setHandler((rawCtx, reqCtx, in, repCtx, reply) -> {
-                final String path = StringUtils.stripStart(rawCtx.req.topic.getPath(), "/");
-                LOGGER.atTrace().addArgument(reqCtx).addArgument(path).log("received reqCtx  = {} - path='{}'");
+                        @Override
+                        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType){}
 
-                reply.resourceName = StringUtils.stripStart(StringUtils.stripStart(path, PROPERTY_NAME), "/");
-                reply.data = imageData[selectedImage.get()]; //TODO rotate through images
-                reply.contentType = MimeType.PNG;
-
-                if (reply.resourceName.contains(".")) {
-                    repCtx.contentType = reply.contentType;
-                } else {
-                    repCtx.contentType = reqCtx.contentType;
-                }
-            });
+                        @Override
+                        public java.security.cert.X509Certificate[] getAcceptedIssuers(){
+                                return new java.security.cert.X509Certificate[] {};
         }
     }
+};
+
+// Install the all-trusting trust manager
+final SSLContext sslContext = SSLContext.getInstance("SSL");
+sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+// Create an ssl socket factory with our all-trusting manager
+final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
+
+OkHttpClient.Builder builder = new OkHttpClient.Builder();
+builder.sslSocketFactory(sslSocketFactory, (X509TrustManager) trustAllCerts[0]);
+builder.hostnameVerifier((hostname, session) -> true);
+return builder.build();
+}
+catch (Exception e) {
+    throw new RuntimeException(e);
+}
+}
 }

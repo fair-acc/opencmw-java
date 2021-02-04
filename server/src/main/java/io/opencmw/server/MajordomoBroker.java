@@ -61,12 +61,15 @@ public class MajordomoBroker extends Thread {
     public static final String SUFFIX_ROUTER = "/router";
     public static final String SUFFIX_PUBLISHER = "/publisher";
     public static final String SUFFIX_SUBSCRIBE = "/subscribe";
-    public static final String INTERNAL_ADDRESS_BROKER = "inproc://broker" + SUFFIX_ROUTER;
-    public static final String INTERNAL_ADDRESS_PUBLISHER = "inproc://broker" + SUFFIX_PUBLISHER;
-    public static final String INTERNAL_ADDRESS_SUBSCRIBE = "inproc://broker" + SUFFIX_SUBSCRIBE;
-    public static final String SCHEME_TCP = "tcp://";
+    public static final String INPROC_BROKER = "inproc://broker";
+    public static final String INTERNAL_ADDRESS_BROKER = INPROC_BROKER + SUFFIX_ROUTER;
+    public static final String INTERNAL_ADDRESS_PUBLISHER = INPROC_BROKER + SUFFIX_PUBLISHER;
+    public static final String INTERNAL_ADDRESS_SUBSCRIBE = INPROC_BROKER + SUFFIX_SUBSCRIBE;
+    public static final String SCHEME_HTTP = "http://";
+    public static final String SCHEME_HTTPS = "https://";
     public static final String SCHEME_MDP = "mdp://";
     public static final String SCHEME_MDS = "mds://";
+    public static final String SCHEME_TCP = "tcp://";
     public static final String WILDCARD = "*";
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoBroker.class);
     private static final long HEARTBEAT_LIVENESS = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeatLiveness", 3); // [counts] 3-5 is reasonable
@@ -139,32 +142,6 @@ public class MajordomoBroker extends Thread {
         }
 
         LOGGER.atInfo().addArgument(getName()).addArgument(this.dnsAddress).log("register new '{}' broker with DNS: '{}'");
-    }
-
-    /**
-     * Main method - create and start new broker.
-     *
-     * @param args use '-v' for putting worker in verbose mode
-     */
-    public static void main(String[] args) {
-        MajordomoBroker broker = new MajordomoBroker("TestMdpBroker", "tcp://*:5555", BasicRbacRole.values());
-        LOGGER.atInfo().log("broker initialised");
-        // broker.setDaemon(true); // use this if running in another app that
-        // controls threads Can be called multiple times with different endpoints
-        broker.bind("tcp://*:5555");
-        broker.bind("tcp://*:5556");
-        LOGGER.atInfo().log("broker bound");
-
-        for (int i = 0; i < 10; i++) {
-            // simple internalSock echo
-            BasicMdpWorker workerSession = new BasicMdpWorker(broker.getContext(), "inproc.echo", BasicRbacRole.ADMIN); // NOPMD safe instantiation
-            workerSession.registerHandler(ctx -> ctx.rep.data = ctx.req.data); //  output = input : echo service is complex :-)
-            workerSession.start();
-        }
-        LOGGER.atInfo().log("added services");
-
-        broker.start();
-        LOGGER.atInfo().log("broker started");
     }
 
     /**
@@ -251,26 +228,17 @@ public class MajordomoBroker extends Thread {
                 int loopCount = 0;
                 boolean receivedMsg = true;
                 while (run.get() && !Thread.currentThread().isInterrupted() && receivedMsg) {
-                    receivedMsg = false;
                     final MdpMessage routerMsg = receive(routerSocket, false);
-                    if (routerMsg != null) {
-                        receivedMsg = handleReceivedMessage(routerSocket, routerMsg);
-                    }
+                    receivedMsg = handleReceivedMessage(routerSocket, routerMsg);
 
                     final MdpMessage subMsg = receive(subSocket, false);
-                    if (subMsg != null) {
-                        receivedMsg = handleReceivedMessage(subSocket, subMsg);
-                    }
+                    receivedMsg |= handleReceivedMessage(subSocket, subMsg);
 
                     final MdpMessage dnsMsg = receive(dnsSocket, false);
-                    if (dnsMsg != null) {
-                        receivedMsg |= handleReceivedMessage(dnsSocket, dnsMsg);
-                    }
+                    receivedMsg |= handleReceivedMessage(dnsSocket, dnsMsg);
 
                     final ZMsg pubMsg = ZMsg.recvMsg(pubSocket, false);
-                    if (pubMsg != null && !pubMsg.isEmpty()) {
-                        receivedMsg |= handleSubscriptionMsg(pubMsg);
-                    }
+                    receivedMsg |= handleSubscriptionMsg(pubMsg);
 
                     processClients();
                     if (loopCount % 10 == 0) {
@@ -290,6 +258,9 @@ public class MajordomoBroker extends Thread {
     }
 
     private boolean handleSubscriptionMsg(final ZMsg subMsg) {
+        if (subMsg == null || subMsg.isEmpty()) {
+            return false;
+        }
         final byte[] topicBytes = subMsg.getFirst().getData();
         if (topicBytes.length == 0) {
             return false;
@@ -394,6 +365,9 @@ public class MajordomoBroker extends Thread {
      * @return true if request was implemented and has been processed
      */
     protected boolean handleReceivedMessage(final Socket receiveSocket, final MdpMessage msg) {
+        if (msg == null) {
+            return false;
+        }
         final String topic = msg.topic.toString();
         switch (msg.protocol) {
         case PROT_CLIENT:
@@ -440,8 +414,7 @@ public class MajordomoBroker extends Thread {
             // N.B. not too verbose logging since we do not want that sloppy clients
             // can bring down the broker through warning or info messages
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.atDebug().addArgument(msg).log(
-                        "Majordomo broker invalid message: '{}'");
+                LOGGER.atDebug().addArgument(msg).log("Majordomo broker invalid message: '{}'");
             }
             return false;
         }
@@ -580,7 +553,6 @@ public class MajordomoBroker extends Thread {
             if (!subTopic.getPath().startsWith(msg.topic.getPath())) {
                 continue;
             }
-            //pubSocket.sendMore(replyService);
             pubSocket.sendMore(specificTopic);
             msg.send(pubSocket);
         }
