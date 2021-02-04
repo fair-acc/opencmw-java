@@ -1,0 +1,20 @@
+#macro(mainLayoutNoFrame)
+<!DOCTYPE html>
+<html lang="$msg.get("LOCALE")">
+<head>
+    <title>$msg.get("COMMON_TITLE")</title>
+    <link rel="stylesheet" href="/main.css">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="Description" content="Clipboard Index">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<main>
+    <div>
+        $bodyContent
+    </div>
+</main>
+</body>
+</html>
+#end

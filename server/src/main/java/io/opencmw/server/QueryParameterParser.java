@@ -8,16 +8,17 @@ import static java.util.stream.Collectors.toList;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Type;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLDecoder;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.net.URLEncoder;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+
+import javax.validation.constraints.NotNull;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -36,8 +37,10 @@ import io.opencmw.serialiser.utils.ClassUtils;
  * @author rstein
  */
 public final class QueryParameterParser { // NOPMD - nomen est omen
+    public static final String MIME_TYPE_TAG = "contentType";
     public static final ConcurrentMap<Type, TriConsumer> STRING_TO_CLASS_CONVERTER = new ConcurrentHashMap<>(); // NOSONAR NOPMD
     public static final ConcurrentMap<Type, BiFunction<Object, ClassFieldDescription, String>> CLASS_TO_STRING_CONVERTER = new ConcurrentHashMap<>(); // NOSONAR NOPMD
+    public static final ConcurrentMap<Type, BiFunction<Object, ClassFieldDescription, Object>> CLASS_TO_OBJECT_CONVERTER = new ConcurrentHashMap<>(); // NOSONAR NOPMD
     static {
         STRING_TO_CLASS_CONVERTER.put(boolean.class, (str, obj, field) -> field.getField().setBoolean(obj, Boolean.parseBoolean(str)));
         STRING_TO_CLASS_CONVERTER.put(byte.class, (str, obj, field) -> field.getField().setByte(obj, Byte.parseByte(str)));
@@ -66,6 +69,13 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         CLASS_TO_STRING_CONVERTER.put(long.class, (obj, field) -> Long.toString(field.getField().getLong(obj)));
         CLASS_TO_STRING_CONVERTER.put(float.class, (obj, field) -> Float.toString(field.getField().getFloat(obj)));
         CLASS_TO_STRING_CONVERTER.put(double.class, (obj, field) -> Double.toString(field.getField().getDouble(obj)));
+        CLASS_TO_STRING_CONVERTER.put(boolean[].class, (obj, field) -> Arrays.toString((boolean[]) field.getField().get(obj)));
+        CLASS_TO_STRING_CONVERTER.put(byte[].class, (obj, field) -> Arrays.toString((byte[]) field.getField().get(obj)));
+        CLASS_TO_STRING_CONVERTER.put(short[].class, (obj, field) -> Arrays.toString((short[]) field.getField().get(obj)));
+        CLASS_TO_STRING_CONVERTER.put(int[].class, (obj, field) -> Arrays.toString((int[]) field.getField().get(obj)));
+        CLASS_TO_STRING_CONVERTER.put(long[].class, (obj, field) -> Arrays.toString((long[]) field.getField().get(obj)));
+        CLASS_TO_STRING_CONVERTER.put(float[].class, (obj, field) -> Arrays.toString((float[]) field.getField().get(obj)));
+        CLASS_TO_STRING_CONVERTER.put(double[].class, (obj, field) -> Arrays.toString((double[]) field.getField().get(obj)));
         CLASS_TO_STRING_CONVERTER.put(Boolean.class, objToString);
         CLASS_TO_STRING_CONVERTER.put(Byte.class, objToString);
         CLASS_TO_STRING_CONVERTER.put(Short.class, objToString);
@@ -73,6 +83,16 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         CLASS_TO_STRING_CONVERTER.put(Long.class, objToString);
         CLASS_TO_STRING_CONVERTER.put(Float.class, objToString);
         CLASS_TO_STRING_CONVERTER.put(Double.class, objToString);
+        CLASS_TO_STRING_CONVERTER.put(String.class, (obj, field) -> field.getField().get(obj).toString());
+
+        CLASS_TO_OBJECT_CONVERTER.put(boolean.class, (obj, field) -> field.getField().getBoolean(obj));
+        CLASS_TO_OBJECT_CONVERTER.put(byte.class, (obj, field) -> field.getField().getByte(obj));
+        CLASS_TO_OBJECT_CONVERTER.put(short.class, (obj, field) -> field.getField().getShort(obj));
+        CLASS_TO_OBJECT_CONVERTER.put(int.class, (obj, field) -> field.getField().getInt(obj));
+        CLASS_TO_OBJECT_CONVERTER.put(long.class, (obj, field) -> field.getField().getLong(obj));
+        CLASS_TO_OBJECT_CONVERTER.put(float.class, (obj, field) -> field.getField().getFloat(obj));
+        CLASS_TO_OBJECT_CONVERTER.put(double.class, (obj, field) -> field.getField().getDouble(obj));
+        CLASS_TO_OBJECT_CONVERTER.put(Object.class, (obj, field) -> field.getField().get(obj));
 
         // special known objects
         STRING_TO_CLASS_CONVERTER.put(Object.class, (str, obj, field) -> field.getField().set(obj, new Object()));
@@ -94,6 +114,57 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         // this is a utility class
     }
 
+    public static URI appendQueryParameter(URI oldUri, String appendQuery) throws URISyntaxException {
+        if (appendQuery == null || appendQuery.isBlank()) {
+            return oldUri;
+        }
+        return new URI(oldUri.getScheme(), oldUri.getAuthority(), oldUri.getPath(), oldUri.getQuery() == null ? appendQuery : (oldUri.getQuery() + "&" + appendQuery), oldUri.getFragment());
+    }
+
+    /**
+     *
+     * @param queryParameterMap query parameter map
+     * @return queryString a <a href="https://tools.ietf.org/html/rfc3986">rfc3986</a> query parameter string
+     */
+    @SuppressWarnings("PMD")
+    public static String generateQueryParameter(final Map<String, ?> queryParameterMap) { //NOSONAR - complexity justified
+        final StringBuilder builder = new StringBuilder();
+
+        final Set<? extends Map.Entry<String, ?>> entrySet = queryParameterMap.entrySet();
+        final Iterator<? extends Map.Entry<String, ?>> iterator = entrySet.iterator();
+        boolean first = true;
+        while (iterator.hasNext()) {
+            Map.Entry<String, ?> item = iterator.next();
+            String key = item.getKey();
+            Object values = item.getValue();
+            if (!first) {
+                builder.append('&');
+            }
+            if (values == null) {
+                builder.append(key);
+            } else if (List.class.isAssignableFrom(values.getClass())) {
+                @SuppressWarnings("unchecked") // checked with above isAssignableFrom
+                List<Object> list = (List<Object>) values;
+                for (Object val : list) {
+                    if (!first) {
+                        builder.append('&');
+                    }
+                    if (val == null) {
+                        builder.append(key);
+                    } else {
+                        builder.append(key).append('=').append(val);
+                    }
+                    first = false;
+                }
+            } else {
+                // non list object
+                builder.append(key).append('=').append(values);
+            }
+            first = false;
+        }
+        return builder.toString();
+    }
+
     /**
      *
      * @param obj storage class
@@ -112,12 +183,27 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
             } else {
                 str = mapFunction.apply(obj, field);
             }
-            builder.append(field.getFieldName()).append('=').append(str == null ? "" : str);
+            builder.append(field.getFieldName()).append('=').append(str == null ? "" : URLEncoder.encode(str, UTF_8));
             if (index != children.size() - 1) {
                 builder.append('&');
             }
         }
         return builder.toString();
+    }
+
+    public static Map<String, List<String>> getMap(final String queryParam) {
+        if (queryParam == null || queryParam.isBlank()) {
+            return Collections.emptyMap();
+        }
+
+        return Arrays.stream(StringUtils.split(queryParam, "&;"))
+                .map(QueryParameterParser::splitQueryParameter)
+                .collect(Collectors.groupingBy(SimpleImmutableEntry::getKey, HashMap::new, mapping(Map.Entry::getValue, toList())));
+    }
+
+    public static @NotNull MimeType getMimeType(final String queryString) {
+        final List<String> mimeTypeList = QueryParameterParser.getMap(queryString).get(MIME_TYPE_TAG);
+        return mimeTypeList == null || mimeTypeList.isEmpty() ? MimeType.UNKNOWN : MimeType.getEnum(mimeTypeList.get(mimeTypeList.size() - 1));
     }
 
     /**
@@ -156,6 +242,29 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         return obj;
     }
 
+    public static URI removeQueryParameter(URI oldUri, String removeQuery) throws URISyntaxException {
+        if (removeQuery == null || removeQuery.isBlank() || oldUri.getQuery() == null) {
+            return oldUri;
+        }
+        final Map<String, List<String>> query = getMap(oldUri.getQuery());
+        final int idx = removeQuery.indexOf('=');
+        if (idx >= 0) {
+            final String key = idx > 0 ? removeQuery.substring(0, idx) : removeQuery;
+            final String value = idx > 0 && removeQuery.length() > idx + 1 ? removeQuery.substring(idx + 1) : null;
+            final List<String> entry = query.get(key);
+            if (entry != null) {
+                entry.remove(value);
+                if (entry.isEmpty()) {
+                    query.remove(value);
+                }
+            }
+        } else {
+            query.remove(removeQuery);
+        }
+        final String newQueryParameter = QueryParameterParser.generateQueryParameter(query);
+        return new URI(oldUri.getScheme(), oldUri.getAuthority(), oldUri.getPath(), newQueryParameter, oldUri.getFragment());
+    }
+
     /**
      * used as lambda expression for user-level code to read/write data into the query pojo
      *
@@ -170,16 +279,6 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
          * @param field the description for the given class member, if null then rootObj is written/read directly
          */
         void accept(String str, Object rootObj, ClassFieldDescription field);
-    }
-
-    public static Map<String, List<String>> getMap(final String queryParam) {
-        if (queryParam == null || queryParam.isBlank()) {
-            return Collections.emptyMap();
-        }
-
-        return Arrays.stream(StringUtils.split(queryParam, "&;"))
-                .map(QueryParameterParser::splitQueryParameter)
-                .collect(Collectors.groupingBy(SimpleImmutableEntry::getKey, HashMap::new, mapping(Map.Entry::getValue, toList())));
     }
 
     @SuppressWarnings("PMD.DefaultPackage")

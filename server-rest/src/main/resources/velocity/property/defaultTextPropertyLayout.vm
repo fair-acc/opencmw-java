@@ -1,4 +1,11 @@
-#parse("/velocity/layout.vm")
-#@mainLayout()
-$textBody
+#if (!$noMenu)
+    #parse("/velocity/layout.vm")
+    #@mainLayout()
+        $textBody
+    #end
+#else
+    #parse("/velocity/layoutNoFrame.vm")
+    #@mainLayoutNoFrame()
+        $textBody
+    #end
 #end

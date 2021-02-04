@@ -3,9 +3,9 @@ package io.opencmw.server;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.net.URI;
-import java.util.Locale;
 import java.util.stream.Collectors;
 
+import io.opencmw.MimeType;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.serialiser.annotations.MetaInfo;
 
@@ -20,7 +20,7 @@ public final class MmiServiceHelper {
     }
 
     public static boolean isHtmlRequest(final URI topic) {
-        return topic != null && topic.getQuery() != null && topic.getQuery().toLowerCase(Locale.UK).contains("contenttype=text/html");
+        return topic != null && topic.getQuery() != null && MimeType.HTML == QueryParameterParser.getMimeType(topic.getQuery());
     }
 
     public static String wrapInAnchor(final String text, final URI uri) {
