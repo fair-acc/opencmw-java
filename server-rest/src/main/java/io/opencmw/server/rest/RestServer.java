@@ -180,6 +180,10 @@ public final class RestServer { // NOPMD -- nomen est omen
         return EVENT_LISTENER_SSE.computeIfAbsent(fullEndPointName, key -> new ConcurrentLinkedQueue<>());
     }
 
+    public static ConcurrentMap<String, Queue<SseClient>> getEventClientMap() {
+        return EVENT_LISTENER_SSE;
+    }
+
     public static String getHostName() {
         return System.getProperty(TAG_REST_SERVER_HOST_NAME, DEFAULT_HOST_NAME);
     }
