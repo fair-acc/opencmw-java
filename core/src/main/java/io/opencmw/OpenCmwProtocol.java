@@ -454,17 +454,19 @@ public class OpenCmwProtocol {
             return new MdpMessage(senderID, protocol, command, serviceNameBytes, clientRequestID, topic, data, errors, rbacToken); // OpenCMW frame 8 (optional): RBAC token
         }
 
-        public static void send(final Socket socket, final List<MdpMessage> replies) {
+        public static boolean send(final Socket socket, final List<MdpMessage> replies) {
             assert socket != null : SOCKET_MUST_NOT_BE_NULL;
             assert replies != null;
             if (replies.isEmpty()) {
-                return;
+                return false;
             }
+            boolean sendState = false;
             for (Iterator<MdpMessage> iter = replies.iterator(); iter.hasNext();) {
                 MdpMessage reply = iter.next();
                 reply.command = iter.hasNext() ? PARTIAL : FINAL;
-                reply.send(socket);
+                sendState |= reply.send(socket);
             }
+            return sendState;
         }
 
         protected static byte[] copyOf(byte[] original) {

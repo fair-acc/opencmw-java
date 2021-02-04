@@ -184,7 +184,7 @@ public class ClassFieldDescription implements FieldDescription {
 
         if (serializable) {
             // enable access by default (saves performance later on)
-            field.setAccessible(true);
+            field.setAccessible(true); // NOSONAR NOPMD
         }
 
         // add child to parent if it serializable or if a full scan is requested
@@ -638,7 +638,7 @@ public class ClassFieldDescription implements FieldDescription {
         return toStringName;
     }
 
-    protected static void exploreClass(final Class<?> classType, final ClassFieldDescription parent, final int recursionLevel, final boolean fullScan) {
+    protected static void exploreClass(final Class<?> classType, final ClassFieldDescription parent, final int recursionLevel, final boolean fullScan) { // NOSONAR NOPMD
         if (ClassUtils.DO_NOT_PARSE_MAP.get(classType) != null) {
             return;
         }
@@ -765,7 +765,7 @@ public class ClassFieldDescription implements FieldDescription {
             // get an instance of the otherwise private 'Unsafe' class
             try {
                 final Field field = Unsafe.class.getDeclaredField("theUnsafe");
-                field.setAccessible(true); //NOSONAR
+                field.setAccessible(true); // NOSONAR NOPMD
                 unsafe = (Unsafe) field.get(null);
             } catch (NoSuchFieldException | SecurityException | IllegalAccessException e) {
                 throw new SecurityException(e); // NOPMD

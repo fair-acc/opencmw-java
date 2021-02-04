@@ -11,9 +11,7 @@
 </head>
 <body>
 <main>
-    <div>
-        $bodyContent
-    </div>
+    $bodyContent
 </main>
 </body>
 </html>

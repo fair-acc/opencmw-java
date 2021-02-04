@@ -44,6 +44,7 @@ import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
+import io.javalin.apibuilder.ApiBuilder;
 import io.javalin.core.security.Role;
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
@@ -64,6 +65,8 @@ import io.opencmw.server.QueryParameterParser;
 import io.opencmw.server.rest.util.CombinedHandler;
 import io.opencmw.server.rest.util.MessageBundle;
 import io.opencmw.utils.CustomFuture;
+
+import com.jsoniter.output.JsonStream;
 
 /**
  * Majordomo Broker REST/HTTP plugin.
@@ -136,9 +139,10 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     }
 
     @Override
-    public void notify(@NotNull final MdpMessage notifyMessage) {
+    public boolean notify(@NotNull final MdpMessage notifyMessage) {
         assert notifyMessage != null : "notify message must not be null";
         notifyRaw(notifyMessage);
+        return false;
     }
 
     @Override
@@ -255,7 +259,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         };
     }
 
-    protected Runnable getServiceSubscriptionTask() {
+    protected Runnable getServiceSubscriptionTask() { // NOSONAR NOPMD - complexity is acceptable
         return () -> {
             try (ZMQ.Poller subPoller = ctx.createPoller(1)) {
                 subPoller.register(subSocket, ZMQ.Poller.POLLIN);
@@ -309,8 +313,17 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
 
                     final Set<Role> accessRoles = RestServer.getDefaultRole();
                     RestServer.getInstance().routes(() -> {
-                        get(ep + "*", OpenApiBuilder.documented(openApi, getDefaultServiceRestHandler(ep)), accessRoles);
+                        ApiBuilder.before(ep, restCtx -> {
+                            // for some strange reason this needs to be executed to be able to read 'restCtx.formParamMap()'
+                            if ("POST".equals(restCtx.method())) {
+                                final Map<String, List<String>> map = restCtx.formParamMap();
+                                if (map.size() == 0) {
+                                    LOGGER.atDebug().addArgument(restCtx.req.getPathInfo()).log("{} called without form data");
+                                }
+                            }
+                        });
                         post(ep + "*", OpenApiBuilder.documented(openApi, getDefaultServiceRestHandler(ep)), accessRoles);
+                        get(ep + "*", OpenApiBuilder.documented(openApi, getDefaultServiceRestHandler(ep)), accessRoles);
                     });
 
                     return openApi;
@@ -399,7 +412,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         clients.stream().filter(filter).forEach(s -> s.sendEvent(topicString));
     }
 
-    private Handler getDefaultServiceRestHandler(final String restHandler) {
+    private Handler getDefaultServiceRestHandler(final String restHandler) { // NOSONAR NOPMD - complexity is acceptable
         return new CombinedHandler(restCtx -> {
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.atTrace().addArgument(restHandler).addArgument(restCtx.path()).addArgument(restCtx.fullUrl()).log("restHandler {} for service {} - full: {}");
@@ -412,7 +425,13 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             final URI topic = mimeType == null || mimeType.length == 0 ? RestServer.appendUri(URI.create(restCtx.fullUrl()), "contentType=" + acceptMimeType.toString()) : URI.create(restCtx.fullUrl());
 
             OpenCmwProtocol.Command cmd = getCommand(restCtx);
-            final MdpMessage requestMsg = new MdpMessage(null, PROT_CLIENT, cmd, service.getBytes(UTF_8), EMPTY_FRAME, topic, restCtx.bodyAsBytes(), "", RBAC);
+            final byte[] requestData;
+            if (cmd == SET_REQUEST) {
+                requestData = getFormDataAsJson(restCtx);
+            } else {
+                requestData = EMPTY_FRAME;
+            }
+            final MdpMessage requestMsg = new MdpMessage(null, PROT_CLIENT, cmd, service.getBytes(UTF_8), EMPTY_FRAME, topic, requestData, "", RBAC);
 
             CustomFuture<MdpMessage> reply = dispatchRequest(requestMsg, true);
             try {
@@ -421,16 +440,15 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 switch (replyMimeType) {
                 case HTML:
                 case TEXT:
-                    final String queryString = topic.getQuery();
-                    final boolean noMenu = queryString != null && queryString.contains("noMenu");
-                    Map<String, Object> dataMap = MessageBundle.baseModel(restCtx);
-                    dataMap.put("noMenu", noMenu);
-                    dataMap.put("textBody", new String(replyMessage.data, UTF_8));
+                    final String queryString = topic.getQuery() == null ? "" : ("?" + topic.getQuery());
                     if (cmd == SET_REQUEST) {
-                        final String query = restCtx.req.getQueryString();
-                        final String path = restCtx.req.getRequestURI() + "?" + query;
+                        final String path = restCtx.req.getRequestURI() + StringUtils.replace(queryString, "&noMenu", "");
                         restCtx.redirect(path);
                     } else {
+                        final boolean noMenu = queryString.contains("noMenu");
+                        Map<String, Object> dataMap = MessageBundle.baseModel(restCtx);
+                        dataMap.put("textBody", new String(replyMessage.data, UTF_8));
+                        dataMap.put("noMenu", noMenu);
                         restCtx.render(TEMPLATE_EMBEDDED_HTML, dataMap);
                     }
                     break;
@@ -456,5 +474,21 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 throw new BadRequestResponse(MajordomoRestPlugin.class.getName() + ": could not process service '" + service + "' - exception:\n" + e.getMessage()); // NOPMD original exception forwared within the text, BadRequestResponse does not support exception forwarding
             }
         }, newSseClientHandler);
+    }
+
+    private byte[] getFormDataAsJson(final Context restCtx) {
+        final byte[] requestData;
+        final Map<String, List<String>> formMap = restCtx.formParamMap();
+        final HashMap<String, String> requestMap = new HashMap<>();
+        formMap.forEach((k, v) -> {
+            if (v.isEmpty()) {
+                requestMap.put(k, null);
+            } else {
+                requestMap.put(k, v.get(0));
+            }
+        });
+        final String formData = JsonStream.serialize(requestMap);
+        requestData = formData.getBytes(UTF_8);
+        return requestData;
     }
 }

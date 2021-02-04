@@ -1,5 +1,8 @@
 package io.opencmw.server;
 
+import static io.opencmw.server.MajordomoBroker.SCHEME_MDP;
+import static io.opencmw.server.MajordomoBroker.SCHEME_MDS;
+import static io.opencmw.server.MajordomoBroker.SCHEME_TCP;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static io.opencmw.OpenCmwProtocol.*;
@@ -61,12 +64,13 @@ import io.opencmw.utils.SystemProperties;
 @MetaInfo(description = "default BasicMdpWorker implementation")
 @SuppressWarnings({ "PMD.GodClass", "PMD.ExcessiveImports", "PMD.TooManyStaticImports", "PMD.DoNotUseThreads", "PMD.TooManyFields", "PMD.TooManyMethods" }) // makes the code more readable/shorter lines
 public class BasicMdpWorker extends Thread {
-    private static final Logger LOGGER = LoggerFactory.getLogger(BasicMdpWorker.class);
     protected static final byte[] RBAC = {}; //TODO: implement RBAC between Majordomo and Worker
     protected static final String WILDCARD = "*";
     protected static final int HEARTBEAT_LIVENESS = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeatLiveness", 3); // [counts] 3-5 is reasonable
     protected static final int HEARTBEAT_INTERVAL = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeat", 2500); // [ms]
     protected static final AtomicInteger WORKER_COUNTER = new AtomicInteger();
+    private static final Logger LOGGER = LoggerFactory.getLogger(BasicMdpWorker.class);
+
     static {
         final String reason = "recursive definitions inside ZeroMQ";
         ClassUtils.DO_NOT_PARSE_MAP.put(ZContext.class, reason);
@@ -85,10 +89,10 @@ public class BasicMdpWorker extends Thread {
     protected final SortedSet<RbacRole> rbacRoles; // NOSONAR NOPMD
     protected final ZMQ.Socket notifySocket; // Socket to listener -- needed for thread-decoupling
     protected final ZMQ.Socket notifyListenerSocket; // Socket to notifier -- needed for thread-decoupling
-    protected ZMQ.Socket workerSocket; // Socket to broker
-    protected ZMQ.Socket pubSocket; // Socket to broker
     protected final List<String> activeSubscriptions = Collections.synchronizedList(new ArrayList<>());
     protected final boolean isExternal; // used to skip heart-beating and disconnect checks
+    protected ZMQ.Socket workerSocket; // Socket to broker
+    protected ZMQ.Socket pubSocket; // Socket to broker
     protected long heartbeatAt; // When to send HEARTBEAT
     protected int liveness; // How many attempts left
     protected long reconnect = 2500L; // Reconnect delay, msecs
@@ -141,10 +145,6 @@ public class BasicMdpWorker extends Thread {
         return Duration.ofMillis(reconnect);
     }
 
-    public void setReconnectDelay(final int reconnect, @NotNull final TimeUnit timeUnit) {
-        this.reconnect = timeUnit.toMillis(reconnect);
-    }
-
     public RequestHandler getRequestHandler() {
         return requestHandler;
     }
@@ -157,59 +157,19 @@ public class BasicMdpWorker extends Thread {
         return uniqueID;
     }
 
-    protected List<MdpMessage> handleRequestsFromBroker(final MdpMessage request) {
-        if (request == null) {
-            return Collections.emptyList();
-        }
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.atTrace().addArgument(uniqueID).addArgument(request).log("worker '{}' received request: '{}'");
-        }
-        final byte[] clientID = request.serviceNameBytes;
-
-        switch (request.command) {
-        case GET_REQUEST:
-        case SET_REQUEST:
-        case W_NOTIFY:
-        case PARTIAL:
-        case FINAL:
-            return processRequest(request);
-        case W_HEARTBEAT:
-            // Do nothing for heartbeats
-            return Collections.emptyList();
-        case DISCONNECT:
-            // TODO: check whether to reconnect or to connect permanently
-            reconnectToBroker();
-            return Collections.emptyList();
-        case UNKNOWN:
-            // N.B. not too verbose logging since we do not want that sloppy clients
-            // can bring down the broker through warning or info messages
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.atDebug().addArgument(uniqueID).addArgument(request).log("worker '{}' received invalid message: '{}'");
-            }
-            return Collections.emptyList();
-        case SUBSCRIBE:
-        case UNSUBSCRIBE:
-            LOGGER.atWarn().addArgument(getServiceName()).addArgument(request.command).log("service '{}' erroneously received {} command - should be handled in Majordomo broker");
-            return Collections.emptyList();
-
-        case READY:
-        default:
-        }
-        throw new IllegalStateException("should not reach here - request message = " + request);
-    }
-
     /**
    * Sends pre-defined message to subscriber (provided there is any that matches the published topic)
-   * @param notifyMessage the message that is supposed to be broadcast
-   */
-    public void notify(@NotNull final MdpMessage notifyMessage) {
+     * @param notifyMessage the message that is supposed to be broadcast
+     * @return {@code false} in case message has not been sent (e.g. due to no pending subscriptions
+     */
+    public boolean notify(@NotNull final MdpMessage notifyMessage) {
         // send only if there are matching topics and duplicate messages based on topics as necessary
         final URI originalTopic = notifyMessage.topic;
         final List<String> subTopics = new ArrayList<>(activeSubscriptions); // copy for decoupling/performance reasons
         // N.B. for the time being only the path is matched - TODO: upgrade to full topic matching
         if (subTopics.stream().filter(s -> s.startsWith(originalTopic.getPath()) || s.isBlank()).findFirst().isEmpty()) {
             // block further processing of message
-            return;
+            return false;
         }
 
         notifyMessage.senderID = EMPTY_FRAME;
@@ -218,27 +178,7 @@ public class BasicMdpWorker extends Thread {
         notifyMessage.serviceNameBytes = EMPTY_FRAME;
         notifyMessage.clientRequestID = EMPTY_FRAME;
         notifyMessage.topic = originalTopic;
-        notifyRaw(notifyMessage);
-    }
-
-    protected List<MdpMessage> processRequest(final MdpMessage request) {
-        if (getRequestHandler() == null) {
-            return Collections.emptyList();
-        }
-        // de-serialise byte[] -> PropertyMap() (+ getObject(Class<?>))
-        try {
-            final Context mdpCtx = new Context(request);
-            getRequestHandler().handle(mdpCtx);
-            return mdpCtx.rep == null ? Collections.emptyList() : List.of(mdpCtx.rep);
-        } catch (Throwable e) { // NOPMD on purpose since we want to catch exceptions and courteously return this to the user
-            final StringWriter sw = new StringWriter();
-            final PrintWriter pw = new PrintWriter(sw);
-            e.printStackTrace(pw);
-            final String exceptionMsg = ANSI_RED + getClass().getName() + " caught exception for service '" + getServiceName()
-                                        + "'\nrequest msg: " + request + "\nexception: " + sw.toString() + ANSI_RESET;
-            LOGGER.atError().addArgument(exceptionMsg).log("could not processRequest(MdpMessage) - exception thrown:\n{}");
-            return List.of(new MdpMessage(request.senderID, request.protocol, FINAL, request.serviceNameBytes, request.clientRequestID, request.topic, null, exceptionMsg, RBAC));
-        }
+        return notifyRaw(notifyMessage);
     }
 
     public BasicMdpWorker registerHandler(final RequestHandler requestHandler) {
@@ -251,7 +191,7 @@ public class BasicMdpWorker extends Thread {
    * Send reply, if any, to broker and wait for next request.
    */
     @Override
-    public void run() { // NOPMD -- single serial function .. easier to read
+    public void run() {
         reconnectToBroker();
         // Poll socket for a reply, with timeout and/or until the process is stopped or interrupted
         // N.B. poll(..) returns '-1' when thread is interrupted
@@ -259,19 +199,12 @@ public class BasicMdpWorker extends Thread {
         while (runSocketHandlerLoop.get() && !Thread.currentThread().isInterrupted() && poller.poll(HEARTBEAT_INTERVAL) != -1) {
             boolean dataReceived = true;
             while (dataReceived) {
-                dataReceived = false;
                 // handle message from or to broker
                 final MdpMessage brokerMsg = receive(workerSocket, false);
-                if (brokerMsg != null) {
-                    dataReceived = true;
-                    liveness = HEARTBEAT_LIVENESS;
-                    MdpMessage.send(workerSocket, handleRequestsFromBroker(brokerMsg));
-                }
+                dataReceived = MdpMessage.send(workerSocket, handleRequestsFromBroker(brokerMsg));
 
                 final ZMsg pubMsg = ZMsg.recvMsg(pubSocket, false);
-                if (pubMsg != null && !pubMsg.isEmpty()) {
-                    dataReceived |= handleSubscriptionMsg(pubMsg);
-                }
+                dataReceived |= handleSubscriptionMsg(pubMsg);
 
                 // handle message from or to notify thread
                 final MdpMessage notifyMsg = receive(notifyListenerSocket, false);
@@ -301,6 +234,10 @@ public class BasicMdpWorker extends Thread {
         }
     }
 
+    public void setReconnectDelay(final int reconnect, @NotNull final TimeUnit timeUnit) {
+        this.reconnect = timeUnit.toMillis(reconnect);
+    }
+
     @Override
     public synchronized void start() { // NOPMD 'synchronized' comes from JDK class definition
         runSocketHandlerLoop.set(true);
@@ -311,9 +248,95 @@ public class BasicMdpWorker extends Thread {
         runSocketHandlerLoop.set(false);
     }
 
-    protected void notifyRaw(@NotNull final MdpMessage notifyMessage) {
+    protected List<MdpMessage> handleRequestsFromBroker(final MdpMessage request) {
+        if (request == null) {
+            return Collections.emptyList();
+        }
+
+        liveness = HEARTBEAT_LIVENESS;
+
+        switch (request.command) {
+        case GET_REQUEST:
+        case SET_REQUEST:
+        case W_NOTIFY:
+        case PARTIAL:
+        case FINAL:
+            return processRequest(request);
+        case W_HEARTBEAT:
+            // Do nothing for heartbeats
+            return Collections.emptyList();
+        case DISCONNECT:
+            // TODO: check whether to reconnect or to connect permanently
+            reconnectToBroker();
+            return Collections.emptyList();
+        case READY:
+        case SUBSCRIBE:
+        case UNSUBSCRIBE:
+        case UNKNOWN:
+            // N.B. not too verbose logging since we do not want that sloppy clients
+            // can bring down the broker through warning or info messages
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.atWarn().addArgument(getServiceName()).addArgument(request.command).log("service '{}' erroneously received {} command - should be handled in Majordomo broker");
+            }
+            return Collections.emptyList();
+        default:
+        }
+        throw new IllegalStateException("should not reach here - request message = " + request);
+    }
+
+    protected boolean handleSubscriptionMsg(final ZMsg subMsg) { // NOPMD
+        if (subMsg == null || subMsg.isEmpty()) {
+            return false;
+        }
+        final byte[] topicBytes = subMsg.getFirst().getData();
+        if (topicBytes.length == 0) {
+            return false;
+        }
+        final Command subType = topicBytes[0] == 1 ? SUBSCRIBE : (topicBytes[0] == 0 ? UNSUBSCRIBE : UNKNOWN); // '1'('0' being the default ZeroMQ (un-)subscribe command
+        final String subscriptionTopic = new String(topicBytes, 1, topicBytes.length - 1, UTF_8);
+        if (LOGGER.isDebugEnabled() && (subscriptionTopic.isBlank() || subscriptionTopic.contains(getServiceName()))) {
+            LOGGER.atDebug().addArgument(getServiceName()).addArgument(subType).addArgument(subscriptionTopic).log("Service '{}' received subscription request: {} to '{}'");
+        }
+
+        if (!subscriptionTopic.isBlank() && !subscriptionTopic.startsWith(getServiceName())) {
+            // subscription topic for another service
+            return false;
+        }
+        switch (subType) {
+        case SUBSCRIBE:
+            activeSubscriptions.add(subscriptionTopic);
+            return true;
+        case UNSUBSCRIBE:
+            activeSubscriptions.remove(subscriptionTopic);
+            return true;
+        case UNKNOWN:
+        default:
+            return false;
+        }
+    }
+
+    protected boolean notifyRaw(@NotNull final MdpMessage notifyMessage) {
         assert notifyMessage != null : "notify message must not be null";
-        notifyMessage.send(notifySocket);
+        return notifyMessage.send(notifySocket);
+    }
+
+    protected List<MdpMessage> processRequest(final MdpMessage request) {
+        // de-serialise byte[] -> PropertyMap() (+ getObject(Class<?>))
+        try {
+            final Context mdpCtx = new Context(request);
+            getRequestHandler().handle(mdpCtx);
+            return mdpCtx.rep == null ? Collections.emptyList() : List.of(mdpCtx.rep);
+        } catch (Throwable e) { // NOPMD on purpose since we want to catch exceptions and courteously return this to the user
+            final StringWriter sw = new StringWriter();
+            final PrintWriter pw = new PrintWriter(sw);
+            e.printStackTrace(pw);
+            final String exceptionMsg = ANSI_RED + getClass().getName() + " caught exception for service '" + getServiceName()
+                                        + "'\nrequest msg: " + request + "\nexception: " + sw.toString() + ANSI_RESET;
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.atError().addArgument(exceptionMsg).log("could not processRequest(MdpMessage) - exception thrown:\n{}");
+            }
+            return List.of(new MdpMessage(request.senderID, request.protocol, FINAL, request.serviceNameBytes, request.clientRequestID, request.topic, null, exceptionMsg, RBAC));
+        }
     }
 
     /**
@@ -323,10 +346,11 @@ public class BasicMdpWorker extends Thread {
         if (workerSocket != null) {
             workerSocket.close();
         }
+        final String translatedBrokerAddress = brokerAddress.replace(SCHEME_MDP, SCHEME_TCP).replace(SCHEME_MDS, SCHEME_TCP);
         workerSocket = ctx.createSocket(SocketType.DEALER);
         assert workerSocket != null : "worker socket is null";
         workerSocket.setHWM(0);
-        workerSocket.connect(brokerAddress + MajordomoBroker.SUFFIX_ROUTER);
+        workerSocket.connect(translatedBrokerAddress + MajordomoBroker.SUFFIX_ROUTER);
 
         if (pubSocket != null) {
             pubSocket.close();
@@ -335,7 +359,7 @@ public class BasicMdpWorker extends Thread {
         assert pubSocket != null : "publication socket is null";
         pubSocket.setHWM(0);
         pubSocket.setXpubVerbose(true);
-        pubSocket.connect(brokerAddress + MajordomoBroker.SUFFIX_SUBSCRIBE);
+        pubSocket.connect(translatedBrokerAddress + MajordomoBroker.SUFFIX_SUBSCRIBE);
 
         // Register service with broker
         LOGGER.atInfo().addArgument(brokerAddress).log("register service with broker '{}");
@@ -354,32 +378,6 @@ public class BasicMdpWorker extends Thread {
         // If liveness hits zero, queue is considered disconnected
         liveness = HEARTBEAT_LIVENESS;
         heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
-    }
-
-    private boolean handleSubscriptionMsg(final ZMsg subMsg) {
-        final byte[] topicBytes = subMsg.getFirst().getData();
-        if (topicBytes.length == 0) {
-            return false;
-        }
-        final Command subType = topicBytes[0] == 1 ? SUBSCRIBE : (topicBytes[0] == 0 ? UNSUBSCRIBE : UNKNOWN); // '1'('0' being the default ZeroMQ (un-)subscribe command
-        final String subscriptionTopic = new String(topicBytes, 1, topicBytes.length - 1, UTF_8);
-        LOGGER.atDebug().addArgument(getServiceName()).addArgument(subType).addArgument(subscriptionTopic).log("Service '{}' received subscription request: {} to '{}'");
-
-        if (!subscriptionTopic.isBlank() && !subscriptionTopic.startsWith(getServiceName())) {
-            // subscription topic for another service
-            return false;
-        }
-        switch (subType) {
-        case SUBSCRIBE:
-            activeSubscriptions.add(subscriptionTopic);
-            return true;
-        case UNSUBSCRIBE:
-            activeSubscriptions.remove(subscriptionTopic);
-            return true;
-        case UNKNOWN:
-        default:
-            return false;
-        }
     }
 
     public interface RequestHandler {
