@@ -167,6 +167,7 @@
                         ${argLine}
                         --add-opens io.opencmw.serialiser/io.opencmw.serialiser=ALL-UNNAMED
                         --add-opens io.opencmw.serialiser/io.opencmw.serialiser.spi=ALL-UNNAMED
+                        --add-opens io.opencmw.serialiser/io.opencmw.serialiser.spi.helper=ALL-UNNAMED
                         --add-opens io.opencmw.serialiser/io.opencmw.serialiser.spi.iobuffer=ALL-UNNAMED
                         --add-opens io.opencmw.serialiser/io.opencmw.serialiser.annotations=ALL-UNNAMED
                         --add-opens io.opencmw/io.opencmw=ALL-UNNAMED
