@@ -297,7 +297,7 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public <E> void put(final String fieldName, final Collection<E> collection, final Type valueType) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\", ").append("[");
+        builder.append('\"').append(fieldName).append("\": ").append("[");
         if (collection == null || collection.isEmpty()) {
             builder.append(']');
             return;
@@ -321,7 +321,7 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public <K, V, E> void put(final String fieldName, final Map<K, V> map, final Type keyType, final Type valueType) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\", ").append('{');
+        builder.append('\"').append(fieldName).append("\": ").append('{');
         if (map == null || map.isEmpty()) {
             builder.append('}');
             return;
