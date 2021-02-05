@@ -305,9 +305,10 @@ public class JsonSerialiser implements IoSerialiser {
             return;
         }
         final Iterator<E> iter = collection.iterator();
-        builder.append(iter.next().toString());
+        serialiseObject(iter.next());
         while (iter.hasNext()) {
-            builder.append(", ").append(iter.next().toString());
+            builder.append(", ");
+            serialiseObject(iter.next());
         }
         builder.append(']');
         hasFieldBefore = true;
@@ -829,13 +830,23 @@ public class JsonSerialiser implements IoSerialiser {
     }
 
     public void serialiseObject(final Object obj) {
+        if (builder.length() > 0) {
+            final byte[] outputStrBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
+            buffer.ensureAdditionalCapacity(outputStrBytes.length);
+            System.arraycopy(outputStrBytes, 0, buffer.elements(), buffer.position(), outputStrBytes.length);
+            buffer.position(buffer.position() + outputStrBytes.length);
+            builder.setLength(0);
+        } else {
+            hasFieldBefore = false;
+            indentation = "";
+        }
         if (obj == null) {
             // serialise null object
-            builder.setLength(0);
             builder.append(NULL);
             byte[] bytes = builder.toString().getBytes(Charset.defaultCharset());
             System.arraycopy(bytes, 0, buffer.elements(), buffer.position(), bytes.length);
             buffer.position(buffer.position() + bytes.length);
+            builder.setLength(0);
             return;
         }
         try (ByteBufferOutputStream byteOutputStream = new ByteBufferOutputStream(java.nio.ByteBuffer.wrap(buffer.elements()), false)) {
