@@ -4,15 +4,7 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiFunction;
 
 import io.opencmw.serialiser.DataType;
@@ -40,6 +32,7 @@ public class JsonSerialiser implements IoSerialiser {
     private static final char BRACKET_OPEN = '{';
     private static final char BRACKET_CLOSE = '}';
     private static final String LINE_BREAK = System.getProperty("line.separator");
+    private static final String NULL = "null";
     private final StringBuilder builder = new StringBuilder(DEFAULT_INITIAL_CAPACITY);
     private IoBuffer buffer;
     private boolean putFieldMetaData = true;
@@ -233,10 +226,6 @@ public class JsonSerialiser implements IoSerialiser {
     @SuppressWarnings("unchecked")
     public <E> Queue<E> getQueue(final Queue<E> collection) {
         return tempRoot.get(queryFieldName).as(ArrayDeque.class);
-    }
-
-    public String getSerialisedString() {
-        return buffer.toString();
     }
 
     @Override
@@ -842,10 +831,10 @@ public class JsonSerialiser implements IoSerialiser {
         if (obj == null) {
             // serialise null object
             builder.setLength(0);
-            builder.append(BRACKET_OPEN).append(BRACKET_CLOSE);
-            byte[] bytes = getSerialisedString().getBytes(Charset.defaultCharset());
+            builder.append(NULL);
+            byte[] bytes = builder.toString().getBytes(Charset.defaultCharset());
             System.arraycopy(bytes, 0, buffer.elements(), buffer.position(), bytes.length);
-            buffer.position(bytes.length);
+            buffer.position(buffer.position() + bytes.length);
             return;
         }
         try (ByteBufferOutputStream byteOutputStream = new ByteBufferOutputStream(java.nio.ByteBuffer.wrap(buffer.elements()), false)) {
