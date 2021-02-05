@@ -27,7 +27,7 @@ import de.gsi.dataset.utils.ByteBufferOutputStream;
 public class JsonSerialiser implements IoSerialiser {
     public static final String NOT_A_JSON_COMPATIBLE_PROTOCOL = "Not a JSON compatible protocol";
     public static final String JSON_ROOT = "JSON_ROOT";
-    private static final int DEFAULT_INITIAL_CAPACITY = 10000;
+    private static final int DEFAULT_INITIAL_CAPACITY = 10_000;
     private static final int DEFAULT_INDENTATION = 2;
     private static final char BRACKET_OPEN = '{';
     private static final char BRACKET_CLOSE = '}';
@@ -37,12 +37,12 @@ public class JsonSerialiser implements IoSerialiser {
     private static final String LINE_BREAK = System.getProperty("line.separator");
     private final StringBuilder builder = new StringBuilder(DEFAULT_INITIAL_CAPACITY);
     private IoBuffer buffer;
-    private Any root = null;
-    private Any tempRoot = null;
+    private Any root;
+    private Any tempRoot;
     private WireDataFieldDescription parent;
     private WireDataFieldDescription lastFieldHeader;
-    private String queryFieldName = null;
-    private boolean hasFieldBefore = false;
+    private String queryFieldName;
+    private boolean hasFieldBefore;
     private String indentation = "";
     private BiFunction<Type, Type[], FieldSerialiser<Object>> fieldSerialiserLookupFunction;
 
@@ -918,7 +918,8 @@ public class JsonSerialiser implements IoSerialiser {
                 new WireDataFieldDescription(this, putStartMarker, childName.hashCode(), childName, DataType.fromClassType(data.getClass()), 0, -1, -1);
             }
         }
-        //add if necessary new WireDataFieldDescription(this, fieldRoot, fieldName.hashCode(), fieldName, DataType.END_MARKER, 0, -1, -1)
+        // add if necessary:
+        // new WireDataFieldDescription(this, fieldRoot, fieldName.hashCode(), fieldName, DataType.END_MARKER, 0, -1, -1)
     }
 
     @Override
