@@ -812,8 +812,15 @@ public class JsonSerialiser implements IoSerialiser {
 
     @Override
     public void putHeaderInfo(final FieldDescription... field) {
-        hasFieldBefore = false;
-        indentation = "";
+        if (builder.length() > 0) {
+            final byte[] outputStrBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
+            buffer.ensureAdditionalCapacity(outputStrBytes.length);
+            System.arraycopy(outputStrBytes, 0, buffer.elements(), buffer.position(), outputStrBytes.length);
+            buffer.position(buffer.position() + outputStrBytes.length);
+        } else {
+            hasFieldBefore = false;
+            indentation = "";
+        }
         builder.setLength(0);
         putStartMarker(null);
     }
