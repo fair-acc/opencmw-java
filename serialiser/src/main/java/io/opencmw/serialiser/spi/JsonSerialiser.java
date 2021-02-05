@@ -35,7 +35,6 @@ public class JsonSerialiser implements IoSerialiser {
     private static final String NULL = "null";
     private final StringBuilder builder = new StringBuilder(DEFAULT_INITIAL_CAPACITY);
     private IoBuffer buffer;
-    private boolean putFieldMetaData = true;
     private Any root = null;
     private Any tempRoot = null;
     private WireDataFieldDescription parent;
@@ -261,7 +260,7 @@ public class JsonSerialiser implements IoSerialiser {
 
     @Override
     public boolean isPutFieldMetaData() {
-        return putFieldMetaData;
+        return false;
     }
 
     @Override
@@ -853,7 +852,7 @@ public class JsonSerialiser implements IoSerialiser {
 
     @Override
     public void setPutFieldMetaData(final boolean putFieldMetaData) {
-        this.putFieldMetaData = putFieldMetaData;
+        // json does not support metadata
     }
 
     @Override
