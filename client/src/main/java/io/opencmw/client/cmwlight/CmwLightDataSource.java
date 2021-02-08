@@ -1,6 +1,8 @@
 package io.opencmw.client.cmwlight;
 
 import java.net.InetAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.Collections;
@@ -37,20 +39,20 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     private static final Logger LOGGER = LoggerFactory.getLogger(CmwLightDataSource.class);
     private static final AtomicLong CONNECTION_ID_GENERATOR = new AtomicLong(0); // global counter incremented for each connection
     private static final AtomicInteger REQUEST_ID_GENERATOR = new AtomicInteger(0);
-    public static final String RDA_3_PROTOCOL = "rda3://";
+    public static final String RDA_3_PROTOCOL = "rda3";
     public static final Factory FACTORY = new Factory() {
         @Override
-        public boolean matches(final String endpoint) {
-            return endpoint.startsWith(RDA_3_PROTOCOL);
+        public boolean matches(final URI endpoint) {
+            return endpoint.getScheme().equals(RDA_3_PROTOCOL);
         }
 
         @Override
-        public Class<? extends IoSerialiser> getMatchingSerialiserType(final String endpoint) {
+        public Class<? extends IoSerialiser> getMatchingSerialiserType(final URI endpoint) {
             return CmwLightSerialiser.class;
         }
 
         @Override
-        public DataSource newInstance(final ZContext context, final String endpoint, final Duration timeout, final String clientId) {
+        public DataSource newInstance(final ZContext context, final URI endpoint, final Duration timeout, final String clientId) {
             return new CmwLightDataSource(context, endpoint, clientId);
         }
     };
@@ -75,13 +77,13 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     private final Map<Long, Request> pendingRequests = new HashMap<>(); // NOPMD - only accessed from main thread
     private String connectedAddress = "";
 
-    public CmwLightDataSource(final ZContext context, final String endpoint, final String clientId) {
+    public CmwLightDataSource(final ZContext context, final URI endpoint, final String clientId) {
         super(endpoint);
         LOGGER.atTrace().addArgument(endpoint).log("connecting to: {}");
         this.context = context;
         this.socket = context.createSocket(SocketType.DEALER);
         this.sessionId = getSessionId(clientId);
-        this.address = new Endpoint(endpoint).getAddress();
+        this.address = endpoint.getAuthority();
     }
 
     public static DirectoryLightClient getDirectoryLightClient() {
@@ -150,9 +152,13 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         switch (reply.requestType) {
         case REPLY:
             Request requestForReply = pendingRequests.remove(reply.id);
-            return createInternalMsg(requestForReply.requestId,
-                    new Endpoint(requestForReply.endpoint).getEndpointForContext(reply.dataContext.cycleName),
-                    null, reply.bodyData, null);
+            try {
+                return createInternalMsg(requestForReply.requestId,
+                        new URI(new Endpoint(requestForReply.endpoint.toString()).getEndpointForContext(reply.dataContext.cycleName)),
+                        null, reply.bodyData, null);
+            } catch (URISyntaxException e) {
+                e.printStackTrace();
+            }
         case EXCEPTION:
             final Request requestForException = pendingRequests.remove(reply.id);
             return createInternalMsg(requestForException.requestId, requestForException.endpoint, null, null, reply.exceptionMessage.message);
@@ -177,7 +183,13 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                 LOGGER.atInfo().addArgument(reply.toString()).log("Got unsolicited subscription data: {}");
                 return new ZMsg();
             }
-            final String endpointForNotificationContext = new Endpoint(subscriptionForNotification.endpoint).getEndpointForContext(reply.dataContext.cycleName);
+            final URI endpointForNotificationContext;
+            try {
+                endpointForNotificationContext = new URI(new Endpoint(subscriptionForNotification.endpoint.toString()).getEndpointForContext(reply.dataContext.cycleName));
+            } catch (URISyntaxException e) {
+                e.printStackTrace();
+                return new ZMsg();
+            }
             return createInternalMsg(subscriptionForNotification.idString, endpointForNotificationContext, null, reply.bodyData, null);
         case NOTIFICATION_EXC:
             final Subscription subscriptionForNotifyExc = replyIdMap.get(reply.id);
@@ -204,10 +216,10 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         }
     }
 
-    private ZMsg createInternalMsg(final String reqId, final String endpoint, final byte[] header, final ZFrame body, final String exception) {
+    private ZMsg createInternalMsg(final String reqId, final URI endpoint, final byte[] header, final ZFrame body, final String exception) {
         final ZMsg result = new ZMsg();
         result.add(reqId);
-        result.add(endpoint);
+        result.add(endpoint.toString());
         result.add(header == null ? new byte[0] : header);
         result.add(body == null ? new ZFrame(new byte[0]) : body);
         result.add(exception == null ? new ZFrame(new byte[0]) : new ZFrame(exception));
@@ -221,20 +233,20 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     }
 
     @Override
-    public void get(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+    public void get(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
         final Request request = new Request(CmwLightProtocol.RequestType.GET, requestId, endpoint, filters, data, rbacToken);
         queuedRequests.add(request);
     }
 
     @Override
-    public void set(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+    public void set(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
         final Request request = new Request(CmwLightProtocol.RequestType.SET, requestId, endpoint, filters, data, rbacToken);
         queuedRequests.add(request);
     }
 
     @Override
-    public void subscribe(final String reqId, final String endpoint, final byte[] rbacToken) {
-        final Endpoint ep = new Endpoint(endpoint);
+    public void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken) {
+        final Endpoint ep = new Endpoint(endpoint.toString());
         final Subscription sub = new Subscription(endpoint, ep.getDevice(), ep.getProperty(), ep.getSelector(), ep.getFilters());
         sub.idString = reqId;
         subscriptions.put(sub.id, sub);
@@ -285,7 +297,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         if (connectionState.getAndSet(ConnectionState.CONNECTING) != ConnectionState.DISCONNECTED) {
             return; // already connected
         }
-        String address = this.address.startsWith(RDA_3_PROTOCOL) ? this.address.substring(RDA_3_PROTOCOL.length()) : this.address;
+        String address = this.address;
         if (!address.contains(":")) {
             try {
                 DirectoryLightClient.Device device = directoryLightClient.getDeviceInfo(Collections.singletonList(address)).get(0);
@@ -376,7 +388,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         // Filters and data are already serialised but the protocol saves them deserialised :/
         // final ZFrame data = request.data == null ? new ZFrame(new byte[0]) : new ZFrame(request.data);
         // final ZFrame filters = request.filters == null ? new ZFrame(new byte[0]) : new ZFrame(request.filters);
-        final Endpoint requestEndpoint = new Endpoint(request.endpoint);
+        final Endpoint requestEndpoint = new Endpoint(request.endpoint.toString());
 
         try {
             switch (request.requestType) {
@@ -474,14 +486,14 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         public final String device;
         public final String selector;
         public final Map<String, Object> filters;
-        public final String endpoint;
+        public final URI endpoint;
         public SubscriptionState subscriptionState = SubscriptionState.UNSUBSCRIBED;
         public int backOff = 20;
         public long updateId = -1;
         public long timeoutValue = -1;
         public String idString = "";
 
-        public Subscription(final String endpoint, final String device, final String property, final String selector, final Map<String, Object> filters) {
+        public Subscription(final URI endpoint, final String device, final String property, final String selector, final Map<String, Object> filters) {
             this.endpoint = endpoint;
             this.property = property;
             this.device = device;
@@ -501,13 +513,13 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         public final byte[] data;
         public final long id;
         private final String requestId;
-        private final String endpoint;
+        private final URI endpoint;
         private final byte[] rbacToken;
         public final CmwLightProtocol.RequestType requestType;
 
         public Request(final CmwLightProtocol.RequestType requestType,
                 final String requestId,
-                final String endpoint,
+                final URI endpoint,
                 final byte[] filters, // NOPMD - zero copy contract
                 final byte[] data, // NOPMD - zero copy contract
                 final byte[] rbacToken) { // NOPMD - zero copy contract

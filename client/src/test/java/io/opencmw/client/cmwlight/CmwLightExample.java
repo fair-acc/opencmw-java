@@ -1,5 +1,7 @@
 package io.opencmw.client.cmwlight;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -17,17 +19,17 @@ public class CmwLightExample { // NOPMD is not a utility class but a sample
     private final static String PROPERTY = "AcquisitionDAQ";
     private final static String SELECTOR = "FAIR.SELECTOR.ALL";
 
-    public static void main(String[] args) throws DirectoryLightClient.DirectoryClientException {
+    public static void main(String[] args) throws DirectoryLightClient.DirectoryClientException, URISyntaxException {
         subscribeAcqFromDigitizer();
     }
 
-    public static void subscribeAcqFromDigitizer() throws DirectoryLightClient.DirectoryClientException {
+    public static void subscribeAcqFromDigitizer() throws DirectoryLightClient.DirectoryClientException, URISyntaxException {
         final DirectoryLightClient directoryClient = new DirectoryLightClient(CMW_NAMESERVER);
         DirectoryLightClient.Device device = directoryClient.getDeviceInfo(Collections.singletonList(DEVICE)).get(0);
         System.out.println(device);
         final String address = device.servers.stream().findFirst().orElseThrow().get("Address:");
         System.out.println("connect client to " + address);
-        final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), address, "testclient");
+        final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), new URI(address), "testclient");
         final ZMQ.Poller poller = client.getContext().createPoller(1);
         poller.register(client.getSocket(), ZMQ.Poller.POLLIN);
         client.connect();
@@ -36,8 +38,8 @@ public class CmwLightExample { // NOPMD is not a utility class but a sample
         // 4 = Triggered Acquisition Mode; 0 = Continuous Acquisition mode
         String filtersString = "acquisitionModeFilter=int:0&channelNameFilter=GS11MU2:Current_1@10Hz";
         String filters2String = "acquisitionModeFilter=int:0&channelNameFilter=GS11MU2:Voltage_1@10Hz";
-        client.subscribe("r1", "rda3://" + DEVICE + '/' + DEVICE + '/' + PROPERTY + "?ctx=" + SELECTOR + "&" + filtersString, null);
-        client.subscribe("r1", "rda3://" + DEVICE + '/' + DEVICE + '/' + PROPERTY + "?ctx=" + SELECTOR + "&" + filters2String, null);
+        client.subscribe("r1", new URI("rda3://", DEVICE, DEVICE + '/' + PROPERTY, "?ctx=" + SELECTOR + "&" + filtersString, null), null);
+        client.subscribe("r2", new URI("rda3://", DEVICE, DEVICE + '/' + PROPERTY, "?ctx=" + SELECTOR + "&" + filters2String, null), null);
         client.subscriptions.forEach((id, c) -> System.out.println(id + " -> " + c));
 
         int i = 0;

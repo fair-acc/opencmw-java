@@ -6,18 +6,17 @@ import io.opencmw.serialiser.IoSerialiser;
 public class DataSourceFilter implements Filter {
     public ReplyType eventType = ReplyType.UNKNOWN;
     public Class<? extends IoSerialiser> protocolType;
-    public String device;
-    public String property;
-    public DataSourcePublisher.ThePromisedFuture<?> future;
-    public String context;
+    public String endpoint = "";
+    public DataSourcePublisher.ThePromisedFuture<?, ?> future;
+    public long arrivalTimestamp;
 
     @Override
     public void clear() {
         eventType = ReplyType.UNKNOWN;
-        device = "UNKNOWN";
-        property = "UNKNOWN";
+        protocolType = null; // NOPMD - have to clear the future because the events are reused
+        endpoint = ""; // NOPMD - have to clear the future because the events are reused
         future = null; // NOPMD - have to clear the future because the events are reused
-        context = "";
+        arrivalTimestamp = -1L;
     }
 
     @Override
@@ -25,10 +24,10 @@ public class DataSourceFilter implements Filter {
         if (other instanceof DataSourceFilter) {
             final DataSourceFilter otherDSF = (DataSourceFilter) other;
             otherDSF.eventType = eventType;
-            otherDSF.device = device;
-            otherDSF.property = property;
+            otherDSF.endpoint = endpoint;
             otherDSF.future = future;
-            otherDSF.context = context;
+            otherDSF.protocolType = protocolType;
+            otherDSF.arrivalTimestamp = arrivalTimestamp;
         }
     }
 

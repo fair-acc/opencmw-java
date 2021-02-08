@@ -2,6 +2,8 @@ package io.opencmw.client.cmwlight;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Map;
@@ -10,19 +12,22 @@ import java.util.concurrent.locks.LockSupport;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.zeromq.*;
 
 import io.opencmw.client.Endpoint;
 
 class CmwLightDataSourceTest {
+    final static Logger LOGGER = LoggerFactory.getLogger(CmwLightDataSourceTest.class);
     @Test
-    void testCmwLightSubscription() throws CmwLightProtocol.RdaLightException {
+    void testCmwLightSubscription() throws CmwLightProtocol.RdaLightException, URISyntaxException {
         // setup zero mq socket to mock cmw server
         ZContext context = new ZContext(1);
         ZMQ.Socket socket = context.createSocket(SocketType.DEALER);
         socket.bind("tcp://localhost:7777");
 
-        final CmwLightDataSource client = new CmwLightDataSource(context, "rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1", "testClientId");
+        final CmwLightDataSource client = new CmwLightDataSource(context, new URI("rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1"), "testClientId");
 
         client.connect();
         client.housekeeping();
@@ -48,7 +53,7 @@ class CmwLightDataSourceTest {
 
         // request subscription
         final String reqId = "testId";
-        final String endpoint = "rda3://localhost:7777/testdevice/testprop?ctx=FAIR.SELECTOR.ALL&nFilter=int:1";
+        final URI endpoint = new URI("rda3://localhost:7777/testdevice/testprop?ctx=FAIR.SELECTOR.ALL&nFilter=int:1");
         client.subscribe(reqId, endpoint, null);
 
         final CmwLightMessage subMsg = getNextNonHeartbeatMsg(socket, client, false);
@@ -79,12 +84,14 @@ class CmwLightDataSourceTest {
                 client.housekeeping(); // allow the subscription to be sent out
 
                 return reply.size() == 5 && reply.pollFirst().getString(Charset.defaultCharset()).equals("testId")
-                        && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals(new Endpoint(endpoint).getEndpointForContext(cycleName))
+                        && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals(new Endpoint(endpoint.toString()).getEndpointForContext(cycleName))
                         && Objects.requireNonNull(reply.pollFirst()).getData().length == 0
                         && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals("data")
                         && Objects.requireNonNull(reply.pollFirst()).getData().length == 0;
             });
         }
+
+        context.close();
     }
 
     /*

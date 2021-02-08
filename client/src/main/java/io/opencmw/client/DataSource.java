@@ -1,5 +1,7 @@
 package io.opencmw.client;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.List;
 
@@ -26,8 +28,8 @@ public abstract class DataSource {
      * Constructor
      * @param endpoint Endpoint to subscribe to
      */
-    public DataSource(final String endpoint) {
-        if (endpoint == null || endpoint.isBlank() || !getFactory().matches(endpoint)) {
+    public DataSource(final URI endpoint) {
+        if (endpoint == null || !getFactory().matches(endpoint)) {
             throw new UnsupportedOperationException(this.getClass().getName() + " DataSource Implementation does not support endpoint: " + endpoint);
         }
     }
@@ -39,7 +41,7 @@ public abstract class DataSource {
      *         Instance of this DataSource
      * @throws UnsupportedOperationException in case there is no valid implementation
      */
-    public static Factory getFactory(final String endpoint) {
+    public static Factory getFactory(final URI endpoint) {
         for (Factory factory : IMPLEMENTATIONS) {
             if (factory.matches(endpoint)) {
                 return factory;
@@ -81,7 +83,7 @@ public abstract class DataSource {
      * @param reqId the id to join the result of this subscribe with
      * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
      */
-    public abstract void subscribe(final String reqId, final String endpoint, final byte[] rbacToken);
+    public abstract void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken);
 
     /**
      * Unsubscribe from the endpoint of this DataSource.
@@ -97,7 +99,7 @@ public abstract class DataSource {
      * @param data The serialised data which can be used by the get call
      * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
      */
-    public abstract void get(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken);
+    public abstract void get(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken);
 
     /**
      * Perform a set request on this endpoint using additional filters
@@ -108,11 +110,11 @@ public abstract class DataSource {
      * @param data The serialised data which can be used by the get call
      * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
      */
-    public abstract void set(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken);
+    public abstract void set(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken);
 
     protected interface Factory {
-        boolean matches(final String endpoint);
-        Class<? extends IoSerialiser> getMatchingSerialiserType(final String endpoint);
-        DataSource newInstance(final ZContext context, final String endpoint, final Duration timeout, final String clientId);
+        boolean matches(final URI endpoint);
+        Class<? extends IoSerialiser> getMatchingSerialiserType(final URI endpoint);
+        DataSource newInstance(final ZContext context, final URI endpoint, final Duration timeout, final String clientId);
     }
 }
