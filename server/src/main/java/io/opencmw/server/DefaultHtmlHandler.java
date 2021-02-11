@@ -52,7 +52,7 @@ public class DefaultHtmlHandler<C, I, O> implements MajordomoWorker.Handler<C, I
 
         context.put(NO_MENU, noMenu);
         try {
-            context.put("requestedURI",rawCtx.req.topic.toString());
+            context.put("requestedURI", rawCtx.req.topic.toString());
             context.put("requestedURInoFrame", QueryParameterParser.appendQueryParameter(rawCtx.req.topic, NO_MENU).toString());
         } catch (URISyntaxException e) {
             throw new IllegalStateException("appendURI error for " + rawCtx.req.topic, e);

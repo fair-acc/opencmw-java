@@ -1,14 +1,14 @@
 package io.opencmw.server;
 
-import static io.opencmw.server.MajordomoBroker.SCHEME_MDP;
-import static io.opencmw.server.MajordomoBroker.SCHEME_MDS;
-import static io.opencmw.server.MajordomoBroker.SCHEME_TCP;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
+import static io.opencmw.server.MajordomoBroker.SCHEME_MDP;
+import static io.opencmw.server.MajordomoBroker.SCHEME_MDS;
+import static io.opencmw.server.MajordomoBroker.SCHEME_TCP;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
 

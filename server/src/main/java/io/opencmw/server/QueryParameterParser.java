@@ -83,7 +83,7 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         CLASS_TO_STRING_CONVERTER.put(Long.class, objToString);
         CLASS_TO_STRING_CONVERTER.put(Float.class, objToString);
         CLASS_TO_STRING_CONVERTER.put(Double.class, objToString);
-        CLASS_TO_STRING_CONVERTER.put(String.class, (obj, field) -> Objects.requireNonNullElse(field.getField().get(obj),"").toString());
+        CLASS_TO_STRING_CONVERTER.put(String.class, (obj, field) -> Objects.requireNonNullElse(field.getField().get(obj), "").toString());
 
         CLASS_TO_OBJECT_CONVERTER.put(boolean.class, (obj, field) -> field.getField().getBoolean(obj));
         CLASS_TO_OBJECT_CONVERTER.put(byte.class, (obj, field) -> field.getField().getByte(obj));

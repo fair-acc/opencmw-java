@@ -18,8 +18,8 @@ class MimeTypeTests {
         assertNotNull(mType.toString());
         final String mimeTypeName = "'" + mType + "'";
 
-            assertEquals(mType, MimeType.getEnum(mType.toString()), "getEnum: mType = " + mimeTypeName);
-            assertEquals(mType, MimeType.getEnum(mType.name()), "getEnum: mType = " + mimeTypeName);
+        assertEquals(mType, MimeType.getEnum(mType.toString()), "getEnum: mType = " + mimeTypeName);
+        assertEquals(mType, MimeType.getEnum(mType.name()), "getEnum: mType = " + mimeTypeName);
 
         assertNotNull(mType.getDescription(), "description: mType = " + mimeTypeName);
         assertNotNull(mType.getType(), "type: mType = " + mimeTypeName);
