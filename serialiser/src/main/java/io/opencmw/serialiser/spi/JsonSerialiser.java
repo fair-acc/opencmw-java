@@ -4,15 +4,7 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiFunction;
 
 import io.opencmw.serialiser.DataType;
@@ -35,20 +27,22 @@ import de.gsi.dataset.utils.ByteBufferOutputStream;
 public class JsonSerialiser implements IoSerialiser {
     public static final String NOT_A_JSON_COMPATIBLE_PROTOCOL = "Not a JSON compatible protocol";
     public static final String JSON_ROOT = "JSON_ROOT";
-    private static final int DEFAULT_INITIAL_CAPACITY = 10000;
+    private static final int DEFAULT_INITIAL_CAPACITY = 10_000;
     private static final int DEFAULT_INDENTATION = 2;
     private static final char BRACKET_OPEN = '{';
     private static final char BRACKET_CLOSE = '}';
+    public static final char QUOTE = '\"';
+    private static final String NULL = "null";
+    private static final String ASSIGN = ": ";
     private static final String LINE_BREAK = System.getProperty("line.separator");
     private final StringBuilder builder = new StringBuilder(DEFAULT_INITIAL_CAPACITY);
     private IoBuffer buffer;
-    private boolean putFieldMetaData = true;
-    private Any root = null;
-    private Any tempRoot = null;
+    private Any root;
+    private Any tempRoot;
     private WireDataFieldDescription parent;
     private WireDataFieldDescription lastFieldHeader;
-    private String queryFieldName = null;
-    private boolean hasFieldBefore = false;
+    private String queryFieldName;
+    private boolean hasFieldBefore;
     private String indentation = "";
     private BiFunction<Type, Type[], FieldSerialiser<Object>> fieldSerialiserLookupFunction;
 
@@ -235,10 +229,6 @@ public class JsonSerialiser implements IoSerialiser {
         return tempRoot.get(queryFieldName).as(ArrayDeque.class);
     }
 
-    public String getSerialisedString() {
-        return buffer.toString();
-    }
-
     @Override
     @SuppressWarnings("unchecked")
     public <E> Set<E> getSet(final Set<E> collection) {
@@ -272,7 +262,7 @@ public class JsonSerialiser implements IoSerialiser {
 
     @Override
     public boolean isPutFieldMetaData() {
-        return putFieldMetaData;
+        return false;
     }
 
     @Override
@@ -309,16 +299,16 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public <E> void put(final String fieldName, final Collection<E> collection, final Type valueType) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\", ").append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN + "[");
         if (collection == null || collection.isEmpty()) {
             builder.append(']');
             return;
         }
         final Iterator<E> iter = collection.iterator();
-        builder.append(iter.next().toString());
-        E element;
-        while ((element = iter.next()) != null) {
-            builder.append(", ").append(element.toString());
+        serialiseObject(iter.next());
+        while (iter.hasNext()) {
+            builder.append(", ");
+            serialiseObject(iter.next());
         }
         builder.append(']');
         hasFieldBefore = true;
@@ -327,14 +317,14 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final Enum<?> enumeration) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append(enumeration);
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append(enumeration);
         hasFieldBefore = true;
     }
 
     @Override
     public <K, V, E> void put(final String fieldName, final Map<K, V> map, final Type keyType, final Type valueType) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\", ").append('{');
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN + '{');
         if (map == null || map.isEmpty()) {
             builder.append('}');
             return;
@@ -348,14 +338,14 @@ public class JsonSerialiser implements IoSerialiser {
             } else {
                 builder.append(", ");
             }
-            builder.append('\"').append(entry.getKey()).append('\"').append(':');
+            builder.append(QUOTE).append(entry.getKey()).append(QUOTE + ASSIGN);
 
-            switch (DataType.fromClassType((Class<?>) value)) {
+            switch (DataType.fromClassType(value.getClass())) {
             case CHAR:
                 builder.append((int) value);
                 break;
             case STRING:
-                builder.append('\"').append(entry.getValue()).append('\"');
+                builder.append(QUOTE).append(entry.getValue()).append(QUOTE);
                 break;
             default:
                 builder.append(value);
@@ -505,14 +495,14 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final boolean value) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append(value);
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append(value);
         hasFieldBefore = true;
     }
 
     @Override
     public void put(final String fieldName, final boolean[] values, final int n) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN + '[');
         if (values == null || values.length <= 0) {
             builder.append(']');
             return;
@@ -535,14 +525,14 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final byte value) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append(value);
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append(value);
         hasFieldBefore = true;
     }
 
     @Override
     public void put(final String fieldName, final byte[] values, final int n) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN + '[');
         if (values == null || values.length <= 0) {
             builder.append(']');
             return;
@@ -565,14 +555,14 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final char value) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append((int) value);
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append((int) value);
         hasFieldBefore = true;
     }
 
     @Override
     public void put(final String fieldName, final char[] values, final int n) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN + '[');
         if (values == null || values.length <= 0) {
             builder.append(']');
             return;
@@ -595,14 +585,14 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final double value) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append(value);
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append(value);
         hasFieldBefore = true;
     }
 
     @Override
     public void put(final String fieldName, final double[] values, final int n) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN + '[');
         if (values == null || values.length <= 0) {
             builder.append(']');
             return;
@@ -625,14 +615,14 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final float value) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append(value);
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append(value);
         hasFieldBefore = true;
     }
 
     @Override
     public void put(final String fieldName, final float[] values, final int n) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append("[");
         if (values == null || values.length <= 0) {
             builder.append(']');
             return;
@@ -655,14 +645,14 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final int value) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append(value);
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append(value);
         hasFieldBefore = true;
     }
 
     @Override
     public void put(final String fieldName, final int[] values, final int n) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append("[");
         if (values == null || values.length <= 0) {
             builder.append(']');
             return;
@@ -685,14 +675,14 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final long value) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append(value);
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append(value);
         hasFieldBefore = true;
     }
 
     @Override
     public void put(final String fieldName, final long[] values, final int n) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append("[");
         if (values == null || values.length <= 0) {
             builder.append(']');
             return;
@@ -715,14 +705,14 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final short value) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append(value);
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append(value);
         hasFieldBefore = true;
     }
 
     @Override
     public void put(final String fieldName, final short[] values, final int n) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append("[");
         if (values == null || values.length <= 0) {
             builder.append(']');
             return;
@@ -745,23 +735,23 @@ public class JsonSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final String string) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": \"").append(string).append('\"');
+        builder.append(QUOTE).append(fieldName).append("\": \"").append(string).append(QUOTE);
         hasFieldBefore = true;
     }
 
     @Override
     public void put(final String fieldName, final String[] values, final int n) {
         lineBreak();
-        builder.append('\"').append(fieldName).append("\": ").append("[");
+        builder.append(QUOTE).append(fieldName).append(QUOTE + ASSIGN).append("[");
         if (values == null || values.length <= 0) {
             builder.append(']');
             return;
         }
-        builder.append('\"').append(values[0]).append('\"');
+        builder.append(QUOTE).append(values[0]).append(QUOTE);
         final int valuesSize = values.length;
         final int nElements = n >= 0 ? Math.min(n, valuesSize) : valuesSize;
         for (int i = 1; i < nElements; i++) {
-            builder.append(", \"").append(values[i]).append('\"');
+            builder.append(", \"").append(values[i]).append(QUOTE);
         }
         builder.append(']');
         hasFieldBefore = true;
@@ -793,6 +783,7 @@ public class JsonSerialiser implements IoSerialiser {
         builder.append(LINE_BREAK).append(indentation).append(BRACKET_CLOSE).append(LINE_BREAK);
         hasFieldBefore = true;
         final byte[] outputStrBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
+        buffer.ensureAdditionalCapacity(outputStrBytes.length);
         System.arraycopy(outputStrBytes, 0, buffer.elements(), buffer.position(), outputStrBytes.length);
         buffer.position(buffer.position() + outputStrBytes.length);
         builder.setLength(0);
@@ -812,8 +803,15 @@ public class JsonSerialiser implements IoSerialiser {
 
     @Override
     public void putHeaderInfo(final FieldDescription... field) {
-        hasFieldBefore = false;
-        indentation = "";
+        if (builder.length() > 0) {
+            final byte[] outputStrBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
+            buffer.ensureAdditionalCapacity(outputStrBytes.length);
+            System.arraycopy(outputStrBytes, 0, buffer.elements(), buffer.position(), outputStrBytes.length);
+            buffer.position(buffer.position() + outputStrBytes.length);
+        } else {
+            hasFieldBefore = false;
+            indentation = "";
+        }
         builder.setLength(0);
         putStartMarker(null);
     }
@@ -822,7 +820,7 @@ public class JsonSerialiser implements IoSerialiser {
     public void putStartMarker(final FieldDescription fieldDescription) {
         lineBreak();
         if (fieldDescription != null) {
-            builder.append('\"').append(fieldDescription.getFieldName()).append("\": ");
+            builder.append(QUOTE).append(fieldDescription.getFieldName()).append(QUOTE + ASSIGN);
         }
         builder.append(BRACKET_OPEN);
         indentation = indentation + " ".repeat(DEFAULT_INDENTATION);
@@ -832,13 +830,23 @@ public class JsonSerialiser implements IoSerialiser {
     }
 
     public void serialiseObject(final Object obj) {
+        if (builder.length() > 0) {
+            final byte[] outputStrBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
+            buffer.ensureAdditionalCapacity(outputStrBytes.length);
+            System.arraycopy(outputStrBytes, 0, buffer.elements(), buffer.position(), outputStrBytes.length);
+            buffer.position(buffer.position() + outputStrBytes.length);
+            builder.setLength(0);
+        } else {
+            hasFieldBefore = false;
+            indentation = "";
+        }
         if (obj == null) {
             // serialise null object
-            builder.setLength(0);
-            builder.append(BRACKET_OPEN).append(BRACKET_CLOSE);
-            byte[] bytes = getSerialisedString().getBytes(Charset.defaultCharset());
+            builder.append(NULL);
+            byte[] bytes = builder.toString().getBytes(Charset.defaultCharset());
             System.arraycopy(bytes, 0, buffer.elements(), buffer.position(), bytes.length);
-            buffer.position(bytes.length);
+            buffer.position(buffer.position() + bytes.length);
+            builder.setLength(0);
             return;
         }
         try (ByteBufferOutputStream byteOutputStream = new ByteBufferOutputStream(java.nio.ByteBuffer.wrap(buffer.elements()), false)) {
@@ -857,7 +865,7 @@ public class JsonSerialiser implements IoSerialiser {
 
     @Override
     public void setPutFieldMetaData(final boolean putFieldMetaData) {
-        this.putFieldMetaData = putFieldMetaData;
+        // json does not support metadata
     }
 
     @Override
@@ -910,7 +918,8 @@ public class JsonSerialiser implements IoSerialiser {
                 new WireDataFieldDescription(this, putStartMarker, childName.hashCode(), childName, DataType.fromClassType(data.getClass()), 0, -1, -1);
             }
         }
-        //add if necessary new WireDataFieldDescription(this, fieldRoot, fieldName.hashCode(), fieldName, DataType.END_MARKER, 0, -1, -1)
+        // add if necessary:
+        // new WireDataFieldDescription(this, fieldRoot, fieldName.hashCode(), fieldName, DataType.END_MARKER, 0, -1, -1)
     }
 
     @Override
