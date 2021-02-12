@@ -6,6 +6,7 @@ import java.net.URI;
 import java.util.stream.Collectors;
 
 import io.opencmw.MimeType;
+import io.opencmw.QueryParameterParser;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.serialiser.annotations.MetaInfo;
 

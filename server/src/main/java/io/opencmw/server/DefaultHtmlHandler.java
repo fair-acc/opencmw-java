@@ -16,6 +16,7 @@ import org.apache.velocity.app.VelocityEngine;
 import org.zeromq.util.ZData;
 
 import io.opencmw.OpenCmwProtocol;
+import io.opencmw.QueryParameterParser;
 import io.opencmw.domain.BinaryData;
 import io.opencmw.serialiser.FieldDescription;
 import io.opencmw.serialiser.spi.ClassFieldDescription;

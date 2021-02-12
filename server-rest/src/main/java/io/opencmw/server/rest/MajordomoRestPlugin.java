@@ -61,7 +61,7 @@ import io.opencmw.serialiser.spi.ClassFieldDescription;
 import io.opencmw.serialiser.utils.ClassUtils;
 import io.opencmw.server.BasicMdpWorker;
 import io.opencmw.server.MajordomoWorker;
-import io.opencmw.server.QueryParameterParser;
+import io.opencmw.QueryParameterParser;
 import io.opencmw.server.rest.util.CombinedHandler;
 import io.opencmw.server.rest.util.MessageBundle;
 import io.opencmw.utils.CustomFuture;

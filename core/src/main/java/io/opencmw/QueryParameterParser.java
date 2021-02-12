@@ -1,4 +1,4 @@
-package io.opencmw.server;
+package io.opencmw;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.AbstractMap.SimpleImmutableEntry;
@@ -22,7 +22,6 @@ import javax.validation.constraints.NotNull;
 
 import org.apache.commons.lang3.StringUtils;
 
-import io.opencmw.MimeType;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.serialiser.FieldDescription;
 import io.opencmw.serialiser.spi.ClassFieldDescription;

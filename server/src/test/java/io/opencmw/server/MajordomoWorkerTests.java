@@ -39,6 +39,7 @@ import org.zeromq.util.ZData;
 
 import io.opencmw.MimeType;
 import io.opencmw.OpenCmwProtocol;
+import io.opencmw.QueryParameterParser;
 import io.opencmw.domain.BinaryData;
 import io.opencmw.domain.NoData;
 import io.opencmw.filter.TimingCtx;

@@ -1,4 +1,4 @@
-package io.opencmw.server;
+package io.opencmw;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -12,7 +12,6 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import io.opencmw.MimeType;
 import io.opencmw.filter.TimingCtx;
 
 class QueryParameterParserTest {
