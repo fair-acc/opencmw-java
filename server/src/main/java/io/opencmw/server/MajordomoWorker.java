@@ -6,7 +6,6 @@ import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
 
 import java.net.URI;
 import java.util.Arrays;
-
 import javax.validation.constraints.NotNull;
 
 import org.slf4j.Logger;
@@ -16,7 +15,6 @@ import org.zeromq.ZContext;
 import io.opencmw.MimeType;
 import io.opencmw.OpenCmwProtocol;
 import io.opencmw.OpenCmwProtocol.MdpMessage;
-import io.opencmw.domain.BinaryData;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoClassSerialiser;
@@ -154,18 +152,12 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
                 c.rep.data = Arrays.copyOf(defaultBuffer.elements(), defaultBuffer.limit());
                 break;
             case BINARY:
+            default:
                 serialiser.setMatchedIoSerialiser(BinarySerialiser.class);
                 serialiser.getMatchedIoSerialiser().setBuffer(defaultBuffer);
                 serialiser.serialiseObject(output);
                 defaultBuffer.flip();
                 c.rep.data = Arrays.copyOf(defaultBuffer.elements(), defaultBuffer.limit());
-                break;
-            case UNKNOWN:
-            default:
-                if (output instanceof BinaryData) {
-                    c.rep.data = ((BinaryData) output).data;
-                }
-                // return c.rep.data as defined in the user handler
                 break;
             }
         });

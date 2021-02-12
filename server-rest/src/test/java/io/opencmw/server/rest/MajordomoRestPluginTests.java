@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.ssl.*;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -100,31 +101,22 @@ class MajordomoRestPluginTests {
         final Response response = okHttp.newCall(request).execute();
         final Headers header = response.headers();
         final String body = Objects.requireNonNull(response.body()).string();
+
+        if (contentType == MimeType.TEXT) {
+            assertEquals(MimeType.HTML.getMediaType(), header.get("Content-Type"), "you get the content type you asked for");
+        } else {
+            assertEquals(contentType.getMediaType(), header.get("Content-Type"), "you get the content type you asked for");
+        }
+        assertThat(body, containsString("byteReturnType"));
+        assertThat(body, containsString("Hello World! The local time is:"));
+
         switch (contentType) {
-        case HTML:
-            assertEquals(MimeType.HTML.getMediaType(), header.get("Content-Type"));
-            assertThat(body, containsString("byteReturnType"));
-            assertThat(body, containsString("Hello World! The local time is:"));
-            break;
-        case BINARY:
-            assertEquals(MimeType.BINARY.getMediaType(), header.get("Content-Type"));
-            assertThat(body, containsString("byteReturnType"));
-            assertThat(body, containsString("Hello World! The local time is:"));
-            break;
         case JSON:
-            assertEquals(MimeType.JSON.getMediaType(), header.get("Content-Type"));
             assertThat(body, containsString("\"byteReturnType\": 42,"));
-            break;
-        case CMWLIGHT:
-            assertEquals(MimeType.CMWLIGHT.getMediaType(), header.get("Content-Type"));
-            assertThat(body, containsString("byteReturnType"));
-            assertThat(body, containsString("Hello World! The local time is:"));
             break;
         case TEXT:
             break;
-        case UNKNOWN:
         default:
-            assertEquals("", body);
             break;
         }
     }
@@ -191,7 +183,7 @@ class MajordomoRestPluginTests {
         EventSourceListener eventSourceListener = new EventSourceListener() {
             private final BlockingQueue<Object> events = new LinkedBlockingDeque<>();
             @Override
-            public void onEvent(final EventSource eventSource, final String id, final String type, String data) {
+            public void onEvent(final @NotNull EventSource eventSource, final String id, final String type, @NotNull String data) {
                 eventCounter.getAndIncrement();
             }
         };

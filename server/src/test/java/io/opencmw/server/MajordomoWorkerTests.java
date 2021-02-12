@@ -60,7 +60,6 @@ import io.opencmw.serialiser.spi.JsonSerialiser;
 class MajordomoWorkerTests {
     public static final String TEST_SERVICE_NAME = "basicHtml";
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoWorkerTests.class);
-    private static final byte[] UNKNOWN_REPLY = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
     private MajordomoBroker broker;
     private TestHtmlService basicHtmlService;
     private MajordomoTestClientSync clientSession;
@@ -185,9 +184,6 @@ class MajordomoWorkerTests {
         IoClassSerialiser serialiser = new IoClassSerialiser(ioBuffer);
         serialiser.setAutoMatchSerialiser(false);
         switch (contentType) {
-        case "":
-            // empty buffer
-            break;
         case "HTML":
         case "JSON":
             serialiser.setMatchedIoSerialiser(JsonSerialiser.class);
@@ -197,6 +193,7 @@ class MajordomoWorkerTests {
             serialiser.setMatchedIoSerialiser(CmwLightSerialiser.class);
             serialiser.serialiseObject(inputData);
             break;
+        case "":
         case "BINARY":
         default:
             serialiser.setMatchedIoSerialiser(BinarySerialiser.class);
@@ -223,10 +220,7 @@ class MajordomoWorkerTests {
             assertThat(replyHtml, containsString(inputData.resourceName));
             assertThat(replyHtml, containsString(inputData.contentType.name()));
             return;
-        case "": {
-            assertArrayEquals(UNKNOWN_REPLY, rawReply.data);
-            return;
-        }
+        case "":
         case "JSON":
         case "CMWLIGHT":
         case "BINARY":
@@ -235,6 +229,7 @@ class MajordomoWorkerTests {
             ioBuffer.flip();
 
             assertNotNull(reply);
+            System.err.println("reply " + reply);
             assertEquals(inputData.resourceName, reply.resourceName, "identity resourceName field");
             assertEquals(inputData.contentType, reply.contentType, "identity contentType field");
             assertArrayEquals(inputData.data, reply.data, "identity data field");
@@ -394,11 +389,7 @@ class MajordomoWorkerTests {
                 map.put("extraUnkownObject", new NoData());
             }));
             super.setHandler((rawCtx, reqCtx, request, repCtx, reply) -> {
-                if (reqCtx.contentType == MimeType.UNKNOWN) {
-                    reply.data = UNKNOWN_REPLY;
-                } else {
-                    reply.data = request.data;
-                }
+                reply.data = request.data;
                 reply.contentType = request.contentType;
                 reply.resourceName = request.resourceName;
             });
