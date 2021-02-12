@@ -42,7 +42,6 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoWorker.class);
     private static final int MAX_BUFFER_SIZE = 4000;
     protected final IoBuffer defaultBuffer = new FastByteBuffer(MAX_BUFFER_SIZE, true, null);
-    protected final IoBuffer defaultSendBuffer = new FastByteBuffer(MAX_BUFFER_SIZE, true, null);
     protected final IoBuffer defaultNotifyBuffer = new FastByteBuffer(MAX_BUFFER_SIZE, true, null);
     protected final IoClassSerialiser deserialiser = new IoClassSerialiser(defaultBuffer);
     protected final IoClassSerialiser serialiser = new IoClassSerialiser(defaultBuffer);
