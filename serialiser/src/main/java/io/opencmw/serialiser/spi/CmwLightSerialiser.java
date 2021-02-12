@@ -1,5 +1,6 @@
 package io.opencmw.serialiser.spi;
 
+import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.List;
@@ -16,6 +17,7 @@ import io.opencmw.serialiser.FieldDescription;
 import io.opencmw.serialiser.FieldSerialiser;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoSerialiser;
+import io.opencmw.serialiser.utils.ClassUtils;
 
 /**
  * Light-weight open-source implementation of a (de-)serialiser that is binary-compatible to the serialiser used by CMW,
@@ -198,6 +200,26 @@ public class CmwLightSerialiser implements IoSerialiser {
 
     @Override
     public <E extends Enum<E>> Enum<E> getEnum(final Enum<E> enumeration) {
+        final int ordinal = buffer.getInt();
+        assert ordinal >= 0 : "enum ordinal should be positive";
+
+        final String enumName = enumeration.getClass().getName();
+        Class<?> enumClass = ClassUtils.getClassByName(enumName);
+        if (enumClass == null) {
+            final String enumSimpleName = enumeration.getClass().getSimpleName();
+            enumClass = ClassUtils.getClassByName(enumSimpleName);
+            if (enumClass == null) {
+                throw new IllegalStateException("could not find enum class description '" + enumName + "' or '" + enumSimpleName + "'");
+            }
+        }
+
+        try {
+            final Method values = enumClass.getMethod("values");
+            final Object[] possibleEnumValues = (Object[]) values.invoke(null);
+            return (Enum<E>) possibleEnumValues[ordinal]; // NOSONAR NOPMD
+        } catch (final ReflectiveOperationException e) {
+            LOGGER.atError().setCause(e).addArgument(enumClass).log("could not match 'valueOf(String)' function for class/(supposedly) enum of {}");
+        }
         throw new UnsupportedOperationException(NOT_IMPLEMENTED);
     }
 
@@ -303,7 +325,7 @@ public class CmwLightSerialiser implements IoSerialiser {
     }
 
     @Override
-    public <K, V, E> Map<K, V> getMap(final Map<K, V> map) {
+    public <K, V> Map<K, V> getMap(final Map<K, V> map) {
         throw new UnsupportedOperationException(NOT_IMPLEMENTED);
     }
 
@@ -431,11 +453,12 @@ public class CmwLightSerialiser implements IoSerialiser {
 
     @Override
     public void put(final FieldDescription fieldDescription, final Enum<?> enumeration) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        this.putFieldHeader(fieldDescription, DataType.INT);
+        buffer.putInt(enumeration.ordinal());
     }
 
     @Override
-    public <K, V, E> void put(final FieldDescription fieldDescription, final Map<K, V> map, Type keyType, Type valueType) {
+    public <K, V> void put(final FieldDescription fieldDescription, final Map<K, V> map, Type keyType, Type valueType) {
         throw new UnsupportedOperationException(NOT_IMPLEMENTED);
     }
 
@@ -929,7 +952,7 @@ public class CmwLightSerialiser implements IoSerialiser {
     }
 
     @Override
-    public <K, V, E> void put(final String fieldName, final Map<K, V> map, final Type keyType, final Type valueType) {
+    public <K, V> void put(final String fieldName, final Map<K, V> map, final Type keyType, final Type valueType) {
         final WireDataFieldDescription fieldHeader = putFieldHeader(fieldName, DataType.MAP);
         this.put((FieldDescription) null, map, keyType, valueType);
         this.updateDataEndMarker(fieldHeader);

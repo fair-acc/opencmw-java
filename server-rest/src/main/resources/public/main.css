@@ -18,6 +18,11 @@ body {
   background: #f9f9f9;
 }
 
+.embeddedFrame {
+  width: 100%;
+  min-height: 110vh;
+}
+
 h1,
 h2,
 h3,
@@ -390,52 +395,3 @@ a.link:hover {
   border: 0;
   cursor: pointer;
 }
-
-
-
-/*collapsible tests*/
-#defaultPropertyTopic input[id="collapsibleTopic"] { display: none; }
-#defaultPropertyRequest input[id="collapsibleRequest"] { display: none; }
-#defaultPropertyReply input[id="collapsibleReply"] { display: none; }
-
-.lbl-toggle {
-  background: #00599c;
-  color: #fff;
-  padding: 2px 10px ;
-  font-size: 14px;
-  border-radius: 5px;
-  box-shadow: 0 0 0 2px #ddd;
-  transition: all 0.25s ease-out; }
-.lbl-toggle:hover { color: #FFF; }
-.lbl-toggle::before {
-  content: ' ';
-  display: inline-block;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-left: 5px solid currentColor;
-  vertical-align: middle;
-  margin-right: .7rem;
-  transform: translateY(-2px);
-  transition: transform .2s ease-out;
-}
-.toggle:checked+.lbl-toggle::before { transform: rotate(90deg) translateX(-3px); }
-
-.collapsible-content { max-height: 0; overflow: hidden; transition: max-height .25s ease-in-out; }
-
-.toggle:checked + .lbl-toggle + .collapsible-content {
-  max-height: 5000px;
-}
-
-.toggle:checked+.lbl-toggle {
-  border-bottom-right-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.collapsible-content .content-inner {
-  /*background: rgba(0, 105, 255, .2);*/
-  border-bottom: 1px solid rgba(0, 105, 255, .45);
-  border-bottom-left-radius: 7px;
-  border-bottom-right-radius: 7px;
-  padding: .5rem 1rem; }
-
-.collapsible-content p { margin-bottom: 0; }

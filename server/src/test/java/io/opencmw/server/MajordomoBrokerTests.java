@@ -37,6 +37,28 @@ class MajordomoBrokerTests {
     private static final String DEFAULT_REQUEST_MESSAGE = "Hello World!";
     private static final byte[] DEFAULT_REQUEST_MESSAGE_BYTES = DEFAULT_REQUEST_MESSAGE.getBytes(UTF_8);
 
+    /**
+     * Main method - create and start new broker.
+     *
+     * @param args none
+     */
+    public static void main(String[] args) {
+        MajordomoBroker broker = new MajordomoBroker("TestMdpBroker", "tcp://*:5555", BasicRbacRole.values());
+        // broker.setDaemon(true); // use this if running in another app that
+        // controls threads Can be called multiple times with different endpoints
+        broker.bind("tcp://*:5555");
+        broker.bind("tcp://*:5556");
+
+        for (int i = 0; i < 10; i++) {
+            // simple internalSock echo
+            BasicMdpWorker workerSession = new BasicMdpWorker(broker.getContext(), "inproc.echo", BasicRbacRole.ADMIN); // NOPMD safe instantiation
+            workerSession.registerHandler(ctx -> ctx.rep.data = ctx.req.data); //  output = input : echo service is complex :-)
+            workerSession.start();
+        }
+
+        broker.start();
+    }
+
     @Test
     void basicLowLevelRequestReplyTest() throws IOException {
         MajordomoBroker broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());
@@ -62,7 +84,6 @@ class MajordomoBrokerTests {
 
         final ZMQ.Socket clientSocket = broker.getContext().createSocket(SocketType.DEALER);
         clientSocket.setIdentity("demoClient".getBytes(UTF_8));
-        System.err.println("brokerAddress = " + brokerAddress);
         clientSocket.connect(brokerAddress.replace("mdp", "tcp"));
 
         // wait until client is connected
@@ -70,9 +91,7 @@ class MajordomoBrokerTests {
 
         final byte[] clientRequestID = "unit-test-clientRequestID".getBytes(UTF_8);
         new MdpMessage(null, PROT_CLIENT, GET_REQUEST, DEFAULT_ECHO_SERVICE.getBytes(UTF_8), clientRequestID, URI.create(DEFAULT_ECHO_SERVICE), DEFAULT_REQUEST_MESSAGE_BYTES, "", new byte[0]).send(clientSocket);
-        System.err.println("sent request");
         final MdpMessage clientMessage = MdpMessage.receive(clientSocket);
-        System.err.println("received reply");
         assertNotNull(clientMessage, "reply message w/o RBAC token not being null");
         assertNotNull(clientMessage.toString());
         assertNotNull(clientMessage.senderID); // default dealer socket does not export sender ID (only ROUTER and/or enabled sockets)
@@ -90,10 +109,9 @@ class MajordomoBrokerTests {
 
     @Test
     void basicSynchronousRequestReplyTest() throws IOException {
-        MajordomoBroker broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());
+        final MajordomoBroker broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
-        final int openPort = Utils.findOpenPort();
-        broker.bind("tcp://*:" + openPort);
+        final String brokerAddress = broker.bind("mdp://*:" + Utils.findOpenPort());
         broker.start();
         assertEquals(4, broker.getServices().size());
 
@@ -117,7 +135,7 @@ class MajordomoBrokerTests {
         assertEquals(7, broker.getServices().size());
 
         // using simple synchronous client
-        MajordomoTestClientSync clientSession = new MajordomoTestClientSync("tcp://localhost:" + openPort, "customClientName");
+        MajordomoTestClientSync clientSession = new MajordomoTestClientSync(brokerAddress, "customClientName");
         assertEquals(3, clientSession.getRetries());
         assertDoesNotThrow(() -> clientSession.setRetries(4));
         assertEquals(4, clientSession.getRetries());
@@ -324,8 +342,7 @@ class MajordomoBrokerTests {
                     LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
                     continue;
                 }
-                final int count = subCounter.getAndIncrement();
-                // System.err.println("received subscription #" + count + ": " + msg)
+                subCounter.getAndIncrement();
             }
             sub.unsubscribe("device/property");
         });

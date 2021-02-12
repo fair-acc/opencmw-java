@@ -8,24 +8,113 @@
     .propTable td{font-size:14px;overflow:hidden;padding:1px 5px;word-break:normal;}
     .propTable .propTable-fName{width: 30%}
     .propTable .propTable-fUnit{text-align:right;width: 10%}
-    .propTable .propTable-fValue{width: 25%}
-    .propTable .propTable-fDesc{width: 45%}
+    .propTable .propTable-fValue{width: 60%}
+
+    /* embed container */
+    .embedBinary {max-width: 100%;}
+
+    /* switch and slider */
+    .switch {position: relative; display:inline-block;width:38px;height: 17px;}
+    .switch input {opacity:0;width:0;height:0;} /* Hide default HTML checkbox */
+    .slider {position: absolute;cursor: pointer;top:0;left:0;right:0;bottom:0;background-color:#ccc;-webkit-transition:.4s;transition:.4s;}
+    .slider:before {position: absolute;content:"";height:13px;width:13px;left:2px;bottom:2px;background-color:white;-webkit-transition:.4s;transition:.4s;}
+    input:checked + .slider {background-color: #00599c;}
+    input:focus + .slider {box-shadow: 0 0 1px #00599c;}
+    input:checked + .slider:before {-webkit-transform: translateX(20px);-ms-transform: translateX(20px);transform: translateX(20px);}
+    .slider.round {border-radius: 17px;}
+    .slider.round:before {border-radius: 50%;}
+
+    /* collapsible menu */
+    #defaultPropertyTopic input[id="collapsibleReplyTopic"] { display: none; }
+    #defaultPropertyTopic input[id="collapsibleRequestTopic"] { display: none; }
+    #defaultPropertyRequest input[id="collapsibleRequest"] { display: none; }
+    #defaultPropertyReply input[id="collapsibleReply"] { display: none; }
+    .lbl-toggle { background:#00599c;color:#fff;padding:2px 10px;font-size:14px;border-radius:5px;box-shadow: 0 0 0 2px #ddd;transition: all 0.25s ease-out;}
+    .lbl-toggle:hover { color: #FFF; }
+    .lbl-toggle::before {content: ' ';display: inline-block;border-top: 5px solid transparent;border-bottom: 5px solid transparent;border-left: 5px solid currentColor;
+        vertical-align: middle;margin-right: .7rem;transform: translateY(-2px);transition: transform .2s ease-out;}
+    .toggle:checked+.lbl-toggle::before { transform: rotate(90deg) translateX(-3px); }
+    .collapsible-content { max-height: 0; overflow: hidden; transition: max-height .25s ease-in-out; }
+    .toggle:checked + .lbl-toggle + .collapsible-content { max-height: 5000px;}
+    .toggle:checked+.lbl-toggle {border-bottom-right-radius:0;border-bottom-left-radius:0;}
+    .collapsible-content .content-inner {border-bottom: 1px solid rgba(0, 105, 255, .45);border-bottom-left-radius: 7px;border-bottom-right-radius: 7px;padding: .5rem 1rem; }
+    .collapsible-content p { margin-bottom: 0; }
+
+    /* flashing subscribe indicator */
+    #subNotifier { display:inline-block;background-color: #00599c;width: 12px;height: 12px; border-radius: 7px; opacity: 0; padding:4px 4px 4px 4px;}
+    .transform-active {animation-iteration-count: 1;animation: pulse 0.5s;animation-direction: alternate;}
+    @keyframes pulse { 0% {opacity: 0;} 50% {opacity: 1.0;} 100% {opacity: 0;} }
 </style>
+
+#if (!$noMenu)
+<script language="javascript" type="text/javascript">
+    subscribe = false
+
+    if (!!window.EventSource) {
+        var source = new EventSource('$requestedURI');
+        console.log("initialised SSE handler for $requestedURI");
+    } else {
+        // Result to xhr polling :(
+        console.log("failed to initialised SSE handler for $requestedURI");
+    }
+
+    source.addEventListener('message', function(e) {
+        if (subscribe) {
+            // location.reload();
+            console.log("SSE update for: " + e.data);
+            document.getElementById('propertyBox').innerHTML = '<embed id="embeddedMainFrame" class="embeddedFrame" src="$requestedURInoFrame"/>';
+        } else {
+            console.log("SSE event: "+ e.data);
+        }
+        pulseIndicator();
+    }, false);
+
+    source.addEventListener('open', function(e) {
+        // Connection was opened.
+    }, false);
+
+    source.addEventListener('error', function(e) {
+        if (e.readyState == EventSource.CLOSED) {
+            // Connection was closed.
+        }
+    }, false);
+
+    function toggle() {
+        subscribe = !subscribe;
+    }
+
+    function pulseIndicator() {
+        var element = document.getElementById("subNotifier");
+        element.classList.remove('transform-active'); // reset animation
+        void element.offsetWidth; // trigger reflow
+        element.classList.add('transform-active'); // start animation
+    }
+</script>
+
 
 <div class="propHeader">
     <h1>Property: '$service'</h1>
     <h3>$mdpMetaData.getFieldDescription()</h3>
 </div>
 
+
+<div class="transform" id="subNotifier" title="subscription indicator flashes for every SSE notify"></div>
+Subscribe:
+<label class="switch" id="subSwitch">
+    <input type="checkbox" onclick="toggle()">
+    <span class="slider round" title="click to subscribe to this property"></span>
+</label>
+
+<div id="propertyBox">
+    <embed id="embeddedMainFrame" class="embeddedFrame" src="$requestedURInoFrame"/>
+</div>
+
+#else
+<base target="_parent">
 #macro( renderPropertyData $propertyDataName $propertyData )
 <table class="propTable">
     <thead>
-    <tr>
-        <th class="propTable-fName">$propertyDataName Field Name</th>
-        <th class="propTable-fUnit">Unit:</th>
-        <th class="propTable-fValue">Field Value:</th>
-        <th class="propTable-fDesc">Description:</th>
-    </tr>
+    <tr><th class="propTable-fName">$propertyDataName Field Name</th><th class="propTable-fUnit">Unit:</th><th class="propTable-fValue">Field Value:</th></tr>
     </thead>
     <tbody>
         #foreach ($field in $propertyData.keySet())
@@ -42,12 +131,12 @@
             #else
                 #set($description = "")
             #end
+            #set($value = $propertyData.get($field))
         <tr>
-            <td class="propTable-fName"><label for="$field.getFieldName()">$field.getFieldName()</label></td>
+            <td class="propTable-fName" title="$description"><label for="$field.getFieldName()">$field.getFieldName()</label></td>
             <td class="propTable-fUnit">$unit</td>
             <td class="propTable-fValue">
             #if ($field.isEnum())
-                #set($value = $propertyData.get($field))
                 <select id="$field.getFieldName()" name="$field.getFieldName()">
                     <option value="$value">$value</option>
                     #foreach( $enum in $field.getEnumConstants() )
@@ -55,42 +144,41 @@
                     #end
                 </select>
             #else
-                #set($value = $propertyData.get($field))
                 #if ($value == "true" || $value == "false")
                     #set($type = 'type="checkbox"')
                 #else
                     #set($type = 'type="text" placeholder="<null>"')
                 #end
-                <input $type id="$field.getFieldName()" name="$field.getFieldName()" value="$value">
+                <input $type id="$field.getFieldName()" name="$field.getFieldName()" value='$value' style='width:100%'>
             #end
             </td>
-            <td class="propTable-fDesc">$description</td>
         </tr>
         #end
     </tbody>
 </table>
 #end
 
+
 <form id="defaultPropertyTopic" method="GET">
     <div class="wrap-collabsible">
-        <input id="collapsibleTopic" class="toggle" type="checkbox">
-        <label for="collapsibleTopic" class="lbl-toggle">$mdpCommand from '$clientRequestID'</label>
+        <input id="collapsibleReplyTopic" class="toggle" type="checkbox">
+        <label for="collapsibleReplyTopic" class="lbl-toggle" title="request context: $requestTopic">Request Context</label>
         <div class="collapsible-content">
             <div class="content-inner">
-                <small>req: $requestTopic</small><br>
-                <small>rep: $replyTopic</small>
                 #renderPropertyData( $requestCtx.getClass().getSimpleName() $requestCtxClassData )
                 <input type="submit" value="GET"> ## pushes form data as query string and reloads with the new URI
-                <input type="submit" value="SUBSCRIBE">
             </div>
         </div>
     </div>
 </form>
 
+
+
+#if ($request && $requestClassData && $requestClassData.size() != 0 && $request.getClass().getSimpleName() != "NoData")
 <form id="defaultPropertyRequest" method="POST">
     <div class="wrap-collabsible">
         <input id="collapsibleRequest" class="toggle" type="checkbox">
-        <label for="collapsibleRequest" class="lbl-toggle">request data:</label>
+        <label for="collapsibleRequest" class="lbl-toggle">Request:</label>
         <div class="collapsible-content">
             <div class="content-inner">
                 #renderPropertyData( $request.getClass().getSimpleName() $requestClassData )
@@ -99,15 +187,32 @@
         </div>
     </div>
 </form>
+#end
 
-<form id="defaultPropertyReply" method="POST">
+<form id="defaultPropertyTopic" method="GET">
     <div class="wrap-collabsible">
-        <input id="collapsibleReply" class="toggle" type="checkbox" checked>
-        <label for="collapsibleReply" class="lbl-toggle">reply data:</label>
+        <input id="collapsibleRequestTopic" class="toggle" type="checkbox">
+        <label for="collapsibleRequestTopic" class="lbl-toggle" title="reply context: $replyTopic">Reply Context</label>
         <div class="collapsible-content">
             <div class="content-inner">
-                #renderPropertyData( $reply.getClass().getSimpleName() $replyClassData )
+                #renderPropertyData( $replyCtx.getClass().getSimpleName() $replyCtxClassData )
             </div>
         </div>
     </div>
 </form>
+
+<form id="defaultPropertyReply" method="POST">
+    <div class="wrap-collabsible">
+        <input id="collapsibleReply" class="toggle" type="checkbox" checked>
+        <label for="collapsibleReply" class="lbl-toggle">Reply:</label>
+        <div class="collapsible-content">
+            <div class="content-inner">
+                #renderPropertyData( $reply.getClass().getSimpleName() $replyClassData )
+                #if ( $reply.getClass().getSimpleName() == "BinaryData")
+                    <embed class="embedBinary" id="binaryData" src="data:$replyMimeType;base64,$replyRawData"/>
+                #end
+            </div>
+        </div>
+    </div>
+</form>
+#end

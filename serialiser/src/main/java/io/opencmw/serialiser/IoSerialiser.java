@@ -123,7 +123,7 @@ public interface IoSerialiser {
 
     long[] getLongArray(final long[] dst, final int length);
 
-    <K, V, E> Map<K, V> getMap(Map<K, V> map);
+    <K, V> Map<K, V> getMap(Map<K, V> map);
 
     <E> Queue<E> getQueue(Queue<E> collection);
 
@@ -165,13 +165,13 @@ public interface IoSerialiser {
 
     void put(FieldDescription fieldDescription, Enum<?> enumeration);
 
-    <K, V, E> void put(FieldDescription fieldDescription, Map<K, V> map, Type keyType, Type valueType);
+    <K, V> void put(FieldDescription fieldDescription, Map<K, V> map, Type keyType, Type valueType);
 
     <E> void put(String fieldName, Collection<E> collection, Type valueType);
 
     void put(String fieldName, Enum<?> enumeration);
 
-    <K, V, E> void put(String fieldName, Map<K, V> map, Type keyType, Type valueType);
+    <K, V> void put(String fieldName, Map<K, V> map, Type keyType, Type valueType);
 
     default void put(FieldDescription fieldDescription, final boolean[] src) {
         put(fieldDescription, src, -1);

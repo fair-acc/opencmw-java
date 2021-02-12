@@ -11,20 +11,15 @@ import org.junit.jupiter.params.provider.EnumSource;
  * 
  * @author rstein
  */
-public class MimeTypeTests {
+class MimeTypeTests {
     @ParameterizedTest
     @EnumSource(MimeType.class)
-    public void genericTests(final MimeType mType) {
+    void genericTests(final MimeType mType) {
         assertNotNull(mType.toString());
         final String mimeTypeName = "'" + mType + "'";
 
-        if (MimeType.UNKNOWN.equals(mType)) {
-            //N.B. exception to the rule UNKNONW maps to the default BINARY enum as safe fallback
-            assertEquals(MimeType.BINARY, MimeType.getEnum(mType.toString()), "getEnum: mType = " + mimeTypeName);
-        } else {
-            assertEquals(mType, MimeType.getEnum(mType.toString()), "getEnum: mType = " + mimeTypeName);
-            assertEquals(mType, MimeType.getEnum(mType.name()), "getEnum: mType = " + mimeTypeName);
-        }
+        assertEquals(mType, MimeType.getEnum(mType.toString()), "getEnum: mType = " + mimeTypeName);
+        assertEquals(mType, MimeType.getEnum(mType.name()), "getEnum: mType = " + mimeTypeName);
 
         assertNotNull(mType.getDescription(), "description: mType = " + mimeTypeName);
         assertNotNull(mType.getType(), "type: mType = " + mimeTypeName);
@@ -70,7 +65,7 @@ public class MimeTypeTests {
     }
 
     @Test
-    public void cornerCaseTests() {
+    void cornerCaseTests() {
         assertEquals(MimeType.UNKNOWN, MimeType.getEnum(null));
         assertEquals(MimeType.UNKNOWN, MimeType.getEnum(""));
         assertEquals(MimeType.UNKNOWN, MimeType.getEnum("  "));
