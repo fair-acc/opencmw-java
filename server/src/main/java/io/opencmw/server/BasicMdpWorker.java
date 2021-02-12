@@ -258,7 +258,7 @@ public class BasicMdpWorker extends Thread {
             // Do nothing for heartbeats
             return Collections.emptyList();
         case DISCONNECT:
-            // TODO: check whether to reconnect or to connect permanently
+            // TODO: check whether to reconnect or to disconnect permanently
             reconnectToBroker();
             return Collections.emptyList();
         case READY:
