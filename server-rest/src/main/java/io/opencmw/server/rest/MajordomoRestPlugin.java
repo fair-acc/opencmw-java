@@ -277,9 +277,8 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                             // handle subscription message
                             if (brokerMsg.data != null && brokerMsg.getServiceName().startsWith(INTERNAL_SERVICE_NAMES)) {
                                 registerEndPoint(new String(brokerMsg.data, UTF_8)); // NOPMD in-loop instantiation necessary
-                            } else {
-                                notifySubscribedClients(brokerMsg.topic);
                             }
+                            notifySubscribedClients(brokerMsg.topic);
                         }
                     }
                 }
