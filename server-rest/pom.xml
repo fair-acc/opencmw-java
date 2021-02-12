@@ -109,11 +109,13 @@
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
             <version>${version.okHttp3}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp-sse</artifactId>
             <version>${version.okHttp3}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

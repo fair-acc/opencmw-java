@@ -400,7 +400,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         return reply;
     }
 
-    protected void notifySubscribedClients(final @org.jetbrains.annotations.NotNull URI topic) {
+    protected void notifySubscribedClients(final @NotNull URI topic) {
         final String topicString = topic.toString();
         final String notifyPath = prefixPath(topic.getPath());
         // TODO: upgrade to path & query matching - for the time being only path @see also CombinedHandler
