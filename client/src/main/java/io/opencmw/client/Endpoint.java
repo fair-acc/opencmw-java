@@ -34,6 +34,7 @@ public class Endpoint { // NOPMD data class
         return protocol;
     }
 
+    @Override
     public String toString() {
         return value;
     }

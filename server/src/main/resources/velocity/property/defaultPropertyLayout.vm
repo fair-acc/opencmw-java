@@ -47,7 +47,7 @@
 </style>
 
 #if (!$noMenu)
-<script language="javascript" type="text/javascript">
+<script type="text/javascript">
     subscribe = false
 
     if (!!window.EventSource) {

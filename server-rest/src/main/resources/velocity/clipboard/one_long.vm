@@ -22,7 +22,7 @@
             height: 100vh;
         }
     </style>
-    <script language="JavaScript">
+    <script>
         var isFirefox = typeof InstallTrigger !== 'undefined';
         
         function onLoad() {
@@ -79,7 +79,7 @@
 <body onLoad="onLoad()">
     <a class="skip-link" href="#maincontent">Skip to main</a>
     <a href="$indexRoot">
-        <img src="$imageSource" id="myStatus" name="myStatus" alt="$imageSource" border="0">
+        <img src="$imageSource" id="myStatus" alt="$imageSource">
     </a>
 </body>
 

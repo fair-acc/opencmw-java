@@ -24,11 +24,10 @@ public class DirectoryLightClient {
     // private static final String SUPPORTED_CHARACTERS = "\\.\\-\\+_a-zA-Z0-9";
     // private static final String NAME_REGEX = "[a-zA-Z0-9][" + SUPPORTED_CHARACTERS + "]*";
     // private static final String CLIENT_INFO_SUPPORTED_CHARACTERS = "\\x20-\\x7E"; // ASCII := {32-126}
-    static final String ERROR_STRING = "ERROR";
-
+    private static final String ERROR_STRING = "ERROR";
     private static final String HOST_PORT_SEPARATOR = ":";
 
-    static final String NOT_BOUND_LOCATION = "*NOT_BOUND*";
+    private static final String NOT_BOUND_LOCATION = "*NOT_BOUND*";
     // static final String UNKNOWN_SERVER = "*UNKNOWN*";
     private static final String CLIENT_INFO = "DirectoryLightClient";
     private static final String VERSION = "2.0.0";
@@ -55,9 +54,7 @@ public class DirectoryLightClient {
      **/
     private String getDeviceMsg(final List<String> devices) {
         final StringBuilder sb = new StringBuilder();
-        sb.append(GET_DEVICE_INFO).append("\n");
-        sb.append("@client-info ").append(CLIENT_INFO).append("\n");
-        sb.append("@version ").append(VERSION).append("\n");
+        sb.append(GET_DEVICE_INFO).append("\n@client-info ").append(CLIENT_INFO).append("\n@version ").append(VERSION).append('\n');
         // msg.append("@prefer-proxy\n");
         // msg.append("@direct ").append(this.properties.directServers.getValue()).append("\n");
         // msg.append("@domain ");
@@ -109,7 +106,7 @@ public class DirectoryLightClient {
      **/
     public List<Device> getDeviceInfo(final List<String> devices) throws DirectoryClientException {
         final ArrayList<Device> result = new ArrayList<>();
-        try (final Socket socket = new Socket()) {
+        try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(nameserver, nameserverPort));
             try (PrintWriter writer = new PrintWriter(socket.getOutputStream());
                     BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
@@ -144,13 +141,13 @@ public class DirectoryLightClient {
         }
         final ArrayList<Map<String, String>> servers = new ArrayList<>();
         for (int j = 2; j < tokens.length; j++) {
-            final HashMap<String, String> server = new HashMap<>();
+            final HashMap<String, String> server = new HashMap<>(); // NOPMD - necessary to allocate inside loop
             servers.add(server);
             final String[] servertokens = tokens[j].split("#");
             server.put("protocol", servertokens[0]);
             int k = 1;
             while (k + 3 < servertokens.length) {
-                if (servertokens[k + 1].equals("string")) {
+                if ("string".equals(servertokens[k + 1])) {
                     final int length = Integer.parseInt(servertokens[k + 2]);
                     final String value = URLDecoder.decode(servertokens[k + 3], Charset.defaultCharset());
                     if (length == value.length()) {
@@ -159,7 +156,7 @@ public class DirectoryLightClient {
                         throw new DirectoryClientException("Error parsing string: " + servertokens[k] + "(" + length + ") = " + value);
                     }
                     k += 4;
-                } else if (servertokens[k + 1].equals("int") || servertokens[k + 1].equals("long")) {
+                } else if ("int".equals(servertokens[k + 1]) || "long".equals(servertokens[k + 1])) { // NOPMD
                     server.put(servertokens[k], servertokens[k + 2]);
                     k += 3;
                 } else {
@@ -183,16 +180,19 @@ public class DirectoryLightClient {
 
         @Override
         public String toString() {
-            return "Device{"
-                    + "name='" + name + '\'' + ", deviceClass='" + deviceClass + '\'' + ", servers=" + servers + '}';
+            return "Device{name='" + name + '\'' + ", deviceClass='" + deviceClass + '\'' + ", servers=" + servers + '}';
         }
 
         public String getAddress() {
-            return servers.stream().filter(s -> s.get("protocol").equals("rda3://9")).map(s -> s.get("Address:")).findFirst().orElseThrow();
+            // N.B. here the '9' in 'rda3://9' is an indicator that the entry has 9 fields
+            // useful snippet for manual queries:
+            // echo -e "get-device-info\nGSCD025\n\n" | nc cmwpro00a.acc.gsi.de 5021 | sed -e "s%#%\n#%g"
+            return servers.stream().filter(s -> "rda3://9".equals(s.get("protocol"))).map(s -> s.get("Address:")).findFirst().orElseThrow();
         }
     }
 
     public static class DirectoryClientException extends Exception {
+        private static final long serialVersionUID = -4452775634393421952L;
         public DirectoryClientException(final String errorMsg) {
             super(errorMsg);
         }

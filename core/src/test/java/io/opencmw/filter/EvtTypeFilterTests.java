@@ -69,7 +69,8 @@ class EvtTypeFilterTests {
     }
 
     private static void assertInitialised(final EvtTypeFilter evtTypeFilter) {
-        assertNull(evtTypeFilter.typeName);
+        assertNotNull(evtTypeFilter.typeName);
+        assertTrue(evtTypeFilter.typeName.isBlank());
         assertEquals(EvtTypeFilter.DataType.UNKNOWN, evtTypeFilter.evtType);
         assertEquals(0, evtTypeFilter.hashCode);
     }

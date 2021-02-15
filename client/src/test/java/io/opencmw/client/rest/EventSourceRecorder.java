@@ -5,6 +5,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 
@@ -116,7 +117,7 @@ class EventSourceRecorder extends EventSourceListener {
             String responseBody = null;
             if (response != null) {
                 try {
-                    responseBody = response.body().string();
+                    responseBody = Objects.requireNonNull(response.body()).string();
                 } catch (IOException ignored) {
                 }
             }

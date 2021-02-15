@@ -27,11 +27,12 @@ import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.serialiser.annotations.Unit;
 import io.opencmw.serialiser.utils.ClassUtils;
 
-import sun.misc.Unsafe;
+import sun.misc.Unsafe; // NOPMD - there is nothing more suitable under the Sun
 
 /**
  * @author rstein
  */
+@SuppressWarnings({ "PMD.ExcessivePublicCount", "PMD.TooManyFields" }) // utility class for safe reflection handling
 public class ClassFieldDescription implements FieldDescription {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClassFieldDescription.class);
     private final int hierarchyDepth;
@@ -65,9 +66,9 @@ public class ClassFieldDescription implements FieldDescription {
     private final boolean modStrict;
     private final boolean modInterface;
     // additional qualities
-    private final boolean isprimitive;
-    private final boolean isclass;
-    private final boolean isEnum;
+    private final boolean isPrimitiveType;
+    private final boolean isClassType;
+    private final boolean isEnumType;
     private final List<?> enumDefinitions;
     private final boolean serializable;
     private String toStringName; // computed on demand and cached
@@ -155,11 +156,11 @@ public class ClassFieldDescription implements FieldDescription {
         modInterface = classType.isInterface();
 
         // additional fields
-        isprimitive = classType.isPrimitive();
-        isclass = !isprimitive && !modInterface;
-        isEnum = Enum.class.isAssignableFrom(classType);
-        if (isEnum) {
-            enumDefinitions = Collections.unmodifiableList(Arrays.asList(classType.getEnumConstants()));
+        isPrimitiveType = classType.isPrimitive();
+        isClassType = !isPrimitiveType && !modInterface;
+        isEnumType = Enum.class.isAssignableFrom(classType);
+        if (isEnumType) {
+            enumDefinitions = List.of(classType.getEnumConstants());
         } else {
             enumDefinitions = Collections.emptyList();
         }
@@ -306,6 +307,7 @@ public class ClassFieldDescription implements FieldDescription {
     /**
      * @return the DataType (if known) for the detected Field, {@link DataType#OTHER} in all other cases
      */
+    @Override
     public DataType getDataType() {
         return dataType;
     }
@@ -335,6 +337,7 @@ public class ClassFieldDescription implements FieldDescription {
     /**
      * @return the underlying field name
      */
+    @Override
     public String getFieldName() {
         return fieldName;
     }
@@ -503,14 +506,14 @@ public class ClassFieldDescription implements FieldDescription {
      * @return the isClass
      */
     public boolean isClass() {
-        return isclass;
+        return isClassType;
     }
 
     /**
      * @return whether class is an Enum type
      */
     public boolean isEnum() {
-        return isEnum;
+        return isEnumType;
     }
 
     /**
@@ -545,7 +548,7 @@ public class ClassFieldDescription implements FieldDescription {
      * @return {@code true} if the class field is a primitive type (ie. boolean, byte, ..., int, float, double)
      */
     public boolean isPrimitive() {
-        return isprimitive;
+        return isPrimitiveType;
     }
 
     /**
@@ -767,7 +770,7 @@ public class ClassFieldDescription implements FieldDescription {
                 final Field field = Unsafe.class.getDeclaredField("theUnsafe");
                 field.setAccessible(true); // NOSONAR NOPMD
                 unsafe = (Unsafe) field.get(null);
-            } catch (NoSuchFieldException | SecurityException | IllegalAccessException e) {
+            } catch (NoSuchFieldException | SecurityException | IllegalAccessException e) { // NOPMD
                 throw new SecurityException(e); // NOPMD
             }
         }

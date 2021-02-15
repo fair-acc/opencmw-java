@@ -9,6 +9,7 @@ import io.opencmw.serialiser.IoBuffer;
 /**
  * @author rstein
  */
+@SuppressWarnings({ "PMD.TooManyMethods", "PMD.ExcessivePublicCount" }) // unavoidable: each primitive type needs to handled individually (no templates)
 public class ByteBuffer implements IoBuffer {
     public static final int SIZE_OF_BOOLEAN = 1;
     public static final int SIZE_OF_BYTE = 1;
@@ -19,9 +20,9 @@ public class ByteBuffer implements IoBuffer {
     public static final int SIZE_OF_FLOAT = 4;
     public static final int SIZE_OF_DOUBLE = 8;
     private static final int DEFAULT_INITIAL_CAPACITY = 1000;
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final ReadWriteLock internalLock = new ReentrantReadWriteLock();
     private final java.nio.ByteBuffer nioByteBuffer;
-    private boolean enforceSimpleStringEncoding = false;
+    private boolean enforceSimpleStringEncoding;
 
     /**
      * construct new java.nio.ByteBuffer-based ByteBuffer with DEFAULT_INITIAL_CAPACITY
@@ -312,7 +313,7 @@ public class ByteBuffer implements IoBuffer {
 
     @Override
     public ReadWriteLock lock() {
-        return lock;
+        return internalLock;
     }
 
     @Override

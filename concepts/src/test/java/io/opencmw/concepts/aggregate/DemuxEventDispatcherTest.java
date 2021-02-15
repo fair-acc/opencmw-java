@@ -32,6 +32,7 @@ import com.lmax.disruptor.util.DaemonThreadFactory;
  *
  * @author Alexander Krimm
  */
+@SuppressWarnings("unchecked")
 class DemuxEventDispatcherTest {
     static Stream<Arguments> workingEventSamplesProvider() {
         return Stream.of(
@@ -87,9 +88,9 @@ class DemuxEventDispatcherTest {
         Awaitility.await().atMost(Duration.ofSeconds(repeat)).until(() -> endBarrier.asSequenceBarrier().getCursor() == rb.getCursor() && Arrays.stream(aggProc.getAggregationHander()).allMatch(w -> w.bpcts == -1));
         // compare aggregated results and timeouts
         MatcherAssert.assertThat(aggResults, Matchers.containsInAnyOrder(Arrays.stream(aggregatesAll.split(";"))
-                                                          .filter(s -> !s.isEmpty())
-                                                          .map(s -> Matchers.containsInAnyOrder(Arrays.stream(s.split(" ")).map(String::trim).filter(e -> !e.isEmpty()).toArray()))
-                                                          .toArray(Matcher[] ::new)));
+                                                                                 .filter(s -> !s.isEmpty())
+                                                                                 .map(s -> Matchers.containsInAnyOrder(Arrays.stream(s.split(" ")).map(String::trim).filter(e -> !e.isEmpty()).toArray()))
+                                                                                 .toArray(Matcher[] ::new)));
         System.out.println(aggTimeouts);
         MatcherAssert.assertThat(aggTimeouts, Matchers.containsInAnyOrder(Arrays.stream(timeoutsAll.split(" ")).filter(s -> !s.isEmpty()).map(Integer::parseInt).toArray(Integer[] ::new)));
     }

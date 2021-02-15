@@ -26,12 +26,12 @@ public class MajordomoClientV1 {
     private static final AtomicInteger CLIENT_V1_INSTANCE = new AtomicInteger();
     private final String uniqueID;
     private final byte[] uniqueIdBytes;
-    private String broker;
-    private ZContext ctx;
+    private final String broker;
+    private final ZContext ctx;
     private ZMQ.Socket clientSocket;
     private long timeout = 2500;
     private int retries = 3;
-    private Formatter log = new Formatter(System.out);
+    private final Formatter log = new Formatter(System.out);
     private ZMQ.Poller poller;
 
     public MajordomoClientV1(String broker, String clientName) {
@@ -47,7 +47,7 @@ public class MajordomoClientV1 {
     /**
      * Connect or reconnect to broker
      */
-    void reconnectToBroker() {
+    private void reconnectToBroker() {
         if (clientSocket != null) {
             clientSocket.close();
         }
@@ -121,8 +121,9 @@ public class MajordomoClientV1 {
             }
 
             // Poll socket for a reply, with timeout
-            if (poller.poll(timeout) == -1)
+            if (poller.poll(timeout) == -1) {
                 break; // Interrupted
+            }
 
             if (poller.pollin(0)) {
                 ZMsg msg = ZMsg.recvMsg(clientSocket, false);
@@ -142,6 +143,7 @@ public class MajordomoClientV1 {
                 header.destroy();
 
                 ZFrame replyService = msg.pop();
+                //noinspection AssertWithSideEffects
                 assert Arrays.equals(service, replyService.getData()); // NOSONAR NOPMD only read, not mutation of service
                 replyService.destroy();
 

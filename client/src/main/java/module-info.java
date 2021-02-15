@@ -4,10 +4,11 @@ module io.opencmw.client {
     requires io.opencmw.serialiser;
     requires org.slf4j;
     requires jeromq;
-    requires okhttp3;
-    requires okhttp3.sse;
     requires disruptor;
     requires java.validation;
+    requires org.jetbrains.annotations;
+    requires okhttp3;
+    requires okhttp3.sse;
     requires kotlin.stdlib;
     requires it.unimi.dsi.fastutil;
 

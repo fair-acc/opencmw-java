@@ -29,7 +29,7 @@ public class MessageBundle {
     }
 
     public static Map<String, Object> baseModel(Context ctx) {
-        final Map<String, Object> model = new HashMap<>();
+        final Map<String, Object> model = new HashMap<>(); // NOPMD - thread-safe usage
         model.put(ATTR_CURRENT_MESSAGES, new MessageBundle(RestServer.getSessionLocale(ctx)));
         model.put(ATTR_CURRENT_USER, RestServer.getSessionCurrentUser(ctx));
         model.put(ATTR_CURRENT_ROLES, RestServer.getSessionCurrentRoles(ctx));

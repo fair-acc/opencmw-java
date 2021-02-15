@@ -113,7 +113,7 @@ public class CacheCollection<T> extends AbstractCollection<T> {
 
     private static class CacheCollectionIterator<T> implements Iterator<T> {
         private final Iterator<Reference<T>> iterator;
-        private T next;
+        private T nextElement;
 
         private CacheCollectionIterator(Iterator<Reference<T>> iterator) {
             this.iterator = iterator;
@@ -121,14 +121,14 @@ public class CacheCollection<T> extends AbstractCollection<T> {
 
         @Override
         public boolean hasNext() {
-            if (next != null) {
+            if (nextElement != null) {
                 return true;
             }
             while (iterator.hasNext()) {
                 T t = iterator.next().get();
                 if (t != null) {
                     // to ensure next() can't throw after hasNext() returned true, we need to dereference this
-                    next = t;
+                    nextElement = t;
                     return true;
                 }
             }
@@ -137,8 +137,8 @@ public class CacheCollection<T> extends AbstractCollection<T> {
 
         @Override
         public T next() {
-            T result = next;
-            next = null; // NOPMD
+            T result = nextElement;
+            nextElement = null; // NOPMD
             while (result == null) {
                 result = iterator.next().get();
             }

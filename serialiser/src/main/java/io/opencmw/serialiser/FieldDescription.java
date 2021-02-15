@@ -51,7 +51,7 @@ public interface FieldDescription {
     String getFieldDirection();
 
     /**
-     * @return optional meta data tag describing the group/set this data field belongs to (N.B. can be empty String, corresponding to 'all')
+     * @return optional meta data describing the group/set this data field belongs to (N.B. empty String corresponds to 'all')
      */
     List<String> getFieldGroups();
 

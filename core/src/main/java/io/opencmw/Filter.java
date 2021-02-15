@@ -17,12 +17,15 @@ public interface Filter {
      */
     void copyTo(Filter other);
 
+    @Override
     boolean equals(Object other);
 
+    @Override
     int hashCode();
 
     /**
      * @return filter description including internal state (if any).
      */
+    @Override
     String toString();
 }

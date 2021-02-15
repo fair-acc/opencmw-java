@@ -280,11 +280,11 @@ public class WireDataFieldDescription implements FieldDescription {
 
     @Override
     public void printFieldStructure() {
-        if (parent != null) {
+        if (parent == null) {
+            LOGGER.atInfo().log("FielHeader structure (no parent):");
+        } else {
             LOGGER.atInfo().addArgument(parent).log("FielHeader structure (parent: {}):");
             printFieldStructure(this, 0);
-        } else {
-            LOGGER.atInfo().log("FielHeader structure (no parent):");
         }
         printFieldStructure(this, 0);
     }

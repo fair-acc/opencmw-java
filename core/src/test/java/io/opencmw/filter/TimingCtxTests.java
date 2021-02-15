@@ -155,7 +155,7 @@ class TimingCtxTests {
     }
 
     private static void assertInitialised(final TimingCtx ctx) {
-        assertNull(ctx.selector);
+        assertEquals("", ctx.selector);
         assertAllWildCard(ctx);
         assertEquals(-1, ctx.bpcts);
         assertEquals(0, ctx.hashCode);

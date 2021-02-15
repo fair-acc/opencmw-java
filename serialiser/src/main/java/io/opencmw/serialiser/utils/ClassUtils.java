@@ -19,13 +19,14 @@ import org.slf4j.LoggerFactory;
 
 import io.opencmw.serialiser.spi.ClassFieldDescription;
 
+@SuppressWarnings("PMD.UseConcurrentHashMap")
 public final class ClassUtils { //NOPMD nomen est omen
     private static final Logger LOGGER = LoggerFactory.getLogger(ClassUtils.class);
     // some helper declarations
-    private static final Map<Class<?>, Class<?>> primitiveWrapperMap = new HashMap<>();
-    private static final Map<Class<?>, Class<?>> wrapperPrimitiveMap = new HashMap<>();
-    private static final Map<Class<?>, Class<?>> primitiveArrayBoxedMap = new HashMap<>();
-    private static final Map<Class<?>, Class<?>> boxedArrayPrimitiveMap = new HashMap<>();
+    private static final Map<Class<?>, Class<?>> PRIMITIVE_WRAPPER_MAP = new HashMap<>();
+    private static final Map<Class<?>, Class<?>> WRAPPER_PRIMITIVE_MAP = new HashMap<>();
+    private static final Map<Class<?>, Class<?>> PRIMITIVE_ARRAY_BOXED_MAP = new HashMap<>();
+    private static final Map<Class<?>, Class<?>> BOXED_ARRAY_PRIMITIVE_MAP = new HashMap<>();
     public static final Map<Class<?>, String> DO_NOT_PARSE_MAP = new HashMap<>(); // NOPMD should not be a threading issue - static one-time/init write, multiple reads afterwards are safe
     private static final Map<Integer, ClassFieldDescription> CLASS_FIELD_DESCRIPTION_MAP = new ConcurrentHashMap<>();
     private static final Map<String, Class<?>> CLASS_STRING_MAP = new ConcurrentHashMap<>();
@@ -35,27 +36,27 @@ public final class ClassUtils { //NOPMD nomen est omen
 
     static {
         // primitive types
-        add(wrapperPrimitiveMap, primitiveWrapperMap, Boolean.class, boolean.class);
-        add(wrapperPrimitiveMap, primitiveWrapperMap, Byte.class, byte.class);
-        add(wrapperPrimitiveMap, primitiveWrapperMap, Character.class, char.class);
-        add(wrapperPrimitiveMap, primitiveWrapperMap, Short.class, short.class);
-        add(wrapperPrimitiveMap, primitiveWrapperMap, Integer.class, int.class);
-        add(wrapperPrimitiveMap, primitiveWrapperMap, Long.class, long.class);
-        add(wrapperPrimitiveMap, primitiveWrapperMap, Float.class, float.class);
-        add(wrapperPrimitiveMap, primitiveWrapperMap, Double.class, double.class);
-        add(wrapperPrimitiveMap, primitiveWrapperMap, Void.class, void.class);
-        add(wrapperPrimitiveMap, primitiveWrapperMap, String.class, String.class);
+        add(WRAPPER_PRIMITIVE_MAP, PRIMITIVE_WRAPPER_MAP, Boolean.class, boolean.class);
+        add(WRAPPER_PRIMITIVE_MAP, PRIMITIVE_WRAPPER_MAP, Byte.class, byte.class);
+        add(WRAPPER_PRIMITIVE_MAP, PRIMITIVE_WRAPPER_MAP, Character.class, char.class);
+        add(WRAPPER_PRIMITIVE_MAP, PRIMITIVE_WRAPPER_MAP, Short.class, short.class);
+        add(WRAPPER_PRIMITIVE_MAP, PRIMITIVE_WRAPPER_MAP, Integer.class, int.class);
+        add(WRAPPER_PRIMITIVE_MAP, PRIMITIVE_WRAPPER_MAP, Long.class, long.class);
+        add(WRAPPER_PRIMITIVE_MAP, PRIMITIVE_WRAPPER_MAP, Float.class, float.class);
+        add(WRAPPER_PRIMITIVE_MAP, PRIMITIVE_WRAPPER_MAP, Double.class, double.class);
+        add(WRAPPER_PRIMITIVE_MAP, PRIMITIVE_WRAPPER_MAP, Void.class, void.class);
+        add(WRAPPER_PRIMITIVE_MAP, PRIMITIVE_WRAPPER_MAP, String.class, String.class);
 
         // primitive arrays
-        add(primitiveArrayBoxedMap, boxedArrayPrimitiveMap, boolean[].class, Boolean[].class);
-        add(primitiveArrayBoxedMap, boxedArrayPrimitiveMap, byte[].class, Byte[].class);
-        add(primitiveArrayBoxedMap, boxedArrayPrimitiveMap, char[].class, Character[].class);
-        add(primitiveArrayBoxedMap, boxedArrayPrimitiveMap, short[].class, Short[].class);
-        add(primitiveArrayBoxedMap, boxedArrayPrimitiveMap, int[].class, Integer[].class);
-        add(primitiveArrayBoxedMap, boxedArrayPrimitiveMap, long[].class, Long[].class);
-        add(primitiveArrayBoxedMap, boxedArrayPrimitiveMap, float[].class, Float[].class);
-        add(primitiveArrayBoxedMap, boxedArrayPrimitiveMap, double[].class, Double[].class);
-        add(primitiveArrayBoxedMap, boxedArrayPrimitiveMap, String[].class, String[].class);
+        add(PRIMITIVE_ARRAY_BOXED_MAP, BOXED_ARRAY_PRIMITIVE_MAP, boolean[].class, Boolean[].class);
+        add(PRIMITIVE_ARRAY_BOXED_MAP, BOXED_ARRAY_PRIMITIVE_MAP, byte[].class, Byte[].class);
+        add(PRIMITIVE_ARRAY_BOXED_MAP, BOXED_ARRAY_PRIMITIVE_MAP, char[].class, Character[].class);
+        add(PRIMITIVE_ARRAY_BOXED_MAP, BOXED_ARRAY_PRIMITIVE_MAP, short[].class, Short[].class);
+        add(PRIMITIVE_ARRAY_BOXED_MAP, BOXED_ARRAY_PRIMITIVE_MAP, int[].class, Integer[].class);
+        add(PRIMITIVE_ARRAY_BOXED_MAP, BOXED_ARRAY_PRIMITIVE_MAP, long[].class, Long[].class);
+        add(PRIMITIVE_ARRAY_BOXED_MAP, BOXED_ARRAY_PRIMITIVE_MAP, float[].class, Float[].class);
+        add(PRIMITIVE_ARRAY_BOXED_MAP, BOXED_ARRAY_PRIMITIVE_MAP, double[].class, Double[].class);
+        add(PRIMITIVE_ARRAY_BOXED_MAP, BOXED_ARRAY_PRIMITIVE_MAP, String[].class, String[].class);
 
         // boxed arrays
 
@@ -174,11 +175,11 @@ public final class ClassUtils { //NOPMD nomen est omen
     }
 
     public static boolean isBoxedArray(final Class<?> type) {
-        return boxedArrayPrimitiveMap.containsKey(type);
+        return BOXED_ARRAY_PRIMITIVE_MAP.containsKey(type);
     }
 
     public static boolean isPrimitiveArray(final Class<?> type) {
-        return primitiveArrayBoxedMap.containsKey(type);
+        return PRIMITIVE_ARRAY_BOXED_MAP.containsKey(type);
     }
 
     public static boolean isPrimitiveOrString(final Class<?> type) {
@@ -196,20 +197,20 @@ public final class ClassUtils { //NOPMD nomen est omen
     }
 
     public static boolean isPrimitiveWrapper(final Class<?> type) {
-        return wrapperPrimitiveMap.containsKey(type);
+        return WRAPPER_PRIMITIVE_MAP.containsKey(type);
     }
 
     public static boolean isPrimitiveWrapperOrString(final Class<?> type) {
         if (type == null) {
             return false;
         }
-        return wrapperPrimitiveMap.containsKey(type) || String.class.isAssignableFrom(type);
+        return WRAPPER_PRIMITIVE_MAP.containsKey(type) || String.class.isAssignableFrom(type);
     }
 
     public static Class<?> primitiveToWrapper(final Class<?> cls) {
         Class<?> convertedClass = cls;
         if (cls != null && cls.isPrimitive()) {
-            convertedClass = primitiveWrapperMap.get(cls);
+            convertedClass = PRIMITIVE_WRAPPER_MAP.get(cls);
         }
         return convertedClass;
     }

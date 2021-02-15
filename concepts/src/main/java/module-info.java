@@ -1,6 +1,4 @@
 module io.opencmw.concepts {
-    requires io.opencmw.serialiser;
-    requires it.unimi.dsi.fastutil;
     requires org.slf4j;
     requires disruptor;
     requires jeromq;
@@ -9,5 +7,4 @@ module io.opencmw.concepts {
 
     exports io.opencmw.concepts.aggregate;
     exports io.opencmw.concepts.majordomo;
-    exports io.opencmw.concepts.majordomo.legacy;
 }

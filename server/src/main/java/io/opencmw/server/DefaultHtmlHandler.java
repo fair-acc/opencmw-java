@@ -28,7 +28,7 @@ public class DefaultHtmlHandler<C, I, O> implements MajordomoWorker.Handler<C, I
     protected final Class<?> mdpWorkerClass;
     protected final Consumer<Map<String, Object>> userContextMapModifier;
     protected final String velocityTemplate;
-    protected VelocityEngine velocityEngine = new VelocityEngine();
+    protected final VelocityEngine velocityEngine = new VelocityEngine();
 
     public DefaultHtmlHandler(final Class<?> mdpWorkerClass, final String velocityTemplate, final Consumer<Map<String, Object>> userContextMapModifier) {
         this.mdpWorkerClass = mdpWorkerClass;

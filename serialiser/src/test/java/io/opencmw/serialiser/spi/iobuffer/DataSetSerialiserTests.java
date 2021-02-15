@@ -54,7 +54,7 @@ class DataSetSerialiserTests {
 
         final DataSetSerialiser ioSerialiser = DataSetSerialiser.withIoSerialiser(new BinarySerialiser(buffer));
 
-        ioSerialiser.write(original, asFloat32);
+        ioSerialiser.write(original, false);
         buffer.reset(); // reset to read position (==0)
         final DataSet restored = ioSerialiser.read();
 
@@ -112,7 +112,7 @@ class DataSetSerialiserTests {
         addMetaData(original, true);
 
         final DataSetSerialiser ioSerialiser = DataSetSerialiser.withIoSerialiser(new BinarySerialiser(buffer));
-        ioSerialiser.write(original, asFloat32);
+        ioSerialiser.write(original, false);
         buffer.reset(); // reset to read position (==0)
         final DefaultErrorDataSet restored = (DefaultErrorDataSet) ioSerialiser.read();
 
@@ -173,7 +173,7 @@ class DataSetSerialiserTests {
 
         final DataSetSerialiser ioSerialiser = DataSetSerialiser.withIoSerialiser(new BinarySerialiser(buffer));
 
-        ioSerialiser.write(original, asFloat32);
+        ioSerialiser.write(original, true);
         buffer.reset(); // reset to read position (==0)
         final DataSet restored = ioSerialiser.read();
 
@@ -204,7 +204,7 @@ class DataSetSerialiserTests {
 
         final DataSetSerialiser ioSerialiser = DataSetSerialiser.withIoSerialiser(new BinarySerialiser(buffer));
 
-        ioSerialiser.write(original, asFloat32);
+        ioSerialiser.write(original, true);
         buffer.reset(); // reset to read position (==0)
         final DefaultErrorDataSet restored = (DefaultErrorDataSet) ioSerialiser.read();
 
@@ -224,7 +224,7 @@ class DataSetSerialiserTests {
 
         final DataSetSerialiser ioSerialiser = DataSetSerialiser.withIoSerialiser(new BinarySerialiser(buffer));
 
-        ioSerialiser.write(original, asFloat32);
+        ioSerialiser.write(original, false);
         buffer.reset(); // reset to read position (==0)
         final DataSet restored = ioSerialiser.read();
 

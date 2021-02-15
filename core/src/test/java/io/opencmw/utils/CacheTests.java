@@ -1,10 +1,6 @@
 package io.opencmw.utils;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
@@ -129,31 +125,34 @@ public class CacheTests {
 
     @Test
     public void testConstructors() {
-        Cache cache1 = new Cache(20); // limit
+        Cache<String, Object> cache1 = new Cache<>(20); // limit
         assertEquals(20, cache1.getLimit(), "limit");
-        Cache cache2 = new Cache(1000, TimeUnit.MILLISECONDS); // time-out
+        assertDoesNotThrow(() -> cache1.put("testKey", "testValue"));
+        Cache<String, Object> cache2 = new Cache<>(1000, TimeUnit.MILLISECONDS); // time-out
         assertEquals(1000, cache2.getTimeout(), "time out");
         assertEquals(TimeUnit.MILLISECONDS, cache2.getTimeUnit(), "time unit");
-        Cache cache3 = new Cache(1000, TimeUnit.MILLISECONDS, 20); // time-out && limit
+        assertDoesNotThrow(() -> cache2.put("testKey", "testValue"));
+        Cache<String, Object> cache3 = new Cache<>(1000, TimeUnit.MILLISECONDS, 20); // time-out && limit
         assertEquals(20, cache3.getLimit(), "limit");
         assertEquals(TimeUnit.MILLISECONDS, cache3.getTimeUnit(), "limit");
         assertEquals(1000, cache3.getTimeout(), "limit");
+        assertDoesNotThrow(() -> cache3.put("testKey", "testValue"));
 
         // check exceptions
 
         assertThrows(IllegalArgumentException.class, () -> {
             // negative time out check
-            new Cache(-1, TimeUnit.MILLISECONDS, 20);
+            new Cache<String, Object>(-1, TimeUnit.MILLISECONDS, 20);
         });
 
         assertThrows(IllegalArgumentException.class, () -> {
             // null TimeUnit check
-            new Cache(1, null, 20);
+            new Cache<String, Object>(1, null, 20);
         });
 
         assertThrows(IllegalArgumentException.class, () -> {
             // limit < 1 check
-            new Cache(2, TimeUnit.MICROSECONDS, 0);
+            new Cache<String, Object>(2, TimeUnit.MICROSECONDS, 0);
         });
 
         // check builder exceptions

@@ -5,7 +5,7 @@ import java.util.Map;
 import io.opencmw.serialiser.FieldSerialiser;
 import io.opencmw.serialiser.IoClassSerialiser;
 
-public class FieldMapHelper {
+public final class FieldMapHelper {
     private FieldMapHelper() {
         // utility class
     }

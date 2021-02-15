@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import io.opencmw.filter.TimingCtx;
 
 class QueryParameterParserTest {
+    @SuppressWarnings("CanBeFinal")
     private static class TestQueryClass {
         public String param1;
         public int param2;
@@ -28,6 +29,7 @@ class QueryParameterParserTest {
         // empty unknown class
     }
 
+    @SuppressWarnings("CanBeFinal")
     private static class TestQueryClass2 {
         protected boolean dummyBoolean;
         protected byte dummyByte;

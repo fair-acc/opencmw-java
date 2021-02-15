@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.lmax.disruptor.RingBuffer;
 
+@SuppressWarnings("PMD.SignatureDeclareThrowsException") // nature of this interface that it may and can throw any exception that needs to be dealt with upstream
 public interface HistoryEventHandler {
     /**
      * Called when a publisher has published a new event to the {@link EventStore}.

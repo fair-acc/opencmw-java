@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.locks.LockSupport;
 
 import org.awaitility.Awaitility;
@@ -78,10 +79,10 @@ class CmwLightDataSourceTest {
                 client.housekeeping(); // allow the subscription to be sent out
 
                 return reply.size() == 5 && reply.pollFirst().getString(Charset.defaultCharset()).equals("testId")
-                        && reply.pollFirst().getString(Charset.defaultCharset()).equals(new Endpoint(endpoint).getEndpointForContext(cycleName))
-                        && reply.pollFirst().getData().length == 0
-                        && reply.pollFirst().getString(Charset.defaultCharset()).equals("data")
-                        && reply.pollFirst().getData().length == 0;
+                        && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals(new Endpoint(endpoint).getEndpointForContext(cycleName))
+                        && Objects.requireNonNull(reply.pollFirst()).getData().length == 0
+                        && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals("data")
+                        && Objects.requireNonNull(reply.pollFirst()).getData().length == 0;
             });
         }
     }

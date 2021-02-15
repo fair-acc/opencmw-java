@@ -10,6 +10,8 @@ import io.opencmw.serialiser.IoClassSerialiser;
  * @author rstein
  */
 public final class FieldBoxedValueHelper {
+    public static final String NOT_SUPPORTED_FOR_PRIMITIVES = "return function not supported for primitive types";
+
     private FieldBoxedValueHelper() {
         // utility class
     }
@@ -23,43 +25,43 @@ public final class FieldBoxedValueHelper {
     public static void register(final IoClassSerialiser serialiser) {
         serialiser.addClassDefinition(new FieldSerialiser<>( //
                 (io, obj, field) -> field.getField().set(obj, io.getBoolean()), // reader
-                (io, obj, field) -> { throw new UnsupportedOperationException("return function not supported for primitive types"); }, // return
+                (io, obj, field) -> { throw new UnsupportedOperationException(NOT_SUPPORTED_FOR_PRIMITIVES); }, // return
                 (io, obj, field) -> io.put(field, (Boolean) field.getField().get(obj)), // writer
                 Boolean.class));
 
         serialiser.addClassDefinition(new FieldSerialiser<>( //
                 (io, obj, field) -> field.getField().set(obj, io.getByte()), // reader
-                (io, obj, field) -> { throw new UnsupportedOperationException("return function not supported for primitive types"); }, // return
+                (io, obj, field) -> { throw new UnsupportedOperationException(NOT_SUPPORTED_FOR_PRIMITIVES); }, // return
                 (io, obj, field) -> io.put(field, (Byte) field.getField().get(obj)), // writer
                 Byte.class));
 
         serialiser.addClassDefinition(new FieldSerialiser<>( //
                 (io, obj, field) -> field.getField().set(obj, io.getShort()), // reader
-                (io, obj, field) -> { throw new UnsupportedOperationException("return function not supported for primitive types"); }, // return
+                (io, obj, field) -> { throw new UnsupportedOperationException(NOT_SUPPORTED_FOR_PRIMITIVES); }, // return
                 (io, obj, field) -> io.put(field, (Short) field.getField().get(obj)), // writer
                 Short.class));
 
         serialiser.addClassDefinition(new FieldSerialiser<>( //
                 (io, obj, field) -> field.getField().set(obj, io.getInt()), // reader
-                (io, obj, field) -> { throw new UnsupportedOperationException("return function not supported for primitive types"); }, // return
+                (io, obj, field) -> { throw new UnsupportedOperationException(NOT_SUPPORTED_FOR_PRIMITIVES); }, // return
                 (io, obj, field) -> io.put(field, (Integer) field.getField().get(obj)), // writer
                 Integer.class));
 
         serialiser.addClassDefinition(new FieldSerialiser<>( //
                 (io, obj, field) -> field.getField().set(obj, io.getLong()), // reader
-                (io, obj, field) -> { throw new UnsupportedOperationException("return function not supported for primitive types"); }, // return
+                (io, obj, field) -> { throw new UnsupportedOperationException(NOT_SUPPORTED_FOR_PRIMITIVES); }, // return
                 (io, obj, field) -> io.put(field, (Long) field.getField().get(obj)), // writer
                 Long.class));
 
         serialiser.addClassDefinition(new FieldSerialiser<>( //
                 (io, obj, field) -> field.getField().set(obj, io.getFloat()), // reader
-                (io, obj, field) -> { throw new UnsupportedOperationException("return function not supported for primitive types"); }, // return
+                (io, obj, field) -> { throw new UnsupportedOperationException(NOT_SUPPORTED_FOR_PRIMITIVES); }, // return
                 (io, obj, field) -> io.put(field, (Float) field.getField().get(obj)), // writer
                 Float.class));
 
         serialiser.addClassDefinition(new FieldSerialiser<>( //
                 (io, obj, field) -> field.getField().set(obj, io.getDouble()), // reader
-                (io, obj, field) -> { throw new UnsupportedOperationException("return function not supported for primitive types"); }, // return
+                (io, obj, field) -> { throw new UnsupportedOperationException(NOT_SUPPORTED_FOR_PRIMITIVES); }, // return
                 (io, obj, field) -> io.put(field, (Double) field.getField().get(obj)), // writer
                 Double.class));
     }

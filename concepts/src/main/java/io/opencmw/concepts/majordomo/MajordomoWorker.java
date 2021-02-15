@@ -33,6 +33,7 @@ import io.opencmw.utils.SystemProperties;
  * this implies also, that worker must either return their message within 'HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS ms' or decouple their secondary handler interface into another thread.
  *
  */
+@SuppressWarnings("PMD.DoNotUseThreads")
 public class MajordomoWorker extends Thread {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoWorker.class);
     private static final int HEARTBEAT_LIVENESS = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeatLiveness", 3); // [counts] 3-5 is reasonable
@@ -46,7 +47,7 @@ public class MajordomoWorker extends Thread {
     private final String serviceName;
     private final byte[] serviceBytes;
 
-    private final AtomicBoolean run = new AtomicBoolean(true);
+    private final AtomicBoolean run = new AtomicBoolean(true); // NOPMD
     private final SortedSet<RbacRole<?>> rbacRoles;
     private ZMQ.Socket workerSocket; // Socket to broker
     private long heartbeatAt; // When to send HEARTBEAT
@@ -64,6 +65,7 @@ public class MajordomoWorker extends Thread {
     }
 
     protected MajordomoWorker(ZContext ctx, String brokerAddress, String serviceName, final RbacRole<?>... rbacRoles) {
+        super();
         assert (brokerAddress != null);
         assert (serviceName != null);
         this.brokerAddress = brokerAddress;
@@ -151,8 +153,9 @@ public class MajordomoWorker extends Thread {
                 final PrintWriter pw = new PrintWriter(sw);
                 e.printStackTrace(pw);
 
+                //noinspection StringBufferReplaceableByString
                 final StringBuilder builder = new StringBuilder(); // NOPMD NOSONAR -- easier to read !?!?
-                builder.append(MajordomoWorker.this.getClass().getName())
+                builder.append(getClass().getName())
                         .append(" caught exception in user-provided call-back function for service '")
                         .append(getServiceName())
                         .append("'\nrequest msg: ")
@@ -183,7 +186,7 @@ public class MajordomoWorker extends Thread {
     }
 
     @Override
-    public synchronized void start() {
+    public synchronized void start() { // NOPMD - need to be synchronised on class level due to super definition
         run.set(true);
         reconnectToBroker();
         super.start();
@@ -214,7 +217,7 @@ public class MajordomoWorker extends Thread {
                 }
                 liveness = HEARTBEAT_LIVENESS;
                 // Don't try to handle errors, just assert noisily
-                assert msg.payload.length > 0 : "MdpWorkerMessage payload is equal or less than zero: " + msg.payload.length;
+                assert msg.payload != null : "MdpWorkerMessage payload is null";
                 if (!(msg instanceof MdpWorkerMessage)) {
                     assert false : "msg is not instance of MdpWorkerMessage";
                     continue;
@@ -240,6 +243,7 @@ public class MajordomoWorker extends Thread {
                     LOGGER.atDebug().addArgument(uniqueID).log("worker '{}' disconnected from broker - retrying");
                 }
                 try {
+                    //noinspection BusyWait
                     Thread.sleep(reconnect); // NOSONAR NOPMD -- need to wait until retry
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt(); // Restore the interrupted status
