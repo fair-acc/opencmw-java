@@ -1,6 +1,9 @@
 package io.opencmw.client;
 
+import static java.util.Objects.requireNonNull;
+
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
@@ -88,9 +91,9 @@ public class DataSourcePublisher implements Runnable {
             if (future.replyType == DataSourceFilter.ReplyType.SUBSCRIBE) {
                 final Class<?> domainClass = future.getRequestedDomainObjType();
                 final ZMsg cmwMsg = event.payload.get(ZMsg.class);
-                cmwMsg.poll().getString(Charset.defaultCharset()); // ignore header
-                final byte[] body = cmwMsg.poll().getData();
-                final String exc = cmwMsg.poll().getString(Charset.defaultCharset());
+                requireNonNull(cmwMsg.poll()).getString(Charset.defaultCharset()); // ignore header
+                final byte[] body = requireNonNull(cmwMsg.poll()).getData();
+                final String exc = requireNonNull(cmwMsg.poll()).getString(Charset.defaultCharset());
                 Object domainObj = null;
                 if (body != null && body.length != 0) {
                     ioClassSerialiser.setDataBuffer(FastByteBuffer.wrap(body));
@@ -120,9 +123,10 @@ public class DataSourcePublisher implements Runnable {
             } else if (future.replyType == DataSourceFilter.ReplyType.GET) {
                 // get data from socket
                 final ZMsg cmwMsg = event.payload.get(ZMsg.class);
-                final String header = cmwMsg.poll().getString(Charset.defaultCharset());
-                final byte[] body = cmwMsg.poll().getData();
-                final String exc = cmwMsg.poll().getString(Charset.defaultCharset());
+                //noinspection AssertWithSideEffects
+                assert requireNonNull(cmwMsg.poll()).getString(StandardCharsets.UTF_8) != null;
+                final byte[] body = requireNonNull(cmwMsg.poll()).getData();
+                final String exc = requireNonNull(cmwMsg.poll()).getString(Charset.defaultCharset());
                 // deserialise
                 Object obj = null;
                 if (body != null && body.length != 0) {
@@ -332,8 +336,8 @@ public class DataSourcePublisher implements Runnable {
             return true; // ignore invalid partial message
         }
         final DataSourceFilter.ReplyType msgType = DataSourceFilter.ReplyType.valueOf(controlMsg.pollFirst().getData()[0]);
-        final String requestId = controlMsg.pollFirst().getString(Charset.defaultCharset());
-        final String endpoint = controlMsg.pollFirst().getString(Charset.defaultCharset());
+        final String requestId = requireNonNull(controlMsg.pollFirst()).getString(Charset.defaultCharset());
+        final String endpoint = requireNonNull(controlMsg.pollFirst()).getString(Charset.defaultCharset());
         final byte[] filters = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
         final byte[] data = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
         final byte[] rbacToken = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
@@ -373,14 +377,14 @@ public class DataSourcePublisher implements Runnable {
             }
             // the received data consists of the following frames: replyType(byte), reqId(string), endpoint(string), dataBody(byte[])
             eventStore.getRingBuffer().publishEvent((event, sequence) -> {
-                final String reqId = reply.pollFirst().getString(Charset.defaultCharset());
+                final String reqId = requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset());
                 final ThePromisedFuture<?> returnFuture = requestFutureMap.get(reqId);
                 if (returnFuture.getReplyType() != DataSourceFilter.ReplyType.SUBSCRIBE) { // remove entries for one time replies
                     assert returnFuture.getInternalRequestID().equals(reqId)
                         : "requestID mismatch";
                     requestFutureMap.remove(reqId);
                 }
-                final Endpoint endpoint = new Endpoint(reply.pollFirst().getString(Charset.defaultCharset())); // NOPMD - need to create new Endpoint
+                final Endpoint endpoint = new Endpoint(requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset())); // NOPMD - need to create new Endpoint
                 event.arrivalTimeStamp = System.currentTimeMillis();
                 event.payload = new SharedPointer<>(); // NOPMD - need to create new shared pointer instance
                 event.payload.set(reply); // ZMsg containing header, body and exception frame

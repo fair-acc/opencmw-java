@@ -35,6 +35,7 @@ import com.lmax.disruptor.TimeoutHandler;
  *
  * @author Alexander Krimm
  */
+@SuppressWarnings("PMD.LinguisticNaming") // fluent-style API with setter returning factory
 public class AggregateEventHandler implements SequenceReportingEventHandler<RingBufferEvent> {
     private static final Logger LOGGER = LoggerFactory.getLogger(AggregateEventHandler.class);
     // private Map<Long, Object> aggregatedBpcts = new SoftHashMap<>(RETENTION_SIZE);
@@ -89,7 +90,7 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
                 final InternalAggregationHandler freeWorker = freeWorkers.remove(0);
                 freeWorker.bpcts = ctx.bpcts;
                 freeWorker.aggStart = event.arrivalTimeStamp;
-                aggregatedBpcts.put(ctx.bpcts, new Object());
+                aggregatedBpcts.put(ctx.bpcts, new Object()); // NOPMD - necessary to allocate inside loop
                 seq.set(nextSequence); // advance sequence to let workers process events up to here
                 return;
             }

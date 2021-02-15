@@ -24,6 +24,7 @@ import com.jsoniter.spi.JsonException;
 
 import de.gsi.dataset.utils.ByteBufferOutputStream;
 
+@SuppressWarnings({ "PMD.ExcessivePublicCount", "PMD.TooManyMethods" }) // unavoidable: Java does not support templates and primitive types need to be handled one-by-one
 public class JsonSerialiser implements IoSerialiser {
     public static final String NOT_A_JSON_COMPATIBLE_PROTOCOL = "Not a JSON compatible protocol";
     public static final String JSON_ROOT = "JSON_ROOT";
@@ -915,7 +916,7 @@ public class JsonSerialiser implements IoSerialiser {
             if (data instanceof Map) {
                 parseIoStream(putStartMarker, childAny, childName);
             } else if (data != null) {
-                new WireDataFieldDescription(this, putStartMarker, childName.hashCode(), childName, DataType.fromClassType(data.getClass()), 0, -1, -1);
+                new WireDataFieldDescription(this, putStartMarker, childName.hashCode(), childName, DataType.fromClassType(data.getClass()), 0, -1, -1); // NOPMD - necessary to allocate inside loop
             }
         }
         // add if necessary:

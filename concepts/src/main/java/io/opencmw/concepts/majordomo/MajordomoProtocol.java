@@ -26,7 +26,7 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
         return receiveMdpMessage(socket, true);
     }
 
-    public static MdpMessage receiveMdpMessage(final Socket socket, final boolean wait) {
+    public static MdpMessage receiveMdpMessage(final Socket socket, final boolean wait) { //NOPMD
         assert socket != null : "socket must not be null";
         final int flags = wait ? 0 : ZMQ.DONTWAIT;
 
@@ -62,7 +62,7 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
             final byte[][] clientMessages = new byte[msg.size()][];
             for (int i = 0; i < clientMessages.length; i++) {
                 final ZFrame dataFrame = msg.pop();
-                clientMessages[i] = dataFrame.hasData() ? dataFrame.getData() : new byte[0];
+                clientMessages[i] = dataFrame.hasData() ? dataFrame.getData() : EMPTY_FRAME;
                 dataFrame.destroy();
             }
             return new MdpClientMessage(senderId, clientCommand, serviceName.getData(), clientMessages);
@@ -89,7 +89,7 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
                 final byte[][] workerMessages = new byte[msg.size()][];
                 for (int i = 0; i < workerMessages.length; i++) {
                     final ZFrame dataFrame = msg.pop();
-                    workerMessages[i] = dataFrame.hasData() ? dataFrame.getData() : new byte[0];
+                    workerMessages[i] = dataFrame.hasData() ? dataFrame.getData() : EMPTY_FRAME;
                     dataFrame.destroy();
                 }
                 return new MdpWorkerMessage(senderId, workerCommand, null, clientSourceId, workerMessages);
@@ -133,7 +133,7 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
         status &= socketBase.send(new zmq.Msg(serviceName), ZMQ.SNDMORE); // frame 3: service name (UTF-8 string)
         // frame 3++: msg frames (last one being usually the RBAC token)
         for (int i = 0; i < msg.length; i++) {
-            status &= socketBase.send(new zmq.Msg(msg[i]), i < msg.length - 1 ? ZMQ.SNDMORE : 0);
+            status &= socketBase.send(new zmq.Msg(msg[i]), i < msg.length - 1 ? ZMQ.SNDMORE : 0); // NOPMD - necessary to allocate inside loop
         }
 
         return status;
@@ -183,7 +183,7 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
                 // optional additional payload after ready (e.g. service uniqueID, input/output property layout etc.)
                 status &= socketBase.send(new zmq.Msg(EMPTY_FRAME), ZMQ.SNDMORE); // frame 5: empty frame (0 bytes)
                 for (int i = 0; i < msg.length; i++) {
-                    status &= socketBase.send(new zmq.Msg(msg[i]), i < msg.length - 1 ? ZMQ.SNDMORE : 0);
+                    status &= socketBase.send(new zmq.Msg(msg[i]), i < msg.length - 1 ? ZMQ.SNDMORE : 0); // NOPMD - necessary to allocate inside loop
                 }
             }
             return status;
@@ -334,6 +334,7 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
         public final String senderName;
         public final byte[][] payload;
 
+        @SuppressWarnings("PMD.ArrayIsStoredDirectly")
         public MdpMessage(final byte[] senderID, final MdpSubProtocol protocol, final byte[]... payload) {
             this.isClient = protocol == MdpSubProtocol.C_CLIENT;
             this.senderID = senderID;
@@ -345,9 +346,10 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
 
         public byte[] getRbacFrame() {
             if (hasRbackToken()) {
-                return payload[payload.length - 1];
+                final byte[] rbacFrame = payload[payload.length - 1];
+                return Arrays.copyOf(rbacFrame, rbacFrame.length);
             }
-            return null;
+            return new byte[0];
         }
 
         public boolean hasRbackToken() {

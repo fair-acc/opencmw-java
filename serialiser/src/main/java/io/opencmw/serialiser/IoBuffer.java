@@ -6,7 +6,7 @@ package io.opencmw.serialiser;
  *
  * @author rstein
  */
-@SuppressWarnings("PMD.TooManyMethods") // NOPMD - these are short-hand convenience methods
+@SuppressWarnings({"PMD.ExcessivePublicCount", "PMD.TooManyMethods"}) // NOPMD - these are short-hand convenience methods
 public interface IoBuffer extends IoBufferHeader {
     /**
      * @return underlying raw byte[] array buffer (if available)

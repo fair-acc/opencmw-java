@@ -44,9 +44,10 @@ public class TestEventSource implements Runnable {
             while (!Thread.interrupted() && eventIterator.hasNext()) {
                 final String eventToken = eventIterator.next();
                 final String[] tokens = eventToken.split(";");
-                if (tokens.length == 0 || tokens[0].isEmpty())
+                if (tokens.length == 0 || tokens[0].isEmpty()) {
                     continue;
-                if (tokens[0].equals("pause")) {
+                }
+                if ("pause".equals(tokens[0])) {
                     lastEvent += DEFAULT_PAUSE;
                     continue;
                 }
@@ -75,8 +76,9 @@ public class TestEventSource implements Runnable {
         int chain = DEFAULT_CHAIN;
         for (int i = 1; i < tokens.length; i++) {
             String[] keyvalue = tokens[i].split("=");
-            if (keyvalue.length != 2)
+            if (keyvalue.length != 2) {
                 continue;
+            }
             switch (keyvalue[0]) {
             case "time":
                 sourceTime = Long.parseLong(keyvalue[1]) + timeOffset;

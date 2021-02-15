@@ -15,6 +15,7 @@ import io.opencmw.serialiser.spi.BinarySerialiser;
  * @author rstein
  * @see BinarySerialiser
  */
+@SuppressWarnings("ALL")
 public class MyGenericClass {
     private static final Logger LOGGER = LoggerFactory.getLogger(MyGenericClass.class);
     private static boolean verboseLogging = false;
@@ -211,7 +212,7 @@ public class MyGenericClass {
         verboseLogging = state;
     }
 
-    public class ArraySubClass {
+    public static class ArraySubClass {
         protected boolean[] dummyBooleanArray = new boolean[2];
         protected byte[] dummyByteArray = new byte[2];
         protected short[] dummyShortArray = new short[2];
@@ -308,7 +309,7 @@ public class MyGenericClass {
         }
     }
 
-    public class BoxedObjectArraySubClass {
+    public static class BoxedObjectArraySubClass {
         protected Boolean[] dummyBoxedBooleanArray = { false, false };
         protected Byte[] dummyBoxedByteArray = { 0, 0 };
         protected Short[] dummyBoxedShortArray = { 0, 0 };

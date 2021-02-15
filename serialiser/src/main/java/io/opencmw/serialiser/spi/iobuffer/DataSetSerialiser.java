@@ -308,7 +308,7 @@ public class DataSetSerialiser { // NOPMD
         }
 
         final int dataCount = dataSet.getDataCount();
-        final Map<Integer, String> labelMap = new HashMap<>();
+        final Map<Integer, String> labelMap = new HashMap<>(); // NOPMD - protected by lock and faster
         for (int index = 0; index < dataCount; index++) {
             final String label = dataSet.getDataLabel(index);
             if ((label != null) && !label.isEmpty()) {
@@ -319,7 +319,7 @@ public class DataSetSerialiser { // NOPMD
             ioSerialiser.put(DATA_LABELS, labelMap, Integer.class, String.class);
         }
 
-        final Map<Integer, String> styleMap = new HashMap<>();
+        final Map<Integer, String> styleMap = new HashMap<>(); // NOPMD - protected by lock and faster
         for (int index = 0; index < dataCount; index++) {
             final String style = dataSet.getStyle(index);
             if ((style != null) && !style.isEmpty()) {

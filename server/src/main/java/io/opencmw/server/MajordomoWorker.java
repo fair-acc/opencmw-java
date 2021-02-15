@@ -27,8 +27,9 @@ import io.opencmw.serialiser.spi.FastByteBuffer;
 import io.opencmw.serialiser.spi.JsonSerialiser;
 
 /**
- * More complex MajordomoWorker including de-serialising and re-serialising.
- * This implements handlers that are driven by PoJo domain objects.
+ * MajordomoWorker implementation including de-serialising and re-serialising to domain-objects.
+ * <p>
+ * This implements GET/SET/NOTIFY handlers that are driven by PoJo domain objects.
  *
  * @author rstein
  *

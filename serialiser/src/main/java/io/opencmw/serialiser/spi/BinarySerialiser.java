@@ -100,8 +100,9 @@ import io.opencmw.serialiser.utils.GenericsHelper;
  * 
  * @author rstein
  */
-@SuppressWarnings({ "PMD.CommentSize", "PMD.ExcessivePublicCount", "PMD.PrematureDeclaration" }) // variables need to be read from stream
+@SuppressWarnings({ "PMD.CommentSize", "PMD.TooManyMethods", "PMD.ExcessivePublicCount", "PMD.PrematureDeclaration" }) // variables need to be read from stream
 public class BinarySerialiser implements IoSerialiser {
+    public static final String UNCHECKED_CAST_SUPPRESSION = "unchecked";
     public static final int VERSION_MAGIC_NUMBER = -1; // '-1' since CmwLight cannot have a negative number of entries
     public static final String PROTOCOL_NAME = "YaS"; // Yet another Serialiser implementation
     public static final byte VERSION_MAJOR = 1;
@@ -113,50 +114,50 @@ public class BinarySerialiser implements IoSerialiser {
     public static final String VS_ARRAY = " vs. array = ";
     private static final Logger LOGGER = LoggerFactory.getLogger(BinarySerialiser.class);
     private static final int ADDITIONAL_HEADER_INFO_SIZE = 1000;
-    private static final DataType[] byteToDataType = new DataType[256];
-    private static final Byte[] dataTypeToByte = new Byte[256];
+    private static final DataType[] BYTE_TO_DATA_TYPE = new DataType[256];
+    private static final Byte[] DATA_TYPE_TO_BYTE = new Byte[256];
     public static final String VS_SHOULD_BE = "' vs. should be '";
 
     static {
         // static mapping of protocol bytes -- needed to be compatible with other wire protocols
-        byteToDataType[0] = DataType.START_MARKER;
+        BYTE_TO_DATA_TYPE[0] = DataType.START_MARKER;
 
-        byteToDataType[1] = DataType.BOOL;
-        byteToDataType[2] = DataType.BYTE;
-        byteToDataType[3] = DataType.SHORT;
-        byteToDataType[4] = DataType.INT;
-        byteToDataType[5] = DataType.LONG;
-        byteToDataType[6] = DataType.FLOAT;
-        byteToDataType[7] = DataType.DOUBLE;
-        byteToDataType[8] = DataType.CHAR;
-        byteToDataType[9] = DataType.STRING;
+        BYTE_TO_DATA_TYPE[1] = DataType.BOOL;
+        BYTE_TO_DATA_TYPE[2] = DataType.BYTE;
+        BYTE_TO_DATA_TYPE[3] = DataType.SHORT;
+        BYTE_TO_DATA_TYPE[4] = DataType.INT;
+        BYTE_TO_DATA_TYPE[5] = DataType.LONG;
+        BYTE_TO_DATA_TYPE[6] = DataType.FLOAT;
+        BYTE_TO_DATA_TYPE[7] = DataType.DOUBLE;
+        BYTE_TO_DATA_TYPE[8] = DataType.CHAR;
+        BYTE_TO_DATA_TYPE[9] = DataType.STRING;
 
-        byteToDataType[101] = DataType.BOOL_ARRAY;
-        byteToDataType[102] = DataType.BYTE_ARRAY;
-        byteToDataType[103] = DataType.SHORT_ARRAY;
-        byteToDataType[104] = DataType.INT_ARRAY;
-        byteToDataType[105] = DataType.LONG_ARRAY;
-        byteToDataType[106] = DataType.FLOAT_ARRAY;
-        byteToDataType[107] = DataType.DOUBLE_ARRAY;
-        byteToDataType[108] = DataType.CHAR_ARRAY;
-        byteToDataType[109] = DataType.STRING_ARRAY;
+        BYTE_TO_DATA_TYPE[101] = DataType.BOOL_ARRAY;
+        BYTE_TO_DATA_TYPE[102] = DataType.BYTE_ARRAY;
+        BYTE_TO_DATA_TYPE[103] = DataType.SHORT_ARRAY;
+        BYTE_TO_DATA_TYPE[104] = DataType.INT_ARRAY;
+        BYTE_TO_DATA_TYPE[105] = DataType.LONG_ARRAY;
+        BYTE_TO_DATA_TYPE[106] = DataType.FLOAT_ARRAY;
+        BYTE_TO_DATA_TYPE[107] = DataType.DOUBLE_ARRAY;
+        BYTE_TO_DATA_TYPE[108] = DataType.CHAR_ARRAY;
+        BYTE_TO_DATA_TYPE[109] = DataType.STRING_ARRAY;
 
-        byteToDataType[200] = DataType.COLLECTION;
-        byteToDataType[201] = DataType.ENUM;
-        byteToDataType[202] = DataType.LIST;
-        byteToDataType[203] = DataType.MAP;
-        byteToDataType[204] = DataType.QUEUE;
-        byteToDataType[205] = DataType.SET;
+        BYTE_TO_DATA_TYPE[200] = DataType.COLLECTION;
+        BYTE_TO_DATA_TYPE[201] = DataType.ENUM;
+        BYTE_TO_DATA_TYPE[202] = DataType.LIST;
+        BYTE_TO_DATA_TYPE[203] = DataType.MAP;
+        BYTE_TO_DATA_TYPE[204] = DataType.QUEUE;
+        BYTE_TO_DATA_TYPE[205] = DataType.SET;
 
-        byteToDataType[0xFD] = DataType.OTHER;
-        byteToDataType[0xFE] = DataType.END_MARKER;
+        BYTE_TO_DATA_TYPE[0xFD] = DataType.OTHER;
+        BYTE_TO_DATA_TYPE[0xFE] = DataType.END_MARKER;
 
-        for (int i = 0; i < byteToDataType.length; i++) {
-            if (byteToDataType[i] == null) {
+        for (int i = 0; i < BYTE_TO_DATA_TYPE.length; i++) {
+            if (BYTE_TO_DATA_TYPE[i] == null) {
                 continue;
             }
-            final int id = byteToDataType[i].getID();
-            dataTypeToByte[id] = (byte) i;
+            final int id = BYTE_TO_DATA_TYPE[i].getID();
+            DATA_TYPE_TO_BYTE[id] = (byte) i;
         }
     }
 
@@ -228,10 +229,12 @@ public class BinarySerialiser implements IoSerialiser {
         return buffer.getBooleanArray(dst, length);
     }
 
+    @Override
     public IoBuffer getBuffer() {
         return buffer;
     }
 
+    @Override
     public void setBuffer(final IoBuffer buffer) {
         this.buffer = buffer;
     }
@@ -275,10 +278,7 @@ public class BinarySerialiser implements IoSerialiser {
         final DataType valueDataType = getDataType(buffer.getByte());
 
         final Collection<E> retCollection;
-        if (collection != null) {
-            retCollection = collection;
-            retCollection.clear();
-        } else {
+        if (collection == null) {
             switch (collectionType) {
             case SET:
                 retCollection = new HashSet<>(nElements);
@@ -292,6 +292,9 @@ public class BinarySerialiser implements IoSerialiser {
                 retCollection = new ArrayList<>(nElements);
                 break;
             }
+        } else {
+            retCollection = collection;
+            retCollection.clear();
         }
 
         if (DataType.OTHER.equals(valueDataType)) {
@@ -303,6 +306,7 @@ public class BinarySerialiser implements IoSerialiser {
             if (serialiserLookup == null) {
                 throw new IllegalArgumentException(PROTOCOL_ERROR_SERIALISER_LOOKUP_MUST_NOT_BE_NULL);
             }
+            @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
             final FieldSerialiser<E> serialiser = (FieldSerialiser<E>) serialiserLookup.apply(classType, secondaryType);
 
             if (serialiser == null) {
@@ -326,6 +330,7 @@ public class BinarySerialiser implements IoSerialiser {
     }
 
     @Override
+    @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
     public <E> E getCustomData(final FieldSerialiser<E> serialiser) {
         String classType = null;
         String classSecondaryType = null;
@@ -357,6 +362,7 @@ public class BinarySerialiser implements IoSerialiser {
     }
 
     @Override
+    @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
     public <E extends Enum<E>> Enum<E> getEnum(final Enum<E> enumeration) {
         // read value vector
         final String enumSimpleName = buffer.getStringISO8859();
@@ -397,6 +403,7 @@ public class BinarySerialiser implements IoSerialiser {
     }
 
     @Override
+    @SuppressWarnings("PMD.NPathComplexity")
     public WireDataFieldDescription getFieldHeader() {
         final int headerStart = buffer.position();
         final byte dataTypeByte = buffer.getByte();
@@ -511,6 +518,7 @@ public class BinarySerialiser implements IoSerialiser {
             if (serialiserLookup == null) {
                 throw new IllegalArgumentException(PROTOCOL_ERROR_SERIALISER_LOOKUP_MUST_NOT_BE_NULL);
             }
+            @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
             final FieldSerialiser<E> serialiser = (FieldSerialiser<E>) serialiserLookup.apply(classType, secondaryType);
 
             if (serialiser == null) {
@@ -545,7 +553,7 @@ public class BinarySerialiser implements IoSerialiser {
     }
 
     @Override
-    @SuppressWarnings("PMD.NPathComplexity")
+    @SuppressWarnings({ "PMD.NPathComplexity", UNCHECKED_CAST_SUPPRESSION })
     public <K, V> Map<K, V> getMap(final Map<K, V> map) { // NOSONAR NOPMD
         getArraySizeDescriptor();
         final int nElements = buffer.getInt();
@@ -556,9 +564,7 @@ public class BinarySerialiser implements IoSerialiser {
         final K[] keys;
         final DataType keyDataType = getDataType(buffer.getByte());
         final BiFunction<Type, Type[], FieldSerialiser<Object>> serialiserLookup = getSerialiserLookupFunction();
-        if (keyDataType != DataType.OTHER) {
-            keys = getGenericArrayAsBoxedPrimitive(keyDataType);
-        } else {
+        if (keyDataType == DataType.OTHER) {
             final String classTypeName = buffer.getStringISO8859();
             final String secondaryTypeName = buffer.getStringISO8859();
             final Type classType = ClassUtils.getClassByName(classTypeName);
@@ -574,13 +580,13 @@ public class BinarySerialiser implements IoSerialiser {
             for (int i = 0; i < keys.length; i++) {
                 keys[i] = (K) serialiser.getReturnObjectFunction().apply(this, null, null);
             }
+        } else {
+            keys = getGenericArrayAsBoxedPrimitive(keyDataType);
         }
         // read value type and value vector
         final V[] values;
         final DataType valueDataType = getDataType(buffer.getByte());
-        if (valueDataType != DataType.OTHER) {
-            values = getGenericArrayAsBoxedPrimitive(valueDataType);
-        } else {
+        if (valueDataType == DataType.OTHER) {
             final String classTypeName = buffer.getStringISO8859();
             final String secondaryTypeName = buffer.getStringISO8859();
             final Type classType = ClassUtils.getClassByName(classTypeName);
@@ -597,6 +603,8 @@ public class BinarySerialiser implements IoSerialiser {
             for (int i = 0; i < values.length; i++) {
                 values[i] = (V) serialiser.getReturnObjectFunction().apply(this, null, null);
             }
+        } else {
+            values = getGenericArrayAsBoxedPrimitive(valueDataType);
         }
 
         // generate new/write into existing Map
@@ -641,6 +649,7 @@ public class BinarySerialiser implements IoSerialiser {
             if (serialiserLookup == null) {
                 throw new IllegalArgumentException(PROTOCOL_ERROR_SERIALISER_LOOKUP_MUST_NOT_BE_NULL);
             }
+            @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
             final FieldSerialiser<E> serialiser = (FieldSerialiser<E>) serialiserLookup.apply(classType, secondaryType);
 
             if (serialiser == null) {
@@ -664,6 +673,7 @@ public class BinarySerialiser implements IoSerialiser {
     }
 
     @Override
+    @SuppressWarnings("PMD.NPathComplexity")
     public <E> Set<E> getSet(final Set<E> collection) {
         getArraySizeDescriptor();
         final int nElements = buffer.getInt();
@@ -689,6 +699,7 @@ public class BinarySerialiser implements IoSerialiser {
             final String secondaryTypeName = buffer.getStringISO8859();
             final Type classType = ClassUtils.getClassByName(classTypeName);
             final Type[] secondaryType = secondaryTypeName.isEmpty() ? new Type[0] : new Type[] { ClassUtils.getClassByName(secondaryTypeName) };
+            @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
             final FieldSerialiser<E> serialiser = (FieldSerialiser<E>) serialiserLookup.apply(classType, secondaryType);
 
             if (serialiser == null) {
@@ -830,6 +841,7 @@ public class BinarySerialiser implements IoSerialiser {
         } else {
             buffer.putByte(getDataType(DataType.OTHER)); // write value element type
             final Type[] secondaryType = ClassUtils.getSecondaryType(valueType);
+            @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
             final FieldSerialiser<E> serialiser = (FieldSerialiser<E>) serialiserLookup.apply(valueType, secondaryType);
             if (serialiser == null) {
                 throw new IllegalArgumentException("could not find serialiser for class type " + valueType);
@@ -852,6 +864,7 @@ public class BinarySerialiser implements IoSerialiser {
         if (enumeration == null) {
             return;
         }
+        @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
         final Class<? extends Enum<?>> clazz = (Class<? extends Enum<?>>) enumeration.getClass();
         if (clazz == null) {
             return;
@@ -1605,6 +1618,7 @@ public class BinarySerialiser implements IoSerialiser {
         return fieldSerialiserLookupFunction;
     }
 
+    @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
     protected <E> E[] getGenericArrayAsBoxedPrimitive(final DataType dataType) {
         final Object[] retVal;
         getArraySizeDescriptor();
@@ -1649,8 +1663,8 @@ public class BinarySerialiser implements IoSerialiser {
 
     public static byte getDataType(final DataType dataType) {
         final int id = dataType.getID();
-        if (dataTypeToByte[id] != null) {
-            return dataTypeToByte[id];
+        if (DATA_TYPE_TO_BYTE[id] != null) {
+            return DATA_TYPE_TO_BYTE[id];
         }
 
         throw new IllegalArgumentException("DataType " + dataType + " not mapped to specific byte");
@@ -1658,8 +1672,8 @@ public class BinarySerialiser implements IoSerialiser {
 
     public static DataType getDataType(final byte byteValue) {
         final int id = byteValue & 0xFF;
-        if (dataTypeToByte[id] != null) {
-            return byteToDataType[id];
+        if (DATA_TYPE_TO_BYTE[id] != null) {
+            return BYTE_TO_DATA_TYPE[id];
         }
 
         throw new IllegalArgumentException("DataType byteValue=" + byteValue + " rawByteValue=" + (byteValue & 0xFF) + " not mapped");

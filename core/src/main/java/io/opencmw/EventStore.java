@@ -72,7 +72,7 @@ public class EventStore {
                 rb.get(i).clear();
             }
         };
-        this.eventStreams = muxBuilder != null ? muxBuilder.build() : Cache.<String, Disruptor<RingBufferEvent>>builder().withPostListener(clearCacheElement).build();
+        this.eventStreams = muxBuilder == null ? Cache.<String, Disruptor<RingBufferEvent>>builder().withPostListener(clearCacheElement).build() : muxBuilder.build();
 
         this.ctxMappingFunction = ctx -> {
             // mux contexts -> create copy into separate disruptor/ringbuffer if necessary
@@ -247,7 +247,7 @@ public class EventStore {
             assert eventHandlerCallbacks != null;
             this.lengthHistoryBuffer = lengthHistoryBuffer;
             for (final HistoryEventHandler callback : eventHandlerCallbacks) {
-                handler.add(new DefaultHistoryEventHandler(null, filter, muxCtxFunction, lengthHistoryBuffer, callback));
+                handler.add(new DefaultHistoryEventHandler(null, filter, muxCtxFunction, lengthHistoryBuffer, callback)); // NOPMD - necessary to allocate inside loop
             }
         }
 
@@ -261,7 +261,7 @@ public class EventStore {
         public final LocalEventHandlerGroup and(final Predicate<RingBufferEvent> filter, Function<RingBufferEvent, String> muxCtxFunction, final HistoryEventHandler... eventHandlerCallbacks) {
             assert eventHandlerCallbacks != null;
             for (final HistoryEventHandler callback : eventHandlerCallbacks) {
-                handler.add(new DefaultHistoryEventHandler(null, filter, muxCtxFunction, lengthHistoryBuffer, callback));
+                handler.add(new DefaultHistoryEventHandler(null, filter, muxCtxFunction, lengthHistoryBuffer, callback)); // NOPMD - necessary to allocate inside loop
             }
             return this;
         }
@@ -277,7 +277,7 @@ public class EventStore {
     }
 
     public static class EventStoreFactory {
-        private boolean isSingleProducer = false;
+        private boolean singleProducer = false;
         private int maxThreadNumber = 4;
         private int ringbufferSize = 64;
         private int lengthHistoryBuffer = 10;
@@ -291,7 +291,7 @@ public class EventStore {
             if (muxBuilder == null) {
                 muxBuilder = Cache.<String, Disruptor<RingBufferEvent>>builder().withLimit(lengthHistoryBuffer);
             }
-            return new EventStore(muxBuilder, muxCtxFunction, ringbufferSize, lengthHistoryBuffer, maxThreadNumber, isSingleProducer, waitStrategy, filterConfig);
+            return new EventStore(muxBuilder, muxCtxFunction, ringbufferSize, lengthHistoryBuffer, maxThreadNumber, singleProducer, waitStrategy, filterConfig);
         }
 
         public Class<? extends Filter>[] getFilterConfig() {
@@ -376,11 +376,11 @@ public class EventStore {
         }
 
         public boolean isSingleProducer() {
-            return isSingleProducer;
+            return singleProducer;
         }
 
         public EventStoreFactory setSingleProducer(final boolean singleProducer) {
-            isSingleProducer = singleProducer;
+            this.singleProducer = singleProducer;
             return this;
         }
     }
@@ -393,7 +393,7 @@ public class EventStore {
         private EventStore eventStore;
         private Cache<String, LimitedArrayList<RingBufferEvent>> historyCache;
 
-        DefaultHistoryEventHandler(final EventStore eventStore, final Predicate<RingBufferEvent> filter, Function<RingBufferEvent, String> muxCtxFunction, final int lengthHistoryBuffer, final HistoryEventHandler callback) {
+        protected DefaultHistoryEventHandler(final EventStore eventStore, final Predicate<RingBufferEvent> filter, Function<RingBufferEvent, String> muxCtxFunction, final int lengthHistoryBuffer, final HistoryEventHandler callback) {
             assert filter != null : "filter predicate is null";
             assert muxCtxFunction != null : "muxCtxFunction hash function is null";
             assert callback != null : "callback function must not be null";
@@ -405,6 +405,7 @@ public class EventStore {
             this.callback = callback;
         }
 
+        @Override
         public void onEvent(final RingBufferEvent event, final long sequence, final boolean endOfBatch) {
             if (!filter.test(event)) {
                 return;
@@ -422,7 +423,7 @@ public class EventStore {
             final RingBufferEvent result;
             try {
                 result = callback.onEvent(history, eventStore, sequence, endOfBatch);
-            } catch (Exception e) {
+            } catch (Exception e) { // NOPMD - part of exception handling/forwarding scheme
                 LOGGER.atError().setCause(e).addArgument(history.size()).addArgument(sequence).addArgument(endOfBatch) //
                         .log("caught error for arguments (history={}, eventStore, sequence={}, endOfBatch={})");
                 event.throwables.add(e);

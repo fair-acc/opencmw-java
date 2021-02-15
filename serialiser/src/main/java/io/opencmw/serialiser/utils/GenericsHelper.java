@@ -6,6 +6,7 @@ package io.opencmw.serialiser.utils;
  *
  * @author rstein
  */
+@SuppressWarnings({ "PMD.GodClass", "PMD.TooManyMethods", "PMD.ExcessivePublicCount" }) // unavoidable since Java does not support templates (issue: primitive types)
 public final class GenericsHelper {
     private GenericsHelper() {
         // only static methods are used

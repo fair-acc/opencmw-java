@@ -332,6 +332,7 @@ class IoClassSerialiserTests {
     /**
      * Duplicate of CustomClass, because Custom Class gets registered for a custom (de)serialiser and we don't want that for all tests.
      */
+    @SuppressWarnings("CanBeFinal")
     public static class CustomClass2 {
         public double testDouble;
         public int testInt;

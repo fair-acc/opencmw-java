@@ -78,6 +78,7 @@ import org.jetbrains.annotations.NotNull;
  * @param <K> search key
  * @param <V> cached value
  */
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.TooManyMethods" }) // thread use necessary for maintenance tasks, methods due to Map interface
 public class Cache<K, V> implements Map<K, V> {
     private final ConcurrentHashMap<K, V> dataCache;
     private final ConcurrentHashMap<K, Instant> timeOutMap;
@@ -101,13 +102,6 @@ public class Cache<K, V> implements Map<K, V> {
     }
 
     private Cache(final long timeOut, final TimeUnit timeUnit, final int limit, final BiConsumer<K, V> preListener, final BiConsumer<K, V> postListener) {
-        final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
-            final Thread t = Executors.defaultThreadFactory().newThread(r);
-            t.setName(Cache.class.getCanonicalName() + "-Thread");
-            t.setDaemon(true);
-            return t;
-        }); // Daemon Service
-
         dataCache = new ConcurrentHashMap<>();
         timeOutMap = new ConcurrentHashMap<>();
 
@@ -128,6 +122,13 @@ public class Cache<K, V> implements Map<K, V> {
 
         this.preListener = preListener;
         this.postListener = postListener;
+
+        final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
+            final Thread t = Executors.defaultThreadFactory().newThread(r);
+            t.setName(Cache.class.getCanonicalName() + "-Thread");
+            t.setDaemon(true);
+            return t;
+        }); // Daemon Service
 
         if (timeOut != 0) {
             executor.scheduleAtFixedRate(this::checkTime, 0, timeOut, timeUnit);

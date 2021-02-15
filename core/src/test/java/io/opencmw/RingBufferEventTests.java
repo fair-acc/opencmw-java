@@ -117,7 +117,7 @@ class RingBufferEventTests {
         assertDoesNotThrow(() -> RingBufferEvent.printToStringArrayList(builder, "[", "", 1, 2, 3, 4));
     }
 
-    private class BogusFilter implements Filter {
+    private static class BogusFilter implements Filter {
         public BogusFilter() {
             throw new IllegalStateException("should not call/use this filter");
         }

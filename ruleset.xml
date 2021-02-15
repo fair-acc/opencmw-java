@@ -21,6 +21,10 @@
         <exclude name="UseVarargs"/>
         <exclude name="UnusedImports"/> <!-- re-enable once Codacy moved to new version -->
     </rule>
+
+    <rule ref="category/java/documentation.xml">
+        <exclude name="CommentRequired"/>
+    </rule>
     <rule ref="category/java/documentation.xml/CommentSize">
         <properties>
             <property name="maxLines" value="1000" />  <!-- do not limit code-based documentation -->
@@ -49,6 +53,7 @@
         <exclude name="ShortClassName"/>
         <exclude name="UnnecessaryLocalBeforeReturn"/>
         <exclude name="UselessParentheses"/>
+        <exclude name="LinguisticNaming"/> <!-- allow factory setter methods to return itself (fluent-design) -->
     </rule>
     <rule ref="category/java/codestyle.xml/PrematureDeclaration">
         <properties>
@@ -60,16 +65,6 @@
         <exclude name="LawOfDemeter"/>
         <exclude name="CyclomaticComplexity"/>
         <exclude name="StdCyclomaticComplexity"/> <!-- deprecated, will be removed in 7.0.0 -->
-    </rule>
-
-    <rule ref="category/java/documentation.xml">
-        <exclude name="CommentRequired"/>
-    </rule>
-    <rule ref="category/java/documentation.xml/CommentSize">
-        <properties>
-            <property name="maxLines" value="20"/>
-            <property name="maxLineLength" value="120"/>
-        </properties>
     </rule>
 
     <rule ref="category/java/errorprone.xml">    	

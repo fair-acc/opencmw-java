@@ -26,6 +26,9 @@ import io.opencmw.server.rest.util.MessageBundle;
 @SuppressWarnings("PMD.FieldNamingConventions")
 public class LoginController { // NOPMD - nomen est omen
     private static final Logger LOGGER = LoggerFactory.getLogger(LoginController.class);
+    private static final String HTTP_200_OK = "200";
+    private static final String MIME_HTML = "text/html";
+    private static final String MIME_JSON = "text/json";
     private static final String DEFAULT_USER = "anonymous";
     private static final String ENDPOINT_LOGIN = "/login";
     private static final String ENDPOINT_LOGOUT = "/logout";
@@ -66,9 +69,9 @@ public class LoginController { // NOPMD - nomen est omen
             summary = "POST login command",
             tags = { "LoginController" },
             responses = {
-                @OpenApiResponse(status = "200", content = @OpenApiContent(type = "text/html"))
+                @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_HTML))
                 ,
-                        @OpenApiResponse(status = "200", content = @OpenApiContent(type = "text/json"))
+                        @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_JSON))
             })
     private static final Handler handleLoginPost
             = ctx -> {
@@ -101,7 +104,7 @@ public class LoginController { // NOPMD - nomen est omen
             summary = "POST password change page",
             tags = { "LoginController" },
             responses = {
-                @OpenApiResponse(status = "200", content = @OpenApiContent(type = "text/html"))
+                @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_HTML))
             })
     private static final Handler handleChangePasswordPost
             = ctx -> {
@@ -160,9 +163,9 @@ public class LoginController { // NOPMD - nomen est omen
             summary = "POST logout command",
             tags = { "LoginController" },
             responses = {
-                @OpenApiResponse(status = "200", content = @OpenApiContent(type = "text/html"))
+                @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_HTML))
                 ,
-                        @OpenApiResponse(status = "200", content = @OpenApiContent(type = "text/json"))
+                        @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_JSON))
             })
     private static final Handler handleLogoutPost
             = ctx -> {
@@ -180,7 +183,7 @@ public class LoginController { // NOPMD - nomen est omen
 
             //            method = HttpMethod.GET,
             responses = {
-                @OpenApiResponse(status = "200", content = @OpenApiContent(type = "text/html"))
+                @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_HTML))
             })
     private static final Handler serveLoginPage
             = ctx -> {
@@ -195,7 +198,7 @@ public class LoginController { // NOPMD - nomen est omen
             summary = "GET serve password change page (HTML-only)",
             tags = { "LoginController" },
             responses = {
-                @OpenApiResponse(status = "200", content = @OpenApiContent(type = "text/html"))
+                @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_HTML))
             })
     private static final Handler servePasswordChangePage
             = ctx -> {

@@ -18,8 +18,9 @@ public final class SystemProperties { // NOPMD -- nomen est omen
 
     public static String getPropertyIgnoreCase(String key, String defaultValue) {
         String value = SYSTEM_PROPERTIES.getProperty(key);
-        if (null != value)
+        if (null != value) {
             return value;
+        }
 
         // Not matching with the actual key then
         Set<Entry<Object, Object>> systemProperties = SYSTEM_PROPERTIES.entrySet();

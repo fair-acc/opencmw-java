@@ -1,6 +1,7 @@
 package io.opencmw.serialiser.benchmark;
 
 import java.lang.reflect.Field;
+import java.util.Objects;
 
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
@@ -40,9 +41,9 @@ public class ReflectionBenchmark {
             throw new SecurityException(e); // NOPMD
         }
     }
-    private Field field = getField();
-    private Field fieldOptimised = getOptimisedField();
-    private long fieldOffset = getFieldOffset();
+    private final Field field = getField();
+    private final Field fieldOptimised = getOptimisedField();
+    private final long fieldOffset = getFieldOffset();
 
     @Benchmark
     @Warmup(iterations = 1)
@@ -57,7 +58,7 @@ public class ReflectionBenchmark {
     @Fork(value = 2, warmups = 2)
     public void fieldAccess2ViaField(Blackhole blackhole, final MyData data) {
         try {
-            field.set(data, data.a);
+            Objects.requireNonNull(field, "field is null").set(data, data.a);
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         }
@@ -68,7 +69,7 @@ public class ReflectionBenchmark {
     @Fork(value = 2, warmups = 2)
     public void fieldAccess3ViaFieldSetDouble(Blackhole blackhole, final MyData data) {
         try {
-            field.setDouble(data, data.a);
+            Objects.requireNonNull(field, "field is null").setDouble(data, data.a);
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         }
@@ -80,7 +81,7 @@ public class ReflectionBenchmark {
     @Fork(value = 2, warmups = 2)
     public void fieldAccess4ViaOptimisedField(Blackhole blackhole, final MyData data) {
         try {
-            fieldOptimised.set(data, data.a);
+            Objects.requireNonNull(fieldOptimised, "field is null").set(data, data.a);
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         }
@@ -91,7 +92,7 @@ public class ReflectionBenchmark {
     @Fork(value = 2, warmups = 2)
     public void fieldAccess5ViaOptimisedFieldSetDouble(Blackhole blackhole, final MyData data) {
         try {
-            fieldOptimised.setDouble(data, data.a);
+            Objects.requireNonNull(fieldOptimised, "field is null").setDouble(data, data.a);
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         }
@@ -175,6 +176,7 @@ public class ReflectionBenchmark {
     }
 
     @State(Scope.Thread)
+    @SuppressWarnings("CanBeFinal")
     public static class MyData {
         public double a = 5.0;
         public double value;

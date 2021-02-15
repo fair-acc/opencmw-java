@@ -8,6 +8,7 @@ import org.zeromq.ZFrame;
 /**
  * Data representation for all Messages exchanged between CMW client and server
  */
+@SuppressWarnings({ "PMD.ExcessivePublicCount", "PMD.TooManyMethods", "PMD.TooManyFields" }) // - the nature of this class definition
 public class CmwLightMessage {
     // general fields
     public CmwLightProtocol.MessageType messageType;
@@ -235,10 +236,12 @@ public class CmwLightMessage {
 
     @Override
     public boolean equals(final Object o) {
-        if (this == o)
+        if (this == o) {
             return true;
-        if (!(o instanceof CmwLightMessage))
+        }
+        if (!(o instanceof CmwLightMessage)) {
             return false;
+        }
         final CmwLightMessage that = (CmwLightMessage) o;
         return id == that.id && notificationId == that.notificationId && sourceId == that.sourceId && messageType == that.messageType && Objects.equals(version, that.version) && requestType == that.requestType && Objects.equals(deviceName, that.deviceName) && updateType == that.updateType && Objects.equals(sessionId, that.sessionId) && Objects.equals(propertyName, that.propertyName) && Objects.equals(options, that.options) && Objects.equals(data, that.data) && Objects.equals(bodyData, that.bodyData) && Objects.equals(exceptionMessage, that.exceptionMessage) && Objects.equals(requestContext, that.requestContext) && Objects.equals(dataContext, that.dataContext) && Objects.equals(sessionBody, that.sessionBody);
     }
@@ -267,9 +270,10 @@ public class CmwLightMessage {
         case SERVER_REP:
             sb.append("server reply: ").append(requestType.name());
         case CLIENT_REQ:
-            if (messageType == CmwLightProtocol.MessageType.CLIENT_REQ)
+            if (messageType == CmwLightProtocol.MessageType.CLIENT_REQ) {
                 sb.append("client request: ").append(requestType.name());
-            sb.append(" id: ").append(id).append(" deviceName=").append(deviceName).append(", updateType=").append(updateType).append(", sessionId='").append(sessionId).append('\'').append(", propertyName='").append(propertyName).append('\'').append(", options=").append(options).append(", data=").append(data).append(", sourceId=").append(sourceId);
+            }
+            sb.append(" id: ").append(id).append(" deviceName=").append(deviceName).append(", updateType=").append(updateType).append(", sessionId='").append(sessionId).append("', propertyName='").append(propertyName).append("', options=").append(options).append(", data=").append(data).append(", sourceId=").append(sourceId);
             switch (requestType) {
             case GET:
             case SET:
@@ -325,10 +329,12 @@ public class CmwLightMessage {
 
         @Override
         public boolean equals(final Object o) {
-            if (this == o)
+            if (this == o) {
                 return true;
-            if (!(o instanceof RequestContext))
+            }
+            if (!(o instanceof RequestContext)) {
                 return false;
+            }
             final RequestContext that = (RequestContext) o;
             return selector.equals(that.selector) && Objects.equals(data, that.data) && Objects.equals(filters, that.filters);
         }
@@ -358,16 +364,17 @@ public class CmwLightMessage {
 
         @Override
         public String toString() {
-            return "DataContext{"
-                    + "cycleName='" + cycleName + '\'' + ", cycleStamp=" + cycleStamp + ", acqStamp=" + acqStamp + ", data=" + data + '}';
+            return "DataContext{cycleName='" + cycleName + '\'' + ", cycleStamp=" + cycleStamp + ", acqStamp=" + acqStamp + ", data=" + data + '}';
         }
 
         @Override
         public boolean equals(final Object o) {
-            if (this == o)
+            if (this == o) {
                 return true;
-            if (!(o instanceof DataContext))
+            }
+            if (!(o instanceof DataContext)) {
                 return false;
+            }
             final DataContext that = (DataContext) o;
             return cycleStamp == that.cycleStamp && acqStamp == that.acqStamp && cycleName.equals(that.cycleName) && Objects.equals(data, that.data);
         }
@@ -397,16 +404,17 @@ public class CmwLightMessage {
 
         @Override
         public String toString() {
-            return "ExceptionMessage{"
-                    + "contextAcqStamp=" + contextAcqStamp + ", contextCycleStamp=" + contextCycleStamp + ", message='" + message + '\'' + ", type=" + type + '}';
+            return "ExceptionMessage{contextAcqStamp=" + contextAcqStamp + ", contextCycleStamp=" + contextCycleStamp + ", message='" + message + '\'' + ", type=" + type + '}';
         }
 
         @Override
         public boolean equals(final Object o) {
-            if (this == o)
+            if (this == o) {
                 return true;
-            if (!(o instanceof ExceptionMessage))
+            }
+            if (!(o instanceof ExceptionMessage)) {
                 return false;
+            }
             final ExceptionMessage that = (ExceptionMessage) o;
             return contextAcqStamp == that.contextAcqStamp && contextCycleStamp == that.contextCycleStamp && type == that.type && message.equals(that.message);
         }

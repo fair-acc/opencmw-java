@@ -30,12 +30,12 @@ public class MajordomoTestClientSync {
     private static final AtomicInteger CLIENT_V1_INSTANCE = new AtomicInteger();
     private final String uniqueID;
     private final byte[] uniqueIdBytes;
-    private String broker;
-    private ZContext ctx;
+    private final String broker;
+    private final ZContext ctx;
     private ZMQ.Socket clientSocket;
     private long timeout = 2500;
     private int retries = 3;
-    private Formatter log = new Formatter(System.out);
+    private final Formatter log = new Formatter(System.out);
     private ZMQ.Poller poller;
 
     public MajordomoTestClientSync(String broker, String clientName) {

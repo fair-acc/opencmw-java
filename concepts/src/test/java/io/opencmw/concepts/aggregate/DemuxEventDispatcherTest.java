@@ -32,6 +32,7 @@ import com.lmax.disruptor.util.DaemonThreadFactory;
  *
  * @author Alexander Krimm
  */
+@SuppressWarnings("unchecked")
 class DemuxEventDispatcherTest {
     static Stream<Arguments> workingEventSamplesProvider() {
         return Stream.of(

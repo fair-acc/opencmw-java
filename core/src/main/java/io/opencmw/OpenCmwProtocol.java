@@ -59,6 +59,7 @@ public class OpenCmwProtocol {
     protected static final int FRAME8_RBAC_TOKEN = 8;
     private static final Logger LOGGER = LoggerFactory.getLogger(OpenCmwProtocol.class);
     private static final String SOCKET_MUST_NOT_BE_NULL = "socket must not be null";
+    public static final int N_PROTOCOL_FRAMES = 8;
 
     /**
      * MDP sub-protocol V0.1
@@ -238,9 +239,9 @@ public class OpenCmwProtocol {
             // ignore senderID from comparison since not all socket provide/require this information
             if (/*!Arrays.equals(senderID, other.senderID) ||*/ (protocol != other.protocol) || (command != other.command)
                     || !Arrays.equals(serviceNameBytes, other.serviceNameBytes) || !Arrays.equals(clientRequestID, other.clientRequestID)
-                    || (topic != null ? !topic.equals(other.topic) : other.topic != null)
+                    || (!Objects.equals(topic, other.topic))
                     || !Arrays.equals(data, other.data)
-                    || (errors != null ? !errors.equals(other.errors) : other.errors != null)) {
+                    || (!Objects.equals(errors, other.errors))) {
                 return false;
             }
             return Arrays.equals(rbacToken, other.rbacToken);
@@ -260,13 +261,13 @@ public class OpenCmwProtocol {
 
         @Override
         public int hashCode() {
-            int result = (protocol != null ? protocol.hashCode() : 0);
-            result = 31 * result + (command != null ? command.hashCode() : 0);
+            int result = (protocol == null ? 0 : protocol.hashCode());
+            result = 31 * result + (command == null ? 0 : command.hashCode());
             result = 31 * result + Arrays.hashCode(serviceNameBytes);
             result = 31 * result + Arrays.hashCode(clientRequestID);
-            result = 31 * result + (topic != null ? topic.hashCode() : 0);
+            result = 31 * result + (topic == null ? 0 : topic.hashCode());
             result = 31 * result + Arrays.hashCode(data);
-            result = 31 * result + (errors != null ? errors.hashCode() : 0);
+            result = 31 * result + (errors == null ? 0 : errors.hashCode());
             result = 31 * result + Arrays.hashCode(rbacToken);
             return result;
         }
@@ -360,6 +361,7 @@ public class OpenCmwProtocol {
          * @param wait setting the flag to ZMQ.DONTWAIT does a non-blocking recv.
          * @return MdpMessage if valid, or {@code null} otherwise
          */
+        @SuppressWarnings("NPath.Complexity")
         public static MdpMessage receive(@NotNull final Socket socket, final boolean wait) {
             final int flags = wait ? 0 : ZMQ.DONTWAIT;
             final ZMsg msg = ZMsg.recvMsg(socket, flags);
@@ -375,15 +377,15 @@ public class OpenCmwProtocol {
             }
 
             final List<byte[]> rawFrames = msg.stream().map(ZFrame::getData).collect(Collectors.toUnmodifiableList());
-            if (rawFrames.size() <= 8) {
+            if (rawFrames.size() <= N_PROTOCOL_FRAMES) {
                 if (LOGGER.isDebugEnabled()) {
-                    LOGGER.atWarn().addArgument(rawFrames.size()).addArgument(dataToString(rawFrames)).log("received message size is < 8: {} rawMessage: {}");
+                    LOGGER.atWarn().addArgument(rawFrames.size()).addArgument(dataToString(rawFrames)).log("received message size is < " + N_PROTOCOL_FRAMES + ": {} rawMessage: {}");
                 }
                 return null;
             }
 
             // OpenCMW frame 0: sender source ID - usually the ID from the MDP broker ROUTER socket for the given connection
-            final byte[] senderID = socket.getSocketType() == SocketType.ROUTER ? rawFrames.get(FRAME0_SOURCE_ID) : EMPTY_FRAME;
+            final byte[] senderID = socket.getSocketType() == SocketType.ROUTER ? rawFrames.get(FRAME0_SOURCE_ID) : EMPTY_FRAME; // NOPMD
             // OpenCMW frame 1: unique protocol identifier
             final MdpSubProtocol protocol = MdpSubProtocol.getProtocol(rawFrames.get(FRAME1_PROTOCOL_ID));
             if (protocol.equals(MdpSubProtocol.UNKNOWN)) {
@@ -413,7 +415,7 @@ public class OpenCmwProtocol {
             }
 
             // OpenCMW frame 4: service name or client source ID
-            final byte[] clientRequestID = rawFrames.get(FRAME4_CLIENT_REQUEST_ID);
+            final byte[] clientRequestID = rawFrames.get(FRAME4_CLIENT_REQUEST_ID); // NOPMD
 
             // OpenCMW frame 5: request/reply topic -- UTF-8 string
             final byte[] topicBytes = rawFrames.get(FRAME5_TOPIC);

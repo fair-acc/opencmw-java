@@ -90,6 +90,7 @@ import com.jsoniter.output.JsonStream;
  *
  * @author rstein
  */
+@SuppressWarnings("PMD.ExcessiveImports")
 public final class RestServer { // NOPMD -- nomen est omen
     public static final String TAG_REST_SERVER_HOST_NAME = "restServerHostName";
     public static final String TAG_REST_SERVER_PORT = "restServerPort";
@@ -444,6 +445,7 @@ public final class RestServer { // NOPMD -- nomen est omen
         }
 
         // SSL Context Factory for HTTPS and HTTP/2
+        //noinspection deprecation
         final SslContextFactory sslContextFactory = new SslContextFactory(true) {}; // trust all certificates
         if (readComplete) {
             sslContextFactory.setKeyStore(keyStore);

@@ -10,6 +10,7 @@ import io.opencmw.Filter;
 
 import com.jsoniter.spi.JsoniterSpi;
 
+@SuppressWarnings({ "PMD.TooManyMethods" }) // - the nature of this class definition
 public class TimingCtx implements Filter {
     public static final String WILD_CARD = "ALL";
     public static final int WILD_CARD_VALUE = -1;
@@ -28,7 +29,7 @@ public class TimingCtx implements Filter {
     public long bpcts;
     /** stores the settings-supply related ctx name */
     public String ctxName;
-    protected int hashCode = 0; // cached hash code
+    protected int hashCode = 0; // NOPMD cached hash code
     static {
         // custom JsonIter decoder
         JsoniterSpi.registerTypeDecoder(TimingCtx.class, iter -> TimingCtx.get(iter.readString()));
@@ -46,7 +47,7 @@ public class TimingCtx implements Filter {
         pid = -1;
         gid = -1;
         bpcts = -1;
-        ctxName = null;
+        ctxName = "";
     }
 
     @Override
@@ -87,7 +88,7 @@ public class TimingCtx implements Filter {
         if (hashCode != 0) {
             return hashCode;
         }
-        hashCode = selector != null ? selector.hashCode() : 0;
+        hashCode = selector == null ? 0 : selector.hashCode();
         hashCode = 31 * hashCode + cid;
         hashCode = 31 * hashCode + sid;
         hashCode = 31 * hashCode + pid;
@@ -156,6 +157,7 @@ public class TimingCtx implements Filter {
         return ctx;
     }
 
+    @Override
     public String toString() {
         final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
         return '[' + TimingCtx.class.getSimpleName() + ": bpcts=" + bpcts + " (\"" + sdf.format(bpcts / 1_000_000) + "\"), selector='" + selector + "', cid=" + cid + ", sid=" + sid + ", pid=" + pid + ", gid=" + gid + ']';

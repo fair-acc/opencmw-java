@@ -10,8 +10,12 @@ import io.opencmw.rbac.RbacToken;
 /**
 * Majordomo Protocol client example. Uses the mdcli API to hide all OpenCmwProtocol aspects
 */
-public class ClientSampleV1 {
+public final class ClientSampleV1 { // nomen est omen
     private static final int N_SAMPLES = 50_000;
+
+    private ClientSampleV1() {
+        // requires only static methods for testing
+    }
 
     public static void main(String[] args) {
         MajordomoClientV1 clientSession = new MajordomoClientV1("tcp://localhost:5555", "customClientName");
@@ -24,17 +28,16 @@ public class ClientSampleV1 {
         for (count = 0; count < N_SAMPLES; count++) {
             final String requestMsg = "Hello world - sync - " + count;
             final byte[] request = requestMsg.getBytes(StandardCharsets.UTF_8);
-            final byte[] rbacToken = new RbacToken(BasicRbacRole.ADMIN, "HASHCODE").getBytes();
+            final byte[] rbacToken = new RbacToken(BasicRbacRole.ADMIN, "HASHCODE").getBytes(); // NOPMD
             final ZMsg reply = clientSession.send(serviceBytes, request, rbacToken); // with RBAC
             // final ZMsg reply = clientSession.send(serviceBytes, request); // w/o RBAC
             if (count < 10 || count % 10000 == 0 || count >= (N_SAMPLES - 10)) {
                 System.err.println("client iteration = " + count + " - received: " + reply);
             }
-            if (reply != null) {
-                reply.destroy();
-            } else {
+            if (reply == null) {
                 break; // Interrupt or failure
             }
+            reply.destroy();
         }
 
         long mark1 = System.currentTimeMillis();

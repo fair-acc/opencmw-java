@@ -13,7 +13,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import javax.validation.constraints.NotNull;
+import org.jetbrains.annotations.NotNull;
 
 public class FutureTests { // NOPMD NOSONAR -- nomen est omen
     private static final int N_ITERATIONS = 100_000;
@@ -143,7 +143,7 @@ public class FutureTests { // NOPMD NOSONAR -- nomen est omen
         System.out.printf("%-40s:  %10d calls/second\n", topic, diff > 0 ? (int) (nExec / diff) : -1);
     }
 
-    private class CustomFuture<T> implements Future<T> {
+    private static class CustomFuture<T> implements Future<T> {
         private final Lock lock = new ReentrantLock();
         private final Condition processorNotifyCondition = lock.newCondition();
         private final AtomicBoolean running = new AtomicBoolean(false);
@@ -166,7 +166,7 @@ public class FutureTests { // NOPMD NOSONAR -- nomen est omen
         }
 
         @Override
-        public T get() throws InterruptedException, ExecutionException {
+        public T get() throws InterruptedException {
             return get(0, TimeUnit.NANOSECONDS);
         }
 
@@ -178,6 +178,7 @@ public class FutureTests { // NOPMD NOSONAR -- nomen est omen
             lock.lock();
             try {
                 while (!isDone()) {
+                    //noinspection ResultOfMethodCallIgnored
                     processorNotifyCondition.await(timeout, TimeUnit.NANOSECONDS);
                 }
             } finally {

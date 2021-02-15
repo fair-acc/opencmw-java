@@ -8,15 +8,15 @@ import io.opencmw.Filter;
 public class EvtTypeFilter implements Filter {
     public DataType evtType = DataType.UNKNOWN;
     public UpdateType updateType = UpdateType.UNKNOWN;
-    public String typeName = null;
-    protected int hashCode = 0;
+    public String typeName = "";
+    protected int hashCode = 0; // NOPMD
 
     @Override
     public void clear() {
         hashCode = 0;
         evtType = DataType.UNKNOWN;
         updateType = UpdateType.UNKNOWN;
-        typeName = null;
+        typeName = "";
     }
 
     @Override

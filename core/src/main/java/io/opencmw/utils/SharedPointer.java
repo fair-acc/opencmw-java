@@ -71,6 +71,7 @@ public class SharedPointer<T> {
         payload = null;
     }
 
+    @Override
     public String toString() {
         if (payload == null) {
             return CLASS_NAME + "[useCount= " + payloadUseCount.get() + ", has destructor=" + (destroyFunction != null) + ", <?>.class, null]";

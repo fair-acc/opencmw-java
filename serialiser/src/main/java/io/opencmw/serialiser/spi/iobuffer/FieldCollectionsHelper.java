@@ -9,7 +9,7 @@ import io.opencmw.serialiser.FieldSerialiser;
 import io.opencmw.serialiser.IoClassSerialiser;
 import io.opencmw.serialiser.utils.ClassUtils;
 
-public class FieldCollectionsHelper {
+public final class FieldCollectionsHelper {
     private FieldCollectionsHelper() {
         // utility class
     }
@@ -40,7 +40,7 @@ public class FieldCollectionsHelper {
                 io.put(field, (Collection<?>) field.getField().get(obj), field.getActualTypeArguments().get(0));
                 return;
             }
-            throw new IllegalArgumentException("serialiser for obj = '" + obj + "' and type = '" + (obj == null ? "null" : obj.getClass()) + "'  not yet implemented, field = " + field);
+            throw new IllegalArgumentException("serialiser for obj = '" + obj + "' and type = '" + (obj == null ? "null" : obj.getClass()) + "'  not yet implemented, field = null");
         }; // writer
 
         serialiser.addClassDefinition(new FieldSerialiser<>((io, obj, field) -> //

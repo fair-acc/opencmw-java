@@ -31,7 +31,8 @@ import io.opencmw.utils.SystemProperties;
  *
  *  default client time-out [s] is set by system property: 'OpenCMW.clientTimeOut' // default: 3600 [s] -- after which unanswered client messages and infos are being deleted
  *
-*/
+ */
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.TooManyMethods", "PMD.GodClass", "PMD.UseConcurrentHashMap" }) // this is a concept, HashMap invoked in single-threaded context
 public class MajordomoBroker extends Thread {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoBroker.class);
     private static final byte[] INTERNAL_SENDER_ID = null;
@@ -49,7 +50,7 @@ public class MajordomoBroker extends Thread {
     private final Socket internalRouterSocket;
     private final Socket internalServiceSocket;
     private final List<Socket> routerSockets = new ArrayList<>(); // Sockets for clients & public external workers
-    private final AtomicBoolean run = new AtomicBoolean(false);
+    private final AtomicBoolean run = new AtomicBoolean(false); // NOPMD
     private final SortedSet<RbacRole<?>> rbacRoles;
     private final Map<String, Service> services = new HashMap<>(); // known services Map<'service name', Service>
     private final Map<String, Worker> workers = new HashMap<>(); // known workers Map<addressHex, Worker>
@@ -132,6 +133,7 @@ public class MajordomoBroker extends Thread {
     /**
      * main broker work happens here
      */
+    @Override
     public void run() {
         final ZMQ.Poller items = ctx.createPoller(routerSockets.size());
         for (Socket routerSocket : routerSockets) {
@@ -173,7 +175,7 @@ public class MajordomoBroker extends Thread {
     }
 
     @Override
-    public synchronized void start() {
+    public void start() {
         run.set(true);
         services.forEach((serviceName, service) -> service.internalWorkers.forEach(Thread::start));
         super.start();
@@ -293,9 +295,9 @@ public class MajordomoBroker extends Thread {
         case W_READY:
             worker = requireWorker(receiveSocket, msg.senderID, msg.senderIdHex);
             // Not first mdpWorkerCommand in session || Reserved service name
-            if (workerReady || Arrays.equals(INTERNAL_SERVICE_PREFIX_BYTES, 0, 3, msg.senderID, 0, 3))
+            if (workerReady || Arrays.equals(INTERNAL_SERVICE_PREFIX_BYTES, 0, 3, msg.senderID, 0, 3)) {
                 deleteWorker(worker, true);
-            else {
+            } else {
                 // Attach worker to service and mark as idle
                 worker.service = requireService(msg.serviceName, msg.serviceNameBytes);
                 workerWaiting(worker);
@@ -351,7 +353,7 @@ public class MajordomoBroker extends Thread {
     /**
      * Look for &amp; kill expired clients.
      */
-    protected /*synchronized*/ void purgeClients() {
+    protected void purgeClients() {
         if (CLIENT_TIMEOUT <= 0) {
             return;
         }
@@ -461,7 +463,7 @@ public class MajordomoBroker extends Thread {
 
         for (int i = 0; i < 10; i++) {
             // simple internalSock echo
-            MajordomoWorker workerSession = new MajordomoWorker(broker.getContext(), "inproc.echo", BasicRbacRole.ADMIN);
+            MajordomoWorker workerSession = new MajordomoWorker(broker.getContext(), "inproc.echo", BasicRbacRole.ADMIN); // NOPMD - necessary to allocate inside loop
             workerSession.registerHandler(input -> input); //  output = input : echo service is complex :-)
             workerSession.start();
         }
@@ -507,7 +509,7 @@ public class MajordomoBroker extends Thread {
         protected final byte[] nameBytes; // Service name as byte array
         protected final MajordomoWorker mdpWorker;
         protected final boolean isInternal;
-        protected final Map<RbacRole<?>, Queue<MdpClientMessage>> requests = new HashMap<>(); // RBAC-based queuing
+        protected final Map<RbacRole<?>, Queue<MdpClientMessage>> requests = new HashMap<>(); // NOPMD RBAC-based queuing - thread-safe use of HashMap
         protected final Deque<Worker> waiting = new ArrayDeque<>(); // List of waiting workers
         protected final List<Thread> internalWorkers = new ArrayList<>();
         protected final Socket internalDispatchSocket;
@@ -522,7 +524,7 @@ public class MajordomoBroker extends Thread {
                 this.internalDispatchSocket.setHWM(0);
                 this.internalDispatchSocket.bind("inproc://" + mdpWorker.getServiceName() + "push");
                 for (int i = 0; i < nInternalThreads; i++) {
-                    internalWorkers.add(new InternalWorkerThread(this));
+                    internalWorkers.add(new InternalWorkerThread(this)); // NOPMD - necessary to allocate inside loop
                 }
             } else {
                 this.internalDispatchSocket = null;
@@ -594,8 +596,9 @@ public class MajordomoBroker extends Thread {
             this.service = service;
         }
 
+        @Override
         public void run() {
-            try (final Socket sendSocket = ctx.createSocket(SocketType.DEALER); final Socket receiveSocket = ctx.createSocket(SocketType.PULL)) {
+            try (Socket sendSocket = ctx.createSocket(SocketType.DEALER); Socket receiveSocket = ctx.createSocket(SocketType.PULL)) {
                 // register worker with broker
                 sendSocket.setSndHWM(0);
                 sendSocket.setIdentity(service.name.getBytes(StandardCharsets.UTF_8));

@@ -3,7 +3,6 @@ package io.opencmw.concepts.aggregate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.locks.LockSupport;
 
 import io.opencmw.utils.Cache;
@@ -33,7 +32,7 @@ public class DemuxEventDispatcher implements SequenceReportingEventHandler<TestE
     private final List<AggregationHandler> freeWorkers = Collections.synchronizedList(new ArrayList<>(N_WORKERS));
     private final RingBuffer<TestEventSource.IngestedEvent> rb;
     // private Map<Long, Object> aggregatedBpcts = new SoftHashMap<>(RETENTION_SIZE);
-    private Map<Long, Object> aggregatedBpcts = new Cache<>(RETENTION_SIZE);
+    private final Cache<Long, Object> aggregatedBpcts = new Cache<>(RETENTION_SIZE);
     private Sequence seq;
 
     public DemuxEventDispatcher(final RingBuffer<TestEventSource.IngestedEvent> ringBuffer) {
@@ -49,6 +48,7 @@ public class DemuxEventDispatcher implements SequenceReportingEventHandler<TestE
         return aggregationHandler;
     }
 
+    @Override
     public void onEvent(final TestEventSource.IngestedEvent event, final long nextSequence, final boolean b) {
         if (!(event.payload instanceof TestEventSource.Event)) {
             return;
@@ -64,7 +64,7 @@ public class DemuxEventDispatcher implements SequenceReportingEventHandler<TestE
                 final AggregationHandler freeWorker = freeWorkers.remove(0);
                 freeWorker.bpcts = eventBpcts;
                 freeWorker.aggStart = event.ingestionTime;
-                aggregatedBpcts.put(eventBpcts, new Object());
+                aggregatedBpcts.put(eventBpcts, new Object()); // NOPMD - necessary to allocate inside loop
                 seq.set(nextSequence); // advance sequence to let workers process events up to here
                 return;
             }
@@ -88,6 +88,7 @@ public class DemuxEventDispatcher implements SequenceReportingEventHandler<TestE
         this.seq = sequence;
     }
 
+    @SuppressWarnings("PMD.AvoidUsingVolatile") // necessary for desired CPU caching behaviour
     public class AggregationHandler implements EventHandler<TestEventSource.IngestedEvent>, TimeoutHandler {
         protected volatile long bpcts = -1; // [ms]
         protected volatile long aggStart = -1; // [ns]

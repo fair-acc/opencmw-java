@@ -11,21 +11,27 @@ import org.zeromq.ZFrame;
 import org.zeromq.ZMQ.Poller;
 import org.zeromq.ZMQ.Socket;
 
-public class RestBehindRouterEvaluation {
+public class RestBehindRouterEvaluation { // NOPMD -- nomen est omen
     private static final byte[] ZERO_MQ_HEADER = { -1, 0, 0, 0, 0, 0, 0, 0, 7, 127 };
+
+    private RestBehindRouterEvaluation() {
+        // utility class
+    }
+
     public static void main(final String[] argv) {
         try (ZContext context = new ZContext()) {
             Socket tcpProxy = context.createSocket(SocketType.ROUTER);
             tcpProxy.setRouterRaw(true);
-            Socket router = context.createSocket(SocketType.ROUTER);
-            Socket stream = context.createSocket(SocketType.STREAM);
-
             if (!tcpProxy.bind("tcp://*:8080")) {
                 throw new IllegalStateException("could not bind socket");
             }
+
+            Socket router = context.createSocket(SocketType.ROUTER);
             if (!router.bind("tcp://*:8081")) {
                 throw new IllegalStateException("could not bind socket");
             }
+
+            Socket stream = context.createSocket(SocketType.STREAM);
             if (!stream.bind("tcp://*:8082")) {
                 throw new IllegalStateException("could not bind socket");
             }
@@ -129,8 +135,8 @@ public class RestBehindRouterEvaluation {
     private static void handleRouterSocket(final Socket router) {
         System.err.println("### called handleRouterSocket");
         // Get [id, ] message on client connection.
-        ZFrame handle;
-        if ((handle = getConnectionID(router)) == null) {
+        ZFrame handle = getConnectionID(router);
+        if (handle == null) {
             // did not receive proper [ID, null msg] frames
             return;
         }
@@ -170,7 +176,7 @@ public class RestBehindRouterEvaluation {
     private static void handleStreamHttpSocket(Socket httpSocket, ZFrame handlerExt) {
         // Get [id, ] message on client connection.
         ZFrame handler = handlerExt;
-        if (handler == null && (handler = getConnectionID(httpSocket)) == null) {
+        if (handler == null && (handler = getConnectionID(httpSocket)) == null) { // NOPMD
             // did not receive proper [ID, null msg] frames
             return;
         }
@@ -198,9 +204,9 @@ public class RestBehindRouterEvaluation {
         System.err.println("received client request header : '" + header); //  Professional Logging(TM)
 
         //  Send Hello World response
-        final String URI = (header.length() == 0) ? "null" : header.split("\n")[0];
+        final String uri = (header.length() == 0) ? "null" : header.split("\n")[0];
         clientRequest.send(httpSocket, ZFrame.MORE | ZFrame.REUSE);
-        httpSocket.send("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, World!\nyou requested URI: " + URI);
+        httpSocket.send("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, World!\nyou requested URI: " + uri);
 
         //  Close connection to browser -- normally exit
         clientRequest.send(httpSocket, ZFrame.MORE | ZFrame.REUSE);

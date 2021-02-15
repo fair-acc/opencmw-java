@@ -115,7 +115,6 @@ class MajordomoRestPluginTests {
             assertThat(body, containsString("\"byteReturnType\": 42,"));
             break;
         case TEXT:
-            break;
         default:
             break;
         }

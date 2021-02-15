@@ -189,10 +189,6 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     protected RequestHandler getDefaultRequestHandler() {
         return handler -> {
             switch (handler.req.command) {
-            case GET_REQUEST:
-                break;
-            case SET_REQUEST:
-                break;
             case PARTIAL:
             case FINAL:
                 if (handler.req.clientRequestID.length == 0 || Arrays.equals(REST_SUB_ID, handler.req.clientRequestID)) {
@@ -221,6 +217,8 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 final Queue<SseClient> sseClients = RestServer.getEventClients(serviceName);
                 sseClients.forEach((final SseClient client) -> client.sendEvent(notifyMessage));
                 return;
+            case GET_REQUEST:
+            case SET_REQUEST:
             case DISCONNECT:
             case READY:
             case SUBSCRIBE:

@@ -29,13 +29,13 @@ import io.opencmw.serialiser.utils.ClassUtils;
  *
  * @author rstein
  */
-@SuppressWarnings("PMD.ExcessiveClassLength")
+@SuppressWarnings({ "PMD.ExcessiveClassLength", "PMD.ExcessivePublicCount", "PMD.TooManyMethods" })
 public class CmwLightSerialiser implements IoSerialiser {
     public static final String NOT_IMPLEMENTED = "not implemented";
     private static final Logger LOGGER = LoggerFactory.getLogger(CmwLightSerialiser.class);
     private static final int ADDITIONAL_HEADER_INFO_SIZE = 1000;
-    private static final DataType[] byteToDataType = new DataType[256];
-    private static final Byte[] dataTypeToByte = new Byte[256];
+    private static final DataType[] BYTE_TO_DATA_TYPE = new DataType[256];
+    private static final Byte[] DATA_TYPE_TO_BYTE = new Byte[256];
 
     static {
         // static mapping of protocol bytes -- needed to be compatible with other wire protocols
@@ -45,60 +45,59 @@ public class CmwLightSerialiser implements IoSerialiser {
         // * array of Data objects (N.B. 'Data' and nested 'Data' is being explicitely supported)
         // 'Data' object is mapped to START_MARKER also used for nested data structures
 
-        byteToDataType[0] = DataType.BOOL;
-        byteToDataType[1] = DataType.BYTE;
-        byteToDataType[2] = DataType.SHORT;
-        byteToDataType[3] = DataType.INT;
-        byteToDataType[4] = DataType.LONG;
-        byteToDataType[5] = DataType.FLOAT;
-        byteToDataType[6] = DataType.DOUBLE;
-        byteToDataType[201] = DataType.CHAR; // not actually implemented by CMW
-        byteToDataType[7] = DataType.STRING;
-        byteToDataType[8] = DataType.START_MARKER; // mapped to CMW 'Data' type
+        BYTE_TO_DATA_TYPE[0] = DataType.BOOL;
+        BYTE_TO_DATA_TYPE[1] = DataType.BYTE;
+        BYTE_TO_DATA_TYPE[2] = DataType.SHORT;
+        BYTE_TO_DATA_TYPE[3] = DataType.INT;
+        BYTE_TO_DATA_TYPE[4] = DataType.LONG;
+        BYTE_TO_DATA_TYPE[5] = DataType.FLOAT;
+        BYTE_TO_DATA_TYPE[6] = DataType.DOUBLE;
+        BYTE_TO_DATA_TYPE[201] = DataType.CHAR; // not actually implemented by CMW
+        BYTE_TO_DATA_TYPE[7] = DataType.STRING;
+        BYTE_TO_DATA_TYPE[8] = DataType.START_MARKER; // mapped to CMW 'Data' type
 
         // needs to be defined last
-        byteToDataType[9] = DataType.BOOL_ARRAY;
-        byteToDataType[10] = DataType.BYTE_ARRAY;
-        byteToDataType[11] = DataType.SHORT_ARRAY;
-        byteToDataType[12] = DataType.INT_ARRAY;
-        byteToDataType[13] = DataType.LONG_ARRAY;
-        byteToDataType[14] = DataType.FLOAT_ARRAY;
-        byteToDataType[15] = DataType.DOUBLE_ARRAY;
-        byteToDataType[202] = DataType.CHAR_ARRAY; // not actually implemented by CMW
-        byteToDataType[16] = DataType.STRING_ARRAY;
+        BYTE_TO_DATA_TYPE[9] = DataType.BOOL_ARRAY;
+        BYTE_TO_DATA_TYPE[10] = DataType.BYTE_ARRAY;
+        BYTE_TO_DATA_TYPE[11] = DataType.SHORT_ARRAY;
+        BYTE_TO_DATA_TYPE[12] = DataType.INT_ARRAY;
+        BYTE_TO_DATA_TYPE[13] = DataType.LONG_ARRAY;
+        BYTE_TO_DATA_TYPE[14] = DataType.FLOAT_ARRAY;
+        BYTE_TO_DATA_TYPE[15] = DataType.DOUBLE_ARRAY;
+        BYTE_TO_DATA_TYPE[202] = DataType.CHAR_ARRAY; // not actually implemented by CMW
+        BYTE_TO_DATA_TYPE[16] = DataType.STRING_ARRAY;
 
         // CMW 2D arrays -- also mapped internally to byte arrays
-        byteToDataType[17] = DataType.BOOL_ARRAY;
-        byteToDataType[18] = DataType.BYTE_ARRAY;
-        byteToDataType[19] = DataType.SHORT_ARRAY;
-        byteToDataType[20] = DataType.INT_ARRAY;
-        byteToDataType[21] = DataType.LONG_ARRAY;
-        byteToDataType[22] = DataType.FLOAT_ARRAY;
-        byteToDataType[23] = DataType.DOUBLE_ARRAY;
-        byteToDataType[203] = DataType.CHAR_ARRAY; // not actually implemented by CMW
-        byteToDataType[24] = DataType.STRING_ARRAY;
+        BYTE_TO_DATA_TYPE[17] = DataType.BOOL_ARRAY;
+        BYTE_TO_DATA_TYPE[18] = DataType.BYTE_ARRAY;
+        BYTE_TO_DATA_TYPE[19] = DataType.SHORT_ARRAY;
+        BYTE_TO_DATA_TYPE[20] = DataType.INT_ARRAY;
+        BYTE_TO_DATA_TYPE[21] = DataType.LONG_ARRAY;
+        BYTE_TO_DATA_TYPE[22] = DataType.FLOAT_ARRAY;
+        BYTE_TO_DATA_TYPE[23] = DataType.DOUBLE_ARRAY;
+        BYTE_TO_DATA_TYPE[203] = DataType.CHAR_ARRAY; // not actually implemented by CMW
+        BYTE_TO_DATA_TYPE[24] = DataType.STRING_ARRAY;
 
         // CMW multi-dim arrays -- also mapped internally to byte arrays
-        byteToDataType[25] = DataType.BOOL_ARRAY;
-        byteToDataType[26] = DataType.BYTE_ARRAY;
-        byteToDataType[27] = DataType.SHORT_ARRAY;
-        byteToDataType[28] = DataType.INT_ARRAY;
-        byteToDataType[29] = DataType.LONG_ARRAY;
-        byteToDataType[30] = DataType.FLOAT_ARRAY;
-        byteToDataType[31] = DataType.DOUBLE_ARRAY;
-        byteToDataType[204] = DataType.CHAR_ARRAY; // not actually implemented by CMW
-        byteToDataType[32] = DataType.STRING_ARRAY;
+        BYTE_TO_DATA_TYPE[25] = DataType.BOOL_ARRAY;
+        BYTE_TO_DATA_TYPE[26] = DataType.BYTE_ARRAY;
+        BYTE_TO_DATA_TYPE[27] = DataType.SHORT_ARRAY;
+        BYTE_TO_DATA_TYPE[28] = DataType.INT_ARRAY;
+        BYTE_TO_DATA_TYPE[29] = DataType.LONG_ARRAY;
+        BYTE_TO_DATA_TYPE[30] = DataType.FLOAT_ARRAY;
+        BYTE_TO_DATA_TYPE[31] = DataType.DOUBLE_ARRAY;
+        BYTE_TO_DATA_TYPE[204] = DataType.CHAR_ARRAY; // not actually implemented by CMW
+        BYTE_TO_DATA_TYPE[32] = DataType.STRING_ARRAY;
 
-        for (int i = byteToDataType.length - 1; i >= 0; i--) {
-            if (byteToDataType[i] == null) {
+        for (int i = BYTE_TO_DATA_TYPE.length - 1; i >= 0; i--) {
+            if (BYTE_TO_DATA_TYPE[i] == null) {
                 continue;
             }
-            final int id = byteToDataType[i].getID();
-            dataTypeToByte[id] = (byte) i;
+            final int id = BYTE_TO_DATA_TYPE[i].getID();
+            DATA_TYPE_TO_BYTE[id] = (byte) i;
         }
     }
 
-    private int bufferIncrements = ADDITIONAL_HEADER_INFO_SIZE;
     private IoBuffer buffer;
     private WireDataFieldDescription parent;
     private WireDataFieldDescription lastFieldHeader;
@@ -113,7 +112,7 @@ public class CmwLightSerialiser implements IoSerialiser {
     public ProtocolInfo checkHeaderInfo() {
         final String fieldName = "";
         final int dataSize = FastByteBuffer.SIZE_OF_INT;
-        final WireDataFieldDescription headerStartField = new WireDataFieldDescription(this, parent, fieldName.hashCode(), fieldName, DataType.START_MARKER, buffer.position(), buffer.position(), dataSize);
+        final WireDataFieldDescription headerStartField = new WireDataFieldDescription(this, parent, fieldName.hashCode(), fieldName, DataType.START_MARKER, buffer.position(), buffer.position(), dataSize); // NOPMD - needs to be read here
         final int nEntries = buffer.getInt();
         if (nEntries <= 0) {
             throw new IllegalStateException("nEntries = " + nEntries + " <= 0!");
@@ -143,16 +142,18 @@ public class CmwLightSerialiser implements IoSerialiser {
         return buffer.getBooleanArray(dst, length);
     }
 
+    @Override
     public IoBuffer getBuffer() {
         return buffer;
     }
 
+    @Override
     public void setBuffer(final IoBuffer buffer) {
         this.buffer = buffer;
     }
 
     public int getBufferIncrements() {
-        return bufferIncrements;
+        return ADDITIONAL_HEADER_INFO_SIZE;
     }
 
     @Override
@@ -216,6 +217,7 @@ public class CmwLightSerialiser implements IoSerialiser {
         try {
             final Method values = enumClass.getMethod("values");
             final Object[] possibleEnumValues = (Object[]) values.invoke(null);
+            //noinspection unchecked
             return (Enum<E>) possibleEnumValues[ordinal]; // NOSONAR NOPMD
         } catch (final ReflectiveOperationException e) {
             LOGGER.atError().setCause(e).addArgument(enumClass).log("could not match 'valueOf(String)' function for class/(supposedly) enum of {}");
@@ -231,7 +233,7 @@ public class CmwLightSerialiser implements IoSerialiser {
     @Override
     public WireDataFieldDescription getFieldHeader() {
         // process CMW-like wire-format
-        final int headerStart = buffer.position();
+        final int headerStart = buffer.position(); // NOPMD - need to read the present buffer position
 
         final String fieldName = buffer.getStringISO8859();
         final byte dataTypeByte = buffer.getByte();
@@ -416,7 +418,7 @@ public class CmwLightSerialiser implements IoSerialiser {
         }
         parent = lastFieldHeader = fieldRoot;
         for (int i = 0; i < nEntries; i++) {
-            final WireDataFieldDescription field = getFieldHeader();
+            final WireDataFieldDescription field = getFieldHeader(); // NOPMD - need to read the present buffer position
             final int dataSize = field.getDataSize();
             final int skipPosition = field.getDataStartPosition() + dataSize;
 
@@ -1106,8 +1108,8 @@ public class CmwLightSerialiser implements IoSerialiser {
 
     public static byte getDataType(final DataType dataType) {
         final int id = dataType.getID();
-        if (dataTypeToByte[id] != null) {
-            return dataTypeToByte[id];
+        if (DATA_TYPE_TO_BYTE[id] != null) {
+            return DATA_TYPE_TO_BYTE[id];
         }
 
         throw new IllegalArgumentException("DataType " + dataType + " not mapped to specific byte");
@@ -1115,8 +1117,8 @@ public class CmwLightSerialiser implements IoSerialiser {
 
     public static DataType getDataType(final byte byteValue) {
         final int id = byteValue & 0xFF;
-        if (byteToDataType[id] != null) {
-            return byteToDataType[id];
+        if (BYTE_TO_DATA_TYPE[id] != null) {
+            return BYTE_TO_DATA_TYPE[id];
         }
 
         throw new IllegalArgumentException("DataType byteValue=" + byteValue + " rawByteValue=" + (byteValue & 0xFF) + " not mapped");
