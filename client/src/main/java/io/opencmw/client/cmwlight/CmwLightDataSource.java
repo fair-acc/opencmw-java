@@ -146,7 +146,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         }
     }
 
-    private ZMsg handleServerReply(final CmwLightMessage reply, final long currentTime) {//NOPMD
+    private ZMsg handleServerReply(final CmwLightMessage reply, final long currentTime) { //NOPMD
         final ZMsg result = new ZMsg();
         switch (reply.requestType) {
         case REPLY:
