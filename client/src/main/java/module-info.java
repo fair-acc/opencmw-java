@@ -5,7 +5,6 @@ module io.opencmw.client {
     requires org.slf4j;
     requires jeromq;
     requires disruptor;
-    requires java.validation;
     requires org.jetbrains.annotations;
     requires okhttp3;
     requires okhttp3.sse;

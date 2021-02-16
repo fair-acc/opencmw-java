@@ -7,8 +7,7 @@ import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
 import java.net.URI;
 import java.util.Arrays;
 
-import javax.validation.constraints.NotNull;
-
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.ZContext;

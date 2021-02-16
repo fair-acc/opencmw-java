@@ -32,7 +32,6 @@
         <version.jetbrains.annotations>20.1.0</version.jetbrains.annotations>
         <version.jeromq>0.5.2</version.jeromq>
         <versions.lmax.disruptor>3.4.2</versions.lmax.disruptor>
-        <version.validation-api>2.0.1.Final</version.validation-api>
         <version.javalin>3.13.3</version.javalin>
         <version.jetty>9.4.35.v20201120</version.jetty> <!-- N.B. needs to be synchronised/tested with Javalin version -->
         <version.jsoniter>0.9.23</version.jsoniter>
@@ -222,15 +221,9 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>javax.validation</groupId>
-            <artifactId>validation-api</artifactId>
-            <version>${version.validation-api}</version>
-        </dependency>
-        <dependency>
             <groupId>org.jetbrains</groupId>
             <artifactId>annotations</artifactId>
             <version>${version.jetbrains.annotations}</version>
-<!--            <optional>true</optional>-->
             <scope>compile</scope>
         </dependency>
         <dependency>

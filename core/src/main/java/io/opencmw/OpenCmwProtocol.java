@@ -15,8 +15,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import javax.validation.constraints.NotNull;
-
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
@@ -193,8 +192,8 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
          * @param rbacToken OpenCMW frame 8 (optional): RBAC token
          */
         public MdpMessage(final byte[] senderID, @NotNull final MdpSubProtocol protocol, @NotNull final Command command,
-                @NotNull final byte[] serviceID, @NotNull final byte[] clientRequestID, @NotNull final URI topic,
-                final byte[] data, @NotNull final String errors, final byte[] rbacToken) {
+                          @NotNull final byte[] serviceID, @NotNull final byte[] clientRequestID, @NotNull final URI topic,
+                          final byte[] data, @NotNull final String errors, final byte[] rbacToken) {
             this.senderID = senderID == null ? EMPTY_FRAME : senderID;
             this.protocol = protocol;
             this.command = command;
