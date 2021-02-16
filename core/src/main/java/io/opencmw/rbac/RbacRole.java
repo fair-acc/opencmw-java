@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 
 import org.jetbrains.annotations.NotNull;
 
-
 /**
  * Interface for Role-Based-Access-Control (RBAC) roles
  *
