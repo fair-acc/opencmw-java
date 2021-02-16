@@ -13,7 +13,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
+    environment: configure coverage
     steps:
     - uses: actions/checkout@v2
     - name: Set up JDK 11
@@ -22,5 +22,10 @@ jobs:
         java-version: 11
     - name: Build with Maven
       run: mvn -B package --file pom.xml
-    - name: Codecov
+    - name: Codecov Coverage Reporter
       uses: codecov/codecov-action@v1.2.1
+    - name: Codacy Coverage Reporter
+      uses: codacy/codacy-coverage-reporter-action@0.2.0
+      with:
+        project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+
