@@ -123,8 +123,7 @@ public class DataSourcePublisher implements Runnable {
             } else if (future.replyType == DataSourceFilter.ReplyType.GET) {
                 // get data from socket
                 final ZMsg cmwMsg = event.payload.get(ZMsg.class);
-                //noinspection AssertWithSideEffects
-                assert requireNonNull(cmwMsg.poll()).getString(StandardCharsets.UTF_8) != null;
+                requireNonNull(cmwMsg.poll()).getString(StandardCharsets.UTF_8);
                 final byte[] body = requireNonNull(cmwMsg.poll()).getData();
                 final String exc = requireNonNull(cmwMsg.poll()).getString(Charset.defaultCharset());
                 // deserialise
