@@ -192,8 +192,8 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
          * @param rbacToken OpenCMW frame 8 (optional): RBAC token
          */
         public MdpMessage(final byte[] senderID, @NotNull final MdpSubProtocol protocol, @NotNull final Command command,
-                          @NotNull final byte[] serviceID, @NotNull final byte[] clientRequestID, @NotNull final URI topic,
-                          final byte[] data, @NotNull final String errors, final byte[] rbacToken) {
+                @NotNull final byte[] serviceID, @NotNull final byte[] clientRequestID, @NotNull final URI topic,
+                final byte[] data, @NotNull final String errors, final byte[] rbacToken) {
             this.senderID = senderID == null ? EMPTY_FRAME : senderID;
             this.protocol = protocol;
             this.command = command;
