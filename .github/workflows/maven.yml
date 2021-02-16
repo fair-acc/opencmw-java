@@ -87,7 +87,7 @@ jobs:
       - name: Set up JDK ${{ env.JAVA_REFERENCE_VERSION }}
         uses: actions/setup-java@v1.4.3
         with:
-          java-version: env.JAVA_REFERENCE_VERSION
+          java-version: ${{ env.JAVA_REFERENCE_VERSION }}
           gpg-private-key: ${{ secrets.GPG_KEY }}
           gpg-passphrase: GPG_PASS
       - name: Deploy to Github Packages
@@ -98,7 +98,7 @@ jobs:
       - name: Set up JDK to publish to OSSRH
         uses: actions/setup-java@v1.4.3
         with:
-          java-version: env.JAVA_REFERENCE_VERSION
+          java-version: ${{ env.JAVA_REFERENCE_VERSION }}
           server-id: ossrh
           server-username: SONATYPE_USER
           server-password: SONATYPE_PASS
