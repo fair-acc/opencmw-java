@@ -8,6 +8,8 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+env:
+  JAVA_REFERENCE_VERSION: 11
 
 jobs:
   test:
@@ -29,7 +31,7 @@ jobs:
       run: |
         export REV=${GITHUB_REF#refs/*/}
         echo "REVISION=${REV/\//-}" >> $GITHUB_ENV
-        if [[ "${GITHUB_REF#refs/tags/}" =~ ^${{matrix.java_reference}}\.[0-9]*\.[0-9]*$ ]]; then
+        if [[ "${GITHUB_REF#refs/tags/}" =~ ^${{ env.JAVA_REFERENCE_VERSION }}\.[0-9]*\.[0-9]*$ ]]; then
           echo "CHANGELIST=" >> $GITHUB_ENV
         else
           echo "CHANGELIST=-SNAPSHOT" >> $GITHUB_ENV
@@ -49,10 +51,10 @@ jobs:
     - name: Test with Maven
       run: mvn -Dgpg.skip=true --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dchangelist=${CHANGELIST} package
     - name: coverage report - send to Codecov
-      if: matrix.java == matrix.java_reference
+      if: matrix.java == env.JAVA_REFERENCE_VERSION
       uses: codecov/codecov-action@v1.2.1
     - name: coverage report - send to Codacy
-      if: matrix.java == matrix.java_reference
+      if: matrix.java == env.JAVA_REFERENCE_VERSION
       uses: codacy/codacy-coverage-reporter-action@0.2.0
       with:
         project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
@@ -68,7 +70,7 @@ jobs:
         run: |
           export REV=${GITHUB_REF#refs/*/}
           echo "REVISION=${REV/\//-}" >> $GITHUB_ENV
-          if [[ "${GITHUB_REF#refs/tags/}" =~ ^${{matrix.java_reference}}\.[0-9]*\.[0-9]*$ ]]; then
+          if [[ "${GITHUB_REF#refs/tags/}" =~ ^${{ env.JAVA_REFERENCE_VERSION }}\.[0-9]*\.[0-9]*$ ]]; then
             echo "CHANGELIST=" >> $GITHUB_ENV
           else
             echo "CHANGELIST=-SNAPSHOT" >> $GITHUB_ENV
@@ -82,10 +84,10 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
-      - name: Set up JDK ${{matrix.java_reference}}
+      - name: Set up JDK ${{ env.JAVA_REFERENCE_VERSION }}
         uses: actions/setup-java@v1.4.3
         with:
-          java-version: ${{matrix.java_reference}}
+          java-version: env.JAVA_REFERENCE_VERSION
           gpg-private-key: ${{ secrets.GPG_KEY }}
           gpg-passphrase: GPG_PASS
       - name: Deploy to Github Packages
@@ -96,7 +98,7 @@ jobs:
       - name: Set up JDK to publish to OSSRH
         uses: actions/setup-java@v1.4.3
         with:
-          java-version: ${{matrix.java_reference}}
+          java-version: env.JAVA_REFERENCE_VERSION
           server-id: ossrh
           server-username: SONATYPE_USER
           server-password: SONATYPE_PASS
