@@ -19,39 +19,37 @@ public class RestBehindRouterEvaluation { // NOPMD -- nomen est omen
     }
 
     public static void main(final String[] argv) {
-        try (ZContext context = new ZContext()) {
-            Socket tcpProxy = context.createSocket(SocketType.ROUTER);
+        try (ZContext context = new ZContext();
+                Socket tcpProxy = context.createSocket(SocketType.ROUTER);
+                Socket router = context.createSocket(SocketType.ROUTER);
+                Socket stream = context.createSocket(SocketType.STREAM);
+                Poller poller = context.createPoller(2)) {
             tcpProxy.setRouterRaw(true);
             if (!tcpProxy.bind("tcp://*:8080")) {
                 throw new IllegalStateException("could not bind socket");
             }
-
-            Socket router = context.createSocket(SocketType.ROUTER);
             if (!router.bind("tcp://*:8081")) {
                 throw new IllegalStateException("could not bind socket");
             }
-
-            Socket stream = context.createSocket(SocketType.STREAM);
             if (!stream.bind("tcp://*:8082")) {
                 throw new IllegalStateException("could not bind socket");
             }
+            poller.register(tcpProxy, Poller.POLLIN);
+            poller.register(stream, Poller.POLLIN);
 
             final TimerTask timerTask = new TimerTask() {
                 @Override
                 public void run() {
-                    Socket dealer = context.createSocket(SocketType.DEALER);
-                    dealer.setIdentity("dealer".getBytes(zmq.ZMQ.CHARSET));
+                    try (Socket dealer = context.createSocket(SocketType.DEALER)) {
+                        dealer.setIdentity("dealer".getBytes(zmq.ZMQ.CHARSET));
 
-                    System.err.println("clients sends request");
-                    dealer.connect("tcp://localhost:8080");
-                    dealer.send("Hello World");
+                        System.err.println("clients sends request");
+                        dealer.connect("tcp://localhost:8080");
+                        dealer.send("Hello World");
+                    }
                 }
             };
             new Timer().schedule(timerTask, 2000);
-
-            Poller poller = context.createPoller(2);
-            poller.register(tcpProxy, Poller.POLLIN);
-            poller.register(stream, Poller.POLLIN);
 
             while (!Thread.interrupted()) {
                 if (poller.poll(1000) == -1) {
@@ -162,7 +160,7 @@ public class RestBehindRouterEvaluation { // NOPMD -- nomen est omen
             // receive message
             final byte[] message = router.recv(0);
             final boolean more = router.hasReceiveMore();
-            System.err.println("router msg (" + (more ? "more" : "all ") + "): " + Arrays.toString(message) + "\n      - string: '" + new String(message) + "'");
+            System.err.println("router msg (" + (more ? "more" : "all ") + "): " + Arrays.toString(message) + "\n      - string: '" + new String(message) + "'"); // NOPMD
 
             //handleStreamHttpSocket(router);
             // Broker it -- throws an exception (too naive implementation?)

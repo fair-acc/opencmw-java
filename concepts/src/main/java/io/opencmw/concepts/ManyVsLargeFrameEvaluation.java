@@ -14,7 +14,7 @@ import org.zeromq.ZMsg;
 /**
  * Quick performance evaluation to see the impact of single large w.r.t. many small frames.
  */
-@SuppressWarnings("PMD.DoNotUseThreads")
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidInstantiatingObjectsInLoops" })
 public class ManyVsLargeFrameEvaluation {
     private static final AtomicBoolean RUN = new AtomicBoolean(true);
     private static final byte[] CLIENT_ID = "C".getBytes(StandardCharsets.UTF_8); // client name
@@ -87,10 +87,11 @@ public class ManyVsLargeFrameEvaluation {
 
         @Override
         public void run() { // NOPMD single-loop broker ... simplifies reading
-            try (ZContext ctx = new ZContext()) {
-                final Socket tcpFrontend = ctx.createSocket(SocketType.ROUTER);
-                final Socket tcpBackend = ctx.createSocket(SocketType.ROUTER);
-                final Socket inprocBackend = ctx.createSocket(SocketType.ROUTER);
+            try (ZContext ctx = new ZContext();
+                    Socket tcpFrontend = ctx.createSocket(SocketType.ROUTER);
+                    Socket tcpBackend = ctx.createSocket(SocketType.ROUTER);
+                    Socket inprocBackend = ctx.createSocket(SocketType.ROUTER);
+                    ZMQ.Poller items = ctx.createPoller(3)) {
                 tcpFrontend.setHWM(0);
                 tcpBackend.setHWM(0);
                 inprocBackend.setHWM(0);
@@ -101,14 +102,11 @@ public class ManyVsLargeFrameEvaluation {
                 Thread internalWorkerThread = new Thread(new InternalWorker(ctx));
                 internalWorkerThread.setDaemon(true);
                 internalWorkerThread.start();
+                items.register(tcpFrontend, ZMQ.Poller.POLLIN);
+                items.register(tcpBackend, ZMQ.Poller.POLLIN);
+                items.register(inprocBackend, ZMQ.Poller.POLLIN);
 
                 while (RUN.get() && !Thread.currentThread().isInterrupted()) {
-                    // create poller
-                    ZMQ.Poller items = ctx.createPoller(3);
-                    items.register(tcpFrontend, ZMQ.Poller.POLLIN);
-                    items.register(tcpBackend, ZMQ.Poller.POLLIN);
-                    items.register(inprocBackend, ZMQ.Poller.POLLIN);
-
                     if (items.poll(TIMEOUT) == -1) {
                         break; // Interrupted
                     }
@@ -184,8 +182,7 @@ public class ManyVsLargeFrameEvaluation {
 
             @Override
             public void run() {
-                try {
-                    Socket worker = ctx.createSocket(SocketType.DEALER);
+                try (Socket worker = ctx.createSocket(SocketType.DEALER)) {
                     worker.setHWM(0);
                     worker.setIdentity(WORKER_ID);
                     worker.connect("inproc://broker");
@@ -203,13 +200,12 @@ public class ManyVsLargeFrameEvaluation {
     private static class Client implements Runnable {
         @Override
         public void run() { // NOPMD -- complexity
-            try (ZContext ctx = new ZContext()) {
-                Socket client = ctx.createSocket(SocketType.DEALER);
+            try (ZContext ctx = new ZContext();
+                    Socket client = ctx.createSocket(SocketType.DEALER);
+                    Socket subClient = ctx.createSocket(SocketType.SUB)) {
                 client.setHWM(0);
                 client.setIdentity(CLIENT_ID);
                 client.connect("tcp://localhost:5555");
-
-                Socket subClient = ctx.createSocket(SocketType.SUB);
                 subClient.setHWM(0);
                 subClient.connect("tcp://localhost:5557");
 
@@ -270,8 +266,8 @@ public class ManyVsLargeFrameEvaluation {
     private static class Worker implements Runnable {
         @Override
         public void run() {
-            try (ZContext ctx = new ZContext()) {
-                Socket worker = ctx.createSocket(SocketType.DEALER);
+            try (ZContext ctx = new ZContext();
+                    Socket worker = ctx.createSocket(SocketType.DEALER)) {
                 worker.setHWM(0);
                 worker.setIdentity(WORKER_ID);
                 worker.connect("tcp://localhost:5556");

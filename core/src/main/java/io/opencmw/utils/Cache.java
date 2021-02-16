@@ -322,10 +322,10 @@ public class Cache<K, V> implements Map<K, V> {
 
     public static class CacheBuilder<K2, V2> {
         private int limit = Integer.MAX_VALUE;
-        private long timeOut = 0;
+        private long timeOut;
         private TimeUnit timeUnit = TimeUnit.MILLISECONDS;
-        private BiConsumer<K2, V2> preListener = null;
-        private BiConsumer<K2, V2> postListener = null;
+        private BiConsumer<K2, V2> preListener;
+        private BiConsumer<K2, V2> postListener;
 
         private CacheBuilder() {
             // only called via builderCacheRemovalListener

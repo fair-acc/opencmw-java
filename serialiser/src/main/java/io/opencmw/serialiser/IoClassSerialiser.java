@@ -39,7 +39,7 @@ import de.gsi.dataset.utils.ByteArrayCache;
  *
  * @author rstein
  */
-@SuppressWarnings({ "PMD.TooManyMethods", "PMD.ExcessiveImports" })
+@SuppressWarnings({ "PMD.TooManyMethods", "PMD.ExcessiveImports", "PMD.NPathComplexity" })
 public class IoClassSerialiser {
     private static final Logger LOGGER = LoggerFactory.getLogger(IoClassSerialiser.class);
     public static final String UNCHECKED_CAST_SUPPRESSION = "unchecked";
@@ -52,7 +52,7 @@ public class IoClassSerialiser {
     protected Consumer<FieldDescription> startMarkerFunction;
     protected Consumer<FieldDescription> endMarkerFunction;
     private boolean autoMatchSerialiser = true;
-    private boolean useCustomJsonSerialiser = false;
+    private boolean useCustomJsonSerialiser;
 
     /**
      * Initialises new IoBuffer-backed object serialiser
@@ -146,7 +146,6 @@ public class IoClassSerialiser {
         return (FieldSerialiser<E>) cachedFieldMatch.computeIfAbsent(new FieldSerialiserKey(clazz, classGenericArguments), key -> new FieldSerialiserValue(findFieldSerialiser(clazz, classGenericArguments))).get();
     }
 
-    @SuppressWarnings("PMD.NPathComplexity")
     public <T> T deserialiseObject(WireDataFieldDescription fieldRoot, final T obj) {
         autoUpdateSerialiser();
         final int startPosition = matchedIoSerialiser.getBuffer().position();
@@ -224,7 +223,7 @@ public class IoClassSerialiser {
                 arrayCache.add(dataBuffer.elements());
             }
             // return buffer to cache
-            dataBuffer = null;
+            dataBuffer = null; // NOPMD on purpose
             for (IoSerialiser serialiser : ioSerialisers) {
                 serialiser.setBuffer(null);
             }
@@ -240,7 +239,7 @@ public class IoClassSerialiser {
      * @return FieldSerialiser matching the base class/interface and generics arguments
      * @param <E> The type of the Object to (de)serialise
      */
-    @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
+    @SuppressWarnings({ UNCHECKED_CAST_SUPPRESSION })
     public <E> FieldSerialiser<E> findFieldSerialiser(Type type, List<Type> classGenericArguments) {
         final Class<?> clazz = ClassUtils.getRawType(type);
         if (clazz == null) {
@@ -337,7 +336,6 @@ public class IoClassSerialiser {
         return matchedIoSerialiser.parseIoStream(true);
     }
 
-    @SuppressWarnings("PMD.NPathComplexity")
     public void serialiseObject(final Object rootObj, final ClassFieldDescription classField, final int recursionDepth) {
         final FieldSerialiser<?> existingSerialiser = classField.getFieldSerialiser();
         final FieldSerialiser<?> fieldSerialiser = existingSerialiser == null ? cacheFindFieldSerialiser(classField.getType(), classField.getActualTypeArguments()) : existingSerialiser;
@@ -469,7 +467,6 @@ public class IoClassSerialiser {
         return true;
     }
 
-    @SuppressWarnings("PMD.NPathComplexity")
     protected <E> void deserialise(final Object obj, Class<E> clazz, final FieldDescription fieldRoot, final ClassFieldDescription classField, final int recursionDepth) {
         assert obj != null;
         assert clazz != null;

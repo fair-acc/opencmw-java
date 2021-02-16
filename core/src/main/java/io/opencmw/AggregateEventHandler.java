@@ -262,6 +262,7 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
         }
     }
 
+    @SuppressWarnings("PMD.AvoidUsingVolatile") // cache-specific usage here
     protected class InternalAggregationHandler implements EventHandler<RingBufferEvent>, TimeoutHandler {
         protected volatile long bpcts = -1; // [ms]
         protected volatile long aggStart = -1; // [ns]

@@ -294,7 +294,6 @@ public class RestDataSource extends DataSource implements Runnable {
                         newData.wait(waitMax);
                     }
 
-
                     for (RestCallBack callBack : completedCallbacks) {
                         // notify data
 
@@ -302,8 +301,8 @@ public class RestDataSource extends DataSource implements Runnable {
                         final byte[] data;
                         if (callBack.response == null) {
                             // exception branch
-                            header = new byte[0];
-                            data = new byte[0];
+                            header = EMPTY_FRAME;
+                            data = EMPTY_FRAME;
                         } else {
                             header = callBack.response.headers().toString().getBytes(StandardCharsets.UTF_8);
                             data = callBack.response.peekBody(Long.MAX_VALUE).bytes();
@@ -311,7 +310,7 @@ public class RestDataSource extends DataSource implements Runnable {
                         }
                         final byte[] exception = callBack.exception == null ? EMPTY_FRAME : callBack.exception.getMessage().getBytes(StandardCharsets.UTF_8);
 
-                        ZMsg msg = new ZMsg();
+                        final ZMsg msg = new ZMsg(); // NOPMD - instantiation in loop
                         msg.add(callBack.hashKey);
                         msg.add(callBack.endPointName);
                         msg.add(header);

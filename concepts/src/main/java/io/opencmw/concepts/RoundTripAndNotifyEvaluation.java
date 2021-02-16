@@ -30,7 +30,7 @@ import org.zeromq.ZMsg;
  * N.B. for >200000 calls/second the code seems to depend largely on the broker/parameters
  * (ie. JIT, whether services are identified by single characters etc.)
  */
-@SuppressWarnings("PMD.DoNotUseThreads")
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidInstantiatingObjectsInLoops" })
 class RoundTripAndNotifyEvaluation {
     // private static final String SUB_TOPIC = "x";
     private static final String SUB_TOPIC = "<domain>/<property>?<filter>#<ctx> - a very long topic to test the dependence of pub/sub pairs on topic lengths";
@@ -119,16 +119,20 @@ class RoundTripAndNotifyEvaluation {
         private static final int TIMEOUT = 1000;
         @Override
         public void run() { // NOPMD single-loop broker ... simplifies reading
-            try (ZContext ctx = new ZContext()) {
-                final Socket tcpFrontend = ctx.createSocket(SocketType.ROUTER);
-                final Socket tcpBackend = ctx.createSocket(SocketType.ROUTER);
-                final Socket inprocBackend = ctx.createSocket(SocketType.ROUTER);
+            try (ZContext ctx = new ZContext();
+                    Socket tcpFrontend = ctx.createSocket(SocketType.ROUTER);
+                    Socket tcpBackend = ctx.createSocket(SocketType.ROUTER);
+                    Socket inprocBackend = ctx.createSocket(SocketType.ROUTER);
+                    ZMQ.Poller items = ctx.createPoller(3)) {
                 tcpFrontend.setHWM(0);
                 tcpBackend.setHWM(0);
                 inprocBackend.setHWM(0);
                 tcpFrontend.bind("tcp://*:5555");
                 tcpBackend.bind("tcp://*:5556");
                 inprocBackend.bind("inproc://broker");
+                items.register(tcpFrontend, ZMQ.Poller.POLLIN);
+                items.register(tcpBackend, ZMQ.Poller.POLLIN);
+                items.register(inprocBackend, ZMQ.Poller.POLLIN);
 
                 Thread internalWorkerThread = new Thread(new InternalWorker(ctx));
                 internalWorkerThread.setDaemon(true);
@@ -138,12 +142,6 @@ class RoundTripAndNotifyEvaluation {
                 internalPublishDealerWorkerThread.start();
 
                 while (RUN.get() && !Thread.currentThread().isInterrupted()) {
-                    // create poller
-                    final ZMQ.Poller items = ctx.createPoller(3);
-                    items.register(tcpFrontend, ZMQ.Poller.POLLIN);
-                    items.register(tcpBackend, ZMQ.Poller.POLLIN);
-                    items.register(inprocBackend, ZMQ.Poller.POLLIN);
-
                     if (items.poll(TIMEOUT) == -1) {
                         break; // Interrupted
                     }
@@ -165,10 +163,10 @@ class RoundTripAndNotifyEvaluation {
                             }
                         } else {
                             if (TAG_EXTERNAL == internal.getData()[0]) {
-                                msg.addFirst(new ZFrame(PUBLISH_ID)); // NOPMD - necessary to allocate inside loop
+                                msg.addFirst(new ZFrame(PUBLISH_ID));
                                 msg.send(tcpBackend);
                             } else if (TAG_INTERNAL == internal.getData()[0]) {
-                                msg.addFirst(new ZFrame(PUBLISH_ID)); // NOPMD - necessary to allocate inside loop
+                                msg.addFirst(new ZFrame(PUBLISH_ID));
                                 msg.send(inprocBackend);
                             }
                         }
@@ -183,9 +181,9 @@ class RoundTripAndNotifyEvaluation {
                         ZFrame address = msg.pop();
 
                         if (address.getData()[0] == WORKER_ID[0]) {
-                            msg.addFirst(new ZFrame(CLIENT_ID)); // NOPMD - necessary to allocate inside loop
+                            msg.addFirst(new ZFrame(CLIENT_ID));
                         } else {
-                            msg.addFirst(new ZFrame(SUBSCRIBER_ID)); // NOPMD - necessary to allocate inside loop
+                            msg.addFirst(new ZFrame(SUBSCRIBER_ID));
                         }
                         msg.send(tcpFrontend);
                         address.destroy();
@@ -199,9 +197,9 @@ class RoundTripAndNotifyEvaluation {
                         ZFrame address = msg.pop();
 
                         if (address.getData()[0] == WORKER_ID[0]) {
-                            msg.addFirst(new ZFrame(CLIENT_ID)); // NOPMD - necessary to allocate inside loop
+                            msg.addFirst(new ZFrame(CLIENT_ID));
                         } else {
-                            msg.addFirst(new ZFrame(SUBSCRIBER_ID)); // NOPMD - necessary to allocate inside loop
+                            msg.addFirst(new ZFrame(SUBSCRIBER_ID));
                         }
                         address.destroy();
                         msg.send(tcpFrontend);
@@ -231,8 +229,7 @@ class RoundTripAndNotifyEvaluation {
 
             @Override
             public void run() {
-                try {
-                    Socket worker = ctx.createSocket(SocketType.DEALER);
+                try (Socket worker = ctx.createSocket(SocketType.DEALER)) {
                     worker.setHWM(0);
                     worker.setIdentity(WORKER_ID);
                     worker.connect("inproc://broker");
@@ -254,8 +251,7 @@ class RoundTripAndNotifyEvaluation {
 
             @Override
             public void run() {
-                try {
-                    Socket worker = ctx.createSocket(SocketType.DEALER);
+                try (Socket worker = ctx.createSocket(SocketType.DEALER)) {
                     worker.setHWM(0);
                     worker.setIdentity(PUBLISH_ID);
                     worker.connect("inproc://broker");
@@ -279,8 +275,7 @@ class RoundTripAndNotifyEvaluation {
     protected static class Worker implements Runnable {
         @Override
         public void run() {
-            try (ZContext ctx = new ZContext()) {
-                Socket worker = ctx.createSocket(SocketType.DEALER);
+            try (ZContext ctx = new ZContext(); Socket worker = ctx.createSocket(SocketType.DEALER)) {
                 worker.setHWM(0);
                 worker.setIdentity(WORKER_ID);
                 worker.connect("tcp://localhost:5556");
@@ -297,8 +292,7 @@ class RoundTripAndNotifyEvaluation {
     private static class PublishWorker implements Runnable {
         @Override
         public void run() {
-            try (ZContext ctx = new ZContext()) {
-                Socket worker = ctx.createSocket(SocketType.PUB);
+            try (ZContext ctx = new ZContext(); Socket worker = ctx.createSocket(SocketType.PUB)) {
                 worker.setHWM(0);
                 worker.bind("tcp://localhost:5557");
                 // System.err.println("PublishWorker: start publishing");
@@ -315,8 +309,7 @@ class RoundTripAndNotifyEvaluation {
     private static class PublishDealerWorker implements Runnable {
         @Override
         public void run() {
-            try (ZContext ctx = new ZContext()) {
-                Socket worker = ctx.createSocket(SocketType.DEALER);
+            try (ZContext ctx = new ZContext(); Socket worker = ctx.createSocket(SocketType.DEALER)) {
                 worker.setHWM(0);
                 worker.setIdentity(PUBLISH_ID);
                 //worker.bind("tcp://localhost:5558");
@@ -340,8 +333,7 @@ class RoundTripAndNotifyEvaluation {
     private static class PublishDirectDealerWorker implements Runnable {
         @Override
         public void run() {
-            try (ZContext ctx = new ZContext()) {
-                Socket worker = ctx.createSocket(SocketType.DEALER);
+            try (ZContext ctx = new ZContext(); Socket worker = ctx.createSocket(SocketType.DEALER)) {
                 worker.setHWM(0);
                 worker.setIdentity(PUBLISH_ID);
                 worker.bind("tcp://localhost:5558");
@@ -364,13 +356,12 @@ class RoundTripAndNotifyEvaluation {
     private static class Client implements Runnable {
         @Override
         public void run() {
-            try (ZContext ctx = new ZContext()) {
-                Socket client = ctx.createSocket(SocketType.DEALER);
+            try (ZContext ctx = new ZContext();
+                    Socket client = ctx.createSocket(SocketType.DEALER);
+                    Socket subClient = ctx.createSocket(SocketType.SUB)) {
                 client.setHWM(0);
                 client.setIdentity(CLIENT_ID);
                 client.connect(TCP_LOCALHOST_5555);
-
-                Socket subClient = ctx.createSocket(SocketType.SUB);
                 subClient.setHWM(0);
                 subClient.connect("tcp://localhost:5557");
 

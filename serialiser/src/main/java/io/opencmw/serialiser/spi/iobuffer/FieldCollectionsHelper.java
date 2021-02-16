@@ -19,6 +19,7 @@ public final class FieldCollectionsHelper {
      *
      * @param serialiser for which the field serialisers should be registered
      */
+    @SuppressWarnings("PMD.NPathComplexity")
     public static void register(final IoClassSerialiser serialiser) {
         // Collection serialiser mapper to IoBuffer
         final FieldSerialiser.TriFunction<Collection<?>> returnCollection = (io, obj, field) -> //

@@ -36,7 +36,8 @@ public class JsonSerialiser implements IoSerialiser {
     private static final String NULL = "null";
     private static final String ASSIGN = ": ";
     private static final String LINE_BREAK = System.getProperty("line.separator");
-    private final StringBuilder builder = new StringBuilder(DEFAULT_INITIAL_CAPACITY);
+    public static final String UNCHECKED = "unchecked";
+    private final StringBuilder builder = new StringBuilder(DEFAULT_INITIAL_CAPACITY); // NOPMD
     private IoBuffer buffer;
     private Any root;
     private Any tempRoot;
@@ -77,10 +78,9 @@ public class JsonSerialiser implements IoSerialiser {
         if (buffer.getByte(count) != BRACKET_OPEN) {
             throw new IllegalStateException(NOT_A_JSON_COMPATIBLE_PROTOCOL);
         }
-        JsonIterator iter = JsonIteratorPool.borrowJsonIterator();
-        iter.reset(buffer.elements(), 0, buffer.limit());
 
-        try {
+        try (JsonIterator iter = JsonIteratorPool.borrowJsonIterator()) {
+            iter.reset(buffer.elements(), 0, buffer.limit());
             tempRoot = root = iter.readAny();
         } catch (IOException e) {
             throw new IllegalStateException(NOT_A_JSON_COMPATIBLE_PROTOCOL, e);
@@ -94,8 +94,7 @@ public class JsonSerialiser implements IoSerialiser {
     }
 
     public <T> T deserialiseObject(final T obj) {
-        final JsonIterator iter = JsonIterator.parse(buffer.elements(), 0, buffer.limit());
-        try {
+        try (JsonIterator iter = JsonIterator.parse(buffer.elements(), 0, buffer.limit())) {
             return iter.read(obj);
         } catch (IOException | JsonException e) {
             throw new IllegalStateException(NOT_A_JSON_COMPATIBLE_PROTOCOL, e);
@@ -143,13 +142,13 @@ public class JsonSerialiser implements IoSerialiser {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings(UNCHECKED)
     public <E> Collection<E> getCollection(final Collection<E> collection) {
         return tempRoot.get(queryFieldName).as(ArrayList.class);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings(UNCHECKED)
     public <E> E getCustomData(final FieldSerialiser<E> serialiser) {
         return (E) tempRoot.get(queryFieldName);
     }
@@ -200,7 +199,7 @@ public class JsonSerialiser implements IoSerialiser {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings(UNCHECKED)
     public <E> List<E> getList(final List<E> collection) {
         return tempRoot.get(queryFieldName).as(List.class);
     }
@@ -225,13 +224,13 @@ public class JsonSerialiser implements IoSerialiser {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings(UNCHECKED)
     public <E> Queue<E> getQueue(final Queue<E> collection) {
         return tempRoot.get(queryFieldName).as(ArrayDeque.class);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings(UNCHECKED)
     public <E> Set<E> getSet(final Set<E> collection) {
         return tempRoot.get(queryFieldName).as(HashSet.class);
     }
@@ -268,18 +267,17 @@ public class JsonSerialiser implements IoSerialiser {
 
     @Override
     public WireDataFieldDescription parseIoStream(final boolean readHeader) {
-        JsonIterator iter = JsonIteratorPool.borrowJsonIterator();
-        iter.reset(buffer.elements(), 0, buffer.limit());
-
-        try {
+        try (JsonIterator iter = JsonIteratorPool.borrowJsonIterator()) {
+            iter.reset(buffer.elements(), 0, buffer.limit());
             tempRoot = root = iter.readAny();
+
+            final WireDataFieldDescription fieldRoot = new WireDataFieldDescription(this, null, "ROOT".hashCode(), "ROOT", DataType.OTHER, buffer.position(), -1, -1);
+            parseIoStream(fieldRoot, tempRoot, "");
+
+            return fieldRoot;
         } catch (IOException e) {
             throw new IllegalStateException(NOT_A_JSON_COMPATIBLE_PROTOCOL, e);
         }
-        final WireDataFieldDescription fieldRoot = new WireDataFieldDescription(this, null, "ROOT".hashCode(), "ROOT", DataType.OTHER, buffer.position(), -1, -1);
-        parseIoStream(fieldRoot, tempRoot, "");
-
-        return fieldRoot;
     }
 
     @Override

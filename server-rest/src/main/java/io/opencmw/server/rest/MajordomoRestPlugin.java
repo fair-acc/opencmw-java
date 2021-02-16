@@ -95,7 +95,7 @@ import com.jsoniter.output.JsonStream;
 @SuppressWarnings({ "PMD.ExcessiveImports", "PMD.TooManyStaticImports", "PMD.DoNotUseThreads" }) // makes the code more readable/shorter lines
 public class MajordomoRestPlugin extends BasicMdpWorker {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPlugin.class);
-    private static final byte[] RBAC = new byte[] {}; // TODO: implement RBAC between Majordomo and Worker
+    private static final byte[] RBAC = {}; // TODO: implement RBAC between Majordomo and Worker
     private static final String TEMPLATE_EMBEDDED_HTML = "/velocity/property/defaultTextPropertyLayout.vm";
     private static final String TEMPLATE_BAD_REQUEST = "/velocity/errors/badRequest.vm";
     private static final AtomicLong REQUEST_COUNTER = new AtomicLong();

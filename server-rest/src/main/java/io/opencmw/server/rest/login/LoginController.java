@@ -26,6 +26,7 @@ import io.opencmw.server.rest.util.MessageBundle;
 @SuppressWarnings("PMD.FieldNamingConventions")
 public class LoginController { // NOPMD - nomen est omen
     private static final Logger LOGGER = LoggerFactory.getLogger(LoginController.class);
+    public static final String LOGIN_CONTROLLER = "LoginController";
     private static final String HTTP_200_OK = "200";
     private static final String MIME_HTML = "text/html";
     private static final String MIME_JSON = "text/json";
@@ -62,12 +63,11 @@ public class LoginController { // NOPMD - nomen est omen
             ctx.redirect(ctx.path());
         }
     };
-
     @OpenApi(
             description = "endpoint to receive password login request",
             operationId = "handleLoginPost",
             summary = "POST login command",
-            tags = { "LoginController" },
+            tags = { LOGIN_CONTROLLER },
             responses = {
                 @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_HTML))
                 ,
@@ -102,7 +102,7 @@ public class LoginController { // NOPMD - nomen est omen
             description = "endpoint to receive password changes",
             operationId = "handleChangePasswordPost",
             summary = "POST password change page",
-            tags = { "LoginController" },
+            tags = { LOGIN_CONTROLLER },
             responses = {
                 @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_HTML))
             })
@@ -161,7 +161,7 @@ public class LoginController { // NOPMD - nomen est omen
             description = "endpoint to receive password logout request",
             operationId = "handleLogoutPost",
             summary = "POST logout command",
-            tags = { "LoginController" },
+            tags = { LOGIN_CONTROLLER },
             responses = {
                 @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_HTML))
                 ,
@@ -179,7 +179,7 @@ public class LoginController { // NOPMD - nomen est omen
             description = "endpoint to serve login page",
             operationId = "serveLoginPage",
             summary = "GET serve login page (HTML-only)",
-            tags = { "LoginController" },
+            tags = { LOGIN_CONTROLLER },
 
             //            method = HttpMethod.GET,
             responses = {
@@ -196,7 +196,7 @@ public class LoginController { // NOPMD - nomen est omen
             description = "endpoint to serve password change page",
             operationId = "servePasswordChangePage",
             summary = "GET serve password change page (HTML-only)",
-            tags = { "LoginController" },
+            tags = { LOGIN_CONTROLLER },
             responses = {
                 @OpenApiResponse(status = HTTP_200_OK, content = @OpenApiContent(type = MIME_HTML))
             })

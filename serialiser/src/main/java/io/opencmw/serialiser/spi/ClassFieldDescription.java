@@ -27,7 +27,7 @@ import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.serialiser.annotations.Unit;
 import io.opencmw.serialiser.utils.ClassUtils;
 
-import sun.misc.Unsafe;
+import sun.misc.Unsafe; // NOPMD - there is nothing more suitable under the Sun
 
 /**
  * @author rstein
@@ -770,7 +770,7 @@ public class ClassFieldDescription implements FieldDescription {
                 final Field field = Unsafe.class.getDeclaredField("theUnsafe");
                 field.setAccessible(true); // NOSONAR NOPMD
                 unsafe = (Unsafe) field.get(null);
-            } catch (NoSuchFieldException | SecurityException | IllegalAccessException e) {
+            } catch (NoSuchFieldException | SecurityException | IllegalAccessException e) { // NOPMD
                 throw new SecurityException(e); // NOPMD
             }
         }

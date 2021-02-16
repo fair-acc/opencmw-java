@@ -11,7 +11,7 @@ import java.util.function.BiFunction;
 import io.opencmw.serialiser.spi.ProtocolInfo;
 import io.opencmw.serialiser.spi.WireDataFieldDescription;
 
-@SuppressWarnings({ "PMD.TooManyMethods", "PMD.ExcessivePublicCount" }) // unavoidable since Java does not support templates (issue: primitive types)
+@SuppressWarnings({ "PMD.TooManyMethods", "PMD.ExcessivePublicCount", "PMD.AvoidUsingShortType" }) // unavoidable since Java does not support templates (issue: primitive types)
 public interface IoSerialiser {
     /**
      * Reads and checks protocol header information.

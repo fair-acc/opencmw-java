@@ -7,6 +7,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
 
@@ -130,7 +131,7 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
 
     @Override
     public String toString() {
-        final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+        final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.UK);
         final StringBuilder builder = new StringBuilder();
         builder.append(RingBufferEvent.class.getSimpleName()).append(": arrivalTimeStamp ").append(arrivalTimeStamp).append(" (").append(sdf.format(arrivalTimeStamp)).append(") parent sequence number: ").append(parentSequenceNumber).append(" - filter: ");
         printToStringArrayList(builder, "[", "]", (Object[]) filters);

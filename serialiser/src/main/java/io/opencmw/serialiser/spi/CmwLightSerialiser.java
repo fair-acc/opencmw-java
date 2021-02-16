@@ -235,15 +235,13 @@ public class CmwLightSerialiser implements IoSerialiser {
         // process CMW-like wire-format
         final int headerStart = buffer.position(); // NOPMD - need to read the present buffer position
 
-        final String fieldName = buffer.getStringISO8859();
+        final String fieldName = buffer.getStringISO8859(); // NOPMD - read advances position
         final byte dataTypeByte = buffer.getByte();
         final DataType dataType = getDataType(dataTypeByte);
         // process CMW-like wire-format - done
 
-        final int dataStartOffset = buffer.position() - headerStart;
-        final int dataStartPosition = headerStart + dataStartOffset;
+        final int dataStartOffset = buffer.position() - headerStart; // NOPMD - further reads advance the read position in the buffer
         final int dataSize;
-
         if (dataType == DataType.START_MARKER) {
             dataSize = FastByteBuffer.SIZE_OF_INT;
         } else if (dataType.isScalar()) {
@@ -274,6 +272,7 @@ public class CmwLightSerialiser implements IoSerialiser {
         final int fieldNameHashCode = fieldName.hashCode(); //TODO: verify same hashcode function
 
         lastFieldHeader = new WireDataFieldDescription(this, parent, fieldNameHashCode, fieldName, dataType, headerStart, dataStartOffset, dataSize);
+        final int dataStartPosition = headerStart + dataStartOffset;
         buffer.position(dataStartPosition);
 
         if (dataType == DataType.START_MARKER) {
@@ -420,7 +419,7 @@ public class CmwLightSerialiser implements IoSerialiser {
         for (int i = 0; i < nEntries; i++) {
             final WireDataFieldDescription field = getFieldHeader(); // NOPMD - need to read the present buffer position
             final int dataSize = field.getDataSize();
-            final int skipPosition = field.getDataStartPosition() + dataSize;
+            final int skipPosition = field.getDataStartPosition() + dataSize; // NOPMD - read at this location necessary, further reads advance position pointer
 
             if (field.getDataType() == DataType.START_MARKER) {
                 // detected sub-class start marker

@@ -39,24 +39,25 @@ import io.opencmw.utils.AnsiDefs;
  * @author rstein
  * @author Alexander Krimm
  */
-public class OpenCmwProtocol {
+@SuppressWarnings({ "PMD.TooManyMethods", "PMD.ArrayIsStoredDirectly", "PMD.CommentSize", "PMD.MethodReturnsInternalArray" })
+public final class OpenCmwProtocol { // NOPMD - nomen est omen
     public static final String COMMAND_MUST_NOT_BE_NULL = "command must not be null";
-    public static final byte[] EMPTY_FRAME = new byte[] {};
+    public static final byte[] EMPTY_FRAME = {};
     public static final URI EMPTY_URI = URI.create("");
-    protected static final byte[] PROTOCOL_NAME_CLIENT = "MDPC03".getBytes(StandardCharsets.UTF_8);
-    protected static final byte[] PROTOCOL_NAME_CLIENT_HTTP = "MDPH03".getBytes(StandardCharsets.UTF_8);
-    protected static final byte[] PROTOCOL_NAME_WORKER = "MDPW03".getBytes(StandardCharsets.UTF_8);
-    protected static final byte[] PROTOCOL_NAME_UNKNOWN = "UNKNOWN_PROTOCOL".getBytes(StandardCharsets.UTF_8);
-    protected static final int MAX_PRINT_LENGTH = 200; // unique client id, see ROUTER socket docs for info
-    protected static final int FRAME0_SOURCE_ID = 0; // unique client id, see ROUTER socket docs for info
-    protected static final int FRAME1_PROTOCOL_ID = 1; // 'MDPC0<x>' or 'MDPW0<x>'
-    protected static final int FRAME2_COMMAND_ID = 2;
-    protected static final int FRAME3_SERVICE_ID = 3;
-    protected static final int FRAME4_CLIENT_REQUEST_ID = 4;
-    protected static final int FRAME5_TOPIC = 5;
-    protected static final int FRAME6_DATA = 6;
-    protected static final int FRAME7_ERROR = 7;
-    protected static final int FRAME8_RBAC_TOKEN = 8;
+    private static final byte[] PROTOCOL_NAME_CLIENT = "MDPC03".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] PROTOCOL_NAME_CLIENT_HTTP = "MDPH03".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] PROTOCOL_NAME_WORKER = "MDPW03".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] PROTOCOL_NAME_UNKNOWN = "UNKNOWN_PROTOCOL".getBytes(StandardCharsets.UTF_8);
+    private static final int MAX_PRINT_LENGTH = 200; // unique client id, see ROUTER socket docs for info
+    private static final int FRAME0_SOURCE_ID = 0; // unique client id, see ROUTER socket docs for info
+    private static final int FRAME1_PROTOCOL_ID = 1; // 'MDPC0<x>' or 'MDPW0<x>'
+    private static final int FRAME2_COMMAND_ID = 2;
+    private static final int FRAME3_SERVICE_ID = 3;
+    private static final int FRAME4_CLIENT_REQUEST_ID = 4;
+    private static final int FRAME5_TOPIC = 5;
+    private static final int FRAME6_DATA = 6;
+    private static final int FRAME7_ERROR = 7;
+    private static final int FRAME8_RBAC_TOKEN = 8;
     private static final Logger LOGGER = LoggerFactory.getLogger(OpenCmwProtocol.class);
     private static final String SOCKET_MUST_NOT_BE_NULL = "socket must not be null";
     public static final int N_PROTOCOL_FRAMES = 8;
@@ -155,7 +156,6 @@ public class OpenCmwProtocol {
      * For a non-programmatic protocol description see:
      * https://github.com/GSI-CS-CO/chart-fx/blob/master/microservice/docs/MajordomoProtocol.md
      */
-    @SuppressWarnings("PMD.TooManyMethods") // acceptable for this use
     public static class MdpMessage {
         /** OpenCMW frame 0: sender source ID - usually the ID from the MDP broker ROUTER socket for the given connection */
         public byte[] senderID;
@@ -361,7 +361,7 @@ public class OpenCmwProtocol {
          * @param wait setting the flag to ZMQ.DONTWAIT does a non-blocking recv.
          * @return MdpMessage if valid, or {@code null} otherwise
          */
-        @SuppressWarnings("NPath.Complexity")
+        @SuppressWarnings("PMD.NPathComplexity")
         public static MdpMessage receive(@NotNull final Socket socket, final boolean wait) {
             final int flags = wait ? 0 : ZMQ.DONTWAIT;
             final ZMsg msg = ZMsg.recvMsg(socket, flags);
@@ -397,7 +397,7 @@ public class OpenCmwProtocol {
 
             // OpenCMW frame 2: command
             final Command command = getCommand(rawFrames.get(FRAME2_COMMAND_ID));
-            if (command.equals(Command.UNKNOWN)) {
+            if (command.equals(UNKNOWN)) {
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.atWarn().addArgument(ZData.toString(rawFrames.get(FRAME2_COMMAND_ID))).addArgument(dataToString(rawFrames)).log("unknown command: '{}' rawMessage: {}");
                 }

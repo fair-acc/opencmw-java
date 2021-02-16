@@ -17,8 +17,8 @@ public class CustomFuture<T> implements Future<T> {
     protected final AtomicBoolean done = new AtomicBoolean(false);
     private final AtomicBoolean requestCancel = new AtomicBoolean(false);
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
-    private T reply = null;
-    private Throwable exception = null;
+    private T reply;
+    private Throwable exception;
 
     @Override
     public boolean cancel(final boolean mayInterruptIfRunning) {

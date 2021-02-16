@@ -65,6 +65,7 @@ public class MajordomoBroker extends Thread {
      * @param rbacRoles RBAC-based roles (used for IO prioritisation and service access control
      */
     public MajordomoBroker(final int ioThreads, final RbacRole<?>... rbacRoles) {
+        super();
         this.setName(MajordomoBroker.class.getSimpleName() + "#" + BROKER_COUNTER.getAndIncrement());
 
         ctx = new ZContext(ioThreads);
@@ -135,42 +136,45 @@ public class MajordomoBroker extends Thread {
      */
     @Override
     public void run() {
-        final ZMQ.Poller items = ctx.createPoller(routerSockets.size());
-        for (Socket routerSocket : routerSockets) {
-            items.register(routerSocket, ZMQ.Poller.POLLIN);
-        }
-        while (run.get() && !Thread.currentThread().isInterrupted()) {
-            if (items.poll(HEARTBEAT_INTERVAL) == -1) {
-                break; // interrupted
+        try (ZMQ.Poller items = ctx.createPoller(routerSockets.size())) {
+            for (Socket routerSocket : routerSockets) { // NOPMD - closed below in finally
+                items.register(routerSocket, ZMQ.Poller.POLLIN);
             }
+            while (run.get() && !Thread.currentThread().isInterrupted()) {
+                if (items.poll(HEARTBEAT_INTERVAL) == -1) {
+                    break; // interrupted
+                }
 
-            int loopCount = 0;
-            while (run.get()) {
-                boolean processData = false;
-                for (Socket routerSocket : routerSockets) {
-                    final MdpMessage msg = receiveMdpMessage(routerSocket, false);
-                    if (msg != null) {
-                        if (LOGGER.isDebugEnabled()) {
-                            LOGGER.atDebug().addArgument(msg).log("Majordomo broker received new message: '{}'");
+                int loopCount = 0;
+                while (run.get()) {
+                    boolean processData = false;
+                    for (Socket routerSocket : routerSockets) { // NOPMD - closed below in finally
+                        final MdpMessage msg = receiveMdpMessage(routerSocket, false);
+                        if (msg != null) {
+                            if (LOGGER.isDebugEnabled()) {
+                                LOGGER.atDebug().addArgument(msg).log("Majordomo broker received new message: '{}'");
+                            }
+                            processData |= handleReceivedMessage(routerSocket, msg);
                         }
-                        processData |= handleReceivedMessage(routerSocket, msg);
+                    }
+
+                    processClients();
+                    if (loopCount % 10 == 0) {
+                        // perform maintenance tasks during the first and every tenth iteration
+                        purgeWorkers();
+                        purgeClients();
+                        sendHeartbeats();
+                    }
+                    loopCount++;
+                    if (!processData) {
+                        break;
                     }
                 }
-
-                processClients();
-                if (loopCount % 10 == 0) {
-                    // perform maintenance tasks during the first and every tenth iteration
-                    purgeWorkers();
-                    purgeClients();
-                    sendHeartbeats();
-                }
-                loopCount++;
-                if (!processData) {
-                    break;
-                }
             }
+
+        } finally {
+            routerSockets.forEach(Socket::close);
         }
-        items.close();
         destroy(); // interrupted
     }
 
@@ -577,6 +581,7 @@ public class MajordomoBroker extends Thread {
         protected Service service; // Owning service, if known
         protected long expiry = System.currentTimeMillis() + HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS; // Expires at unless heartbeat
 
+        @SuppressWarnings("PMD.ArrayIsStoredDirectly")
         public Worker(final Socket socket, final byte[] address, final String addressHex) {
             this.socket = socket;
             this.external = true;
@@ -589,6 +594,7 @@ public class MajordomoBroker extends Thread {
         private final Service service;
 
         public InternalWorkerThread(final Service service) {
+            super();
             assert service != null && service.name != null && !service.name.isBlank();
             final String serviceName = service.name + "#" + WORKER_COUNTER.getAndIncrement();
             this.setName(MajordomoBroker.class.getSimpleName() + "-" + InternalWorkerThread.class.getSimpleName() + ":" + serviceName);
@@ -598,7 +604,9 @@ public class MajordomoBroker extends Thread {
 
         @Override
         public void run() {
-            try (Socket sendSocket = ctx.createSocket(SocketType.DEALER); Socket receiveSocket = ctx.createSocket(SocketType.PULL)) {
+            try (Socket sendSocket = ctx.createSocket(SocketType.DEALER);
+                    Socket receiveSocket = ctx.createSocket(SocketType.PULL);
+                    ZMQ.Poller items = ctx.createPoller(1)) {
                 // register worker with broker
                 sendSocket.setSndHWM(0);
                 sendSocket.setIdentity(service.name.getBytes(StandardCharsets.UTF_8));
@@ -608,7 +616,6 @@ public class MajordomoBroker extends Thread {
                 receiveSocket.setRcvHWM(0);
 
                 // register poller
-                final ZMQ.Poller items = ctx.createPoller(1);
                 items.register(receiveSocket, ZMQ.Poller.POLLIN);
                 while (run.get() && !this.isInterrupted()) {
                     if (items.poll(HEARTBEAT_INTERVAL) == -1) {
@@ -630,7 +637,6 @@ public class MajordomoBroker extends Thread {
                         }
                     }
                 }
-                items.close();
             } catch (ZMQException e) {
                 // process should abort
             }

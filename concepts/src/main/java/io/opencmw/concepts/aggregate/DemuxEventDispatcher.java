@@ -73,7 +73,7 @@ public class DemuxEventDispatcher implements SequenceReportingEventHandler<TestE
             for (AggregationHandler w : aggregationHandler) {
                 final long currentTime = System.currentTimeMillis();
                 final long diff = currentTime - w.aggStart;
-                waitTime = Math.min(waitTime, diff * 1000000);
+                waitTime = Math.min(waitTime, diff * 1_000_000);
                 if (w.bpcts != -1 && diff < TIMEOUT) {
                     w.publishAndFreeWorker(true); // timeout reached, publish partial result and free worker
                     break;

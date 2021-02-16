@@ -31,7 +31,7 @@ public final class ClientSampleV1 { // nomen est omen
             final byte[] rbacToken = new RbacToken(BasicRbacRole.ADMIN, "HASHCODE").getBytes(); // NOPMD
             final ZMsg reply = clientSession.send(serviceBytes, request, rbacToken); // with RBAC
             // final ZMsg reply = clientSession.send(serviceBytes, request); // w/o RBAC
-            if (count < 10 || count % 10000 == 0 || count >= (N_SAMPLES - 10)) {
+            if (count < 10 || count % 10_000 == 0 || count >= (N_SAMPLES - 10)) {
                 System.err.println("client iteration = " + count + " - received: " + reply);
             }
             if (reply == null) {

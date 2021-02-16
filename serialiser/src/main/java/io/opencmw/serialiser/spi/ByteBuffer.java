@@ -22,7 +22,7 @@ public class ByteBuffer implements IoBuffer {
     private static final int DEFAULT_INITIAL_CAPACITY = 1000;
     private final ReadWriteLock internalLock = new ReentrantReadWriteLock();
     private final java.nio.ByteBuffer nioByteBuffer;
-    private boolean enforceSimpleStringEncoding = false;
+    private boolean enforceSimpleStringEncoding;
 
     /**
      * construct new java.nio.ByteBuffer-based ByteBuffer with DEFAULT_INITIAL_CAPACITY

@@ -5,7 +5,7 @@ import java.util.function.Consumer;
 
 public class SharedPointer<T> {
     private static final String CLASS_NAME = SharedPointer.class.getSimpleName().intern();
-    private T payload = null;
+    private T payload;
     private Consumer<Object> destroyFunction;
     private final AtomicInteger payloadUseCount = new AtomicInteger(0);
 
@@ -68,7 +68,7 @@ public class SharedPointer<T> {
         if (destroyFunction != null) {
             destroyFunction.accept(payload);
         }
-        payload = null;
+        payload = null; // NOPMD
     }
 
     @Override

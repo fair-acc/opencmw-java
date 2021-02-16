@@ -55,7 +55,7 @@ public class TestEventSource implements Runnable {
                 lastEvent = currentEvent.publishTime;
                 long diff = currentEvent.publishTime - System.currentTimeMillis();
                 if (diff > 0) {
-                    LockSupport.parkNanos(1000000L * diff);
+                    LockSupport.parkNanos(1_000_000L * diff);
                 }
                 ringBuffer.publishEvent((event, sequence, arg0) -> {
                     event.ingestionTime = System.currentTimeMillis();

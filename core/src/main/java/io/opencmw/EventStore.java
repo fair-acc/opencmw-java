@@ -277,7 +277,7 @@ public class EventStore {
     }
 
     public static class EventStoreFactory {
-        private boolean singleProducer = false;
+        private boolean singleProducer;
         private int maxThreadNumber = 4;
         private int ringbufferSize = 64;
         private int lengthHistoryBuffer = 10;
@@ -299,6 +299,7 @@ public class EventStore {
         }
 
         @SafeVarargs
+        @SuppressWarnings("PMD.ArrayIsStoredDirectly")
         public final EventStoreFactory setFilterConfig(final Class<? extends Filter>... filterConfig) {
             if (filterConfig == null) {
                 throw new IllegalArgumentException("filterConfig is null");

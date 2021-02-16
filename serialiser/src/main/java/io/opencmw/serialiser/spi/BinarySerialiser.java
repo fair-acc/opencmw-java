@@ -100,7 +100,7 @@ import io.opencmw.serialiser.utils.GenericsHelper;
  * 
  * @author rstein
  */
-@SuppressWarnings({ "PMD.CommentSize", "PMD.TooManyMethods", "PMD.ExcessivePublicCount", "PMD.PrematureDeclaration" }) // variables need to be read from stream
+@SuppressWarnings({ "PMD.CommentSize", "PMD.TooManyMethods", "PMD.ExcessivePublicCount", "PMD.PrematureDeclaration", "PMD.ExcessiveClassLength", "PMD.NPathComplexity" }) // variables need to be read from stream
 public class BinarySerialiser implements IoSerialiser {
     public static final String UNCHECKED_CAST_SUPPRESSION = "unchecked";
     public static final int VERSION_MAGIC_NUMBER = -1; // '-1' since CmwLight cannot have a negative number of entries
@@ -403,7 +403,6 @@ public class BinarySerialiser implements IoSerialiser {
     }
 
     @Override
-    @SuppressWarnings("PMD.NPathComplexity")
     public WireDataFieldDescription getFieldHeader() {
         final int headerStart = buffer.position();
         final byte dataTypeByte = buffer.getByte();
@@ -553,7 +552,7 @@ public class BinarySerialiser implements IoSerialiser {
     }
 
     @Override
-    @SuppressWarnings({ "PMD.NPathComplexity", UNCHECKED_CAST_SUPPRESSION })
+    @SuppressWarnings({ UNCHECKED_CAST_SUPPRESSION })
     public <K, V> Map<K, V> getMap(final Map<K, V> map) { // NOSONAR NOPMD
         getArraySizeDescriptor();
         final int nElements = buffer.getInt();
@@ -673,7 +672,6 @@ public class BinarySerialiser implements IoSerialiser {
     }
 
     @Override
-    @SuppressWarnings("PMD.NPathComplexity")
     public <E> Set<E> getSet(final Set<E> collection) {
         getArraySizeDescriptor();
         final int nElements = buffer.getInt();

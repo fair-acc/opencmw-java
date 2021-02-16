@@ -35,7 +35,7 @@ import sun.misc.Unsafe; // NOPMD - there is still nothing better under the Sun
  *
  * @author rstein
  */
-@SuppressWarnings({ "restriction", "PMD.TooManyMethods", "PMD.ExcessivePublicCount" }) // unavoidable: each primitive type needs to handled individually (no templates)
+@SuppressWarnings({ "restriction", "PMD.TooManyMethods", "PMD.ExcessivePublicCount", "PMD.ExcessiveClassLength" }) // unavoidable: each primitive type needs to handled individually (no templates)
 public class FastByteBuffer implements IoBuffer {
     public static final int SIZE_OF_BOOLEAN = 1;
     public static final int SIZE_OF_BYTE = 1;
@@ -68,12 +68,12 @@ public class FastByteBuffer implements IoBuffer {
     }
 
     private final ReadWriteLock internalLock = new ReentrantReadWriteLock();
-    private final StringBuilder builder = new StringBuilder(100);
+    private final StringBuilder builder = new StringBuilder(100); // NOPMD
     private ByteArrayCache byteArrayCache;
     private int intPos;
     private int intLimit;
     private byte[] buffer;
-    private boolean enforceSimpleStringEncoding = false;
+    private boolean enforceSimpleStringEncoding;
     private boolean autoResize;
 
     /**
@@ -85,9 +85,10 @@ public class FastByteBuffer implements IoBuffer {
     /**
      * construct new FastByteBuffer
      *
-     * @param buffer buffer to initialise/re-use
+     * @param buffer buffer to initialise/re-use (stored directly)
      * @param limit position until buffer is filled
      */
+    @SuppressWarnings("PMD.ArrayIsStoredDirectly")
     public FastByteBuffer(final byte[] buffer, final int limit) {
         Objects.requireNonNull(buffer, "buffer");
         if (buffer.length < limit) {
@@ -146,9 +147,13 @@ public class FastByteBuffer implements IoBuffer {
         intLimit = capacity();
     }
 
+    /**
+     *
+     * @return access to internal storage array (N.B. this is volatile and may be overwritten in case of auto-grow, or external sets)
+     */
     @Override
     public byte[] elements() {
-        return buffer;
+        return buffer; // NOPMD -- allow public access to internal array
     }
 
     @Override
@@ -477,7 +482,8 @@ public class FastByteBuffer implements IoBuffer {
         final int arraySize = getInt(); // for C++ zero terminated string
         checkAvailable(arraySize);
         //alt safe-fallback final String str = new String(buffer,  position, arraySize - 1, StandardCharsets.ISO_8859_1)
-        @SuppressWarnings("deprecation") final String str = new String(buffer, 0, intPos, arraySize - 1); // NOSONAR NOPMD fastest alternative that is public API
+        @SuppressWarnings("deprecation")
+        final String str = new String(buffer, 0, intPos, arraySize - 1); // NOSONAR NOPMD fastest alternative that is public API
         // final String str = FastStringBuilder.iso8859BytesToString(buffer, position, arraySize - 1)
         intPos += arraySize; // N.B. +1 larger to be compatible with C++ zero terminated string
         return str;

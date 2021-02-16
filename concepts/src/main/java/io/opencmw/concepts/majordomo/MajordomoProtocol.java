@@ -18,8 +18,9 @@ import zmq.SocketBase;
  *
  * @author rstein
  */
+@SuppressWarnings({ "PMD.ArrayIsStoredDirectly", "PMD.MethodReturnsInternalArray" })
 public class MajordomoProtocol { // NOPMD nomen-est-omen
-    public static final byte[] EMPTY_FRAME = new byte[] {};
+    public static final byte[] EMPTY_FRAME = {};
     private static final String HEX_CHAR = "0123456789ABCDEF";
 
     public static MdpMessage receiveMdpMessage(final Socket socket) {
@@ -334,7 +335,6 @@ public class MajordomoProtocol { // NOPMD nomen-est-omen
         public final String senderName;
         public final byte[][] payload;
 
-        @SuppressWarnings("PMD.ArrayIsStoredDirectly")
         public MdpMessage(final byte[] senderID, final MdpSubProtocol protocol, final byte[]... payload) {
             this.isClient = protocol == MdpSubProtocol.C_CLIENT;
             this.senderID = senderID;

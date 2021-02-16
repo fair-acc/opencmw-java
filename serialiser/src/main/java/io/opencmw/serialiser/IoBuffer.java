@@ -6,7 +6,7 @@ package io.opencmw.serialiser;
  *
  * @author rstein
  */
-@SuppressWarnings({"PMD.ExcessivePublicCount", "PMD.TooManyMethods"}) // NOPMD - these are short-hand convenience methods
+@SuppressWarnings({ "PMD.ExcessivePublicCount", "PMD.TooManyMethods", "PMD.AvoidUsingShortType" }) // NOPMD - these are short-hand convenience methods
 public interface IoBuffer extends IoBufferHeader {
     /**
      * @return underlying raw byte[] array buffer (if available)
@@ -15,7 +15,7 @@ public interface IoBuffer extends IoBufferHeader {
 
     boolean getBoolean(int position);
 
-    boolean getBoolean(); // NOPMD by rstein
+    boolean getBoolean(); // NOPMD - nomen est omen
 
     default boolean[] getBooleanArray() {
         return getBooleanArray(null, 0);
@@ -113,7 +113,7 @@ public interface IoBuffer extends IoBufferHeader {
 
     short getShort(int position);
 
-    short getShort(); // NOPMD by rstein
+    short getShort();
 
     default short[] getShortArray() { // NOPMD by rstein
         return getShortArray(null, 0);
@@ -123,7 +123,7 @@ public interface IoBuffer extends IoBufferHeader {
         return getShortArray(dst, dst == null ? -1 : dst.length);
     }
 
-    short[] getShortArray(final short[] dst, final int length); // NOPMD by rstein
+    short[] getShortArray(final short[] dst, final int length);
 
     String getString(int position);
 
@@ -195,15 +195,15 @@ public interface IoBuffer extends IoBufferHeader {
 
     void putShort(int position, short value);
 
-    void putShort(short value); // NOPMD
+    void putShort(short value);
 
-    void putShortArray(final short[] src, final int n); // NOPMD
+    void putShortArray(final short[] src, final int n);
 
     void putString(int position, String value);
 
     void putString(String string);
 
-    void putStringArray(final String[] src, final int n); // NOPMD
+    void putStringArray(final String[] src, final int n);
 
     void putStringISO8859(String string);
 }

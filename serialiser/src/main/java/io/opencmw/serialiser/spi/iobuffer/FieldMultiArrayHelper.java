@@ -14,7 +14,7 @@ import de.gsi.dataset.spi.utils.*;
  *
  * @author Alexander Krimm
  */
-public class FieldMultiArrayHelper {
+public final class FieldMultiArrayHelper {
     private FieldMultiArrayHelper() {
         // utility class
     }
@@ -138,7 +138,7 @@ public class FieldMultiArrayHelper {
      *
      * @param serialiser for which the field serialisers should be registered
      */
-    @SuppressWarnings("NPathComplexity")
+    @SuppressWarnings("PMD.NPathComplexity")
     public static void register(final IoClassSerialiser serialiser) {
         serialiser.addClassDefinition(new FieldSerialiser<>( //
                 (io, obj, field) -> field.getField().set(obj, getMultiArray(io, (MultiArray<?>) field.getField().get(obj), field.getDataType())), // reader

@@ -229,13 +229,13 @@ public class DataSetSerialiser { // NOPMD
 
     protected void parseDataLabels(final DataSetBuilder builder, final FieldDescription fieldRoot) {
         if (checkFieldCompatibility(fieldRoot, DATA_LABELS.hashCode(), DATA_LABELS, DataType.MAP) != null) {
-            Map<Integer, String> map = new HashMap<>();
+            Map<Integer, String> map = new HashMap<>(); // NOPMD - thread-safe usage
             map = ioSerialiser.getMap(map);
             builder.setDataLabelMap(map);
         }
 
         if (checkFieldCompatibility(fieldRoot, DATA_STYLES.hashCode(), DATA_STYLES, DataType.MAP) != null) {
-            Map<Integer, String> map = new HashMap<>();
+            Map<Integer, String> map = new HashMap<>(); // NOPMD - thread-safe usage
             map = ioSerialiser.getMap(map);
             builder.setDataStyleMap(map);
         }
@@ -271,7 +271,7 @@ public class DataSetSerialiser { // NOPMD
         }
 
         if (checkFieldCompatibility(rootField, META_INFO.hashCode(), META_INFO, DataType.MAP) != null) {
-            Map<String, String> map = new HashMap<>();
+            Map<String, String> map = new HashMap<>(); // NOPMD - thread-safe usage
             map = ioSerialiser.getMap(map);
             builder.setMetaInfoMap(map);
         }
@@ -294,6 +294,7 @@ public class DataSetSerialiser { // NOPMD
         }
     }
 
+    @SuppressWarnings("PMD.NPathComplexity")
     protected void writeDataLabelsToStream(final DataSet dataSet) {
         if (dataSet instanceof AbstractDataSet) {
             final StringHashMapList labelMap = ((AbstractDataSet<?>) dataSet).getDataLabelMap();
@@ -436,15 +437,15 @@ public class DataSetSerialiser { // NOPMD
         for (int dimIndex = 0; dimIndex < nDim; dimIndex++) {
             final int nsamples = dataSet.getDataCount();
             switch (ds.getErrorType(dimIndex)) {
-            default:
-            case NO_ERROR:
-                break;
             case SYMMETRIC:
                 ioSerialiser.put(EP_PREFIX + dimIndex, MathUtils.toFloats(ds.getErrorsPositive(dimIndex)), nsamples);
                 break;
             case ASYMMETRIC:
                 ioSerialiser.put(EN_PREFIX + dimIndex, MathUtils.toFloats(ds.getErrorsNegative(dimIndex)), nsamples);
                 ioSerialiser.put(EP_PREFIX + dimIndex, MathUtils.toFloats(ds.getErrorsPositive(dimIndex)), nsamples);
+                break;
+            case NO_ERROR:
+            default:
                 break;
             }
         }

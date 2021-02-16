@@ -1,6 +1,7 @@
 package io.opencmw.filter;
 
 import java.text.SimpleDateFormat;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
 
@@ -16,7 +17,7 @@ public class TimingCtx implements Filter {
     public static final int WILD_CARD_VALUE = -1;
     public static final String SELECTOR_PREFIX = "FAIR.SELECTOR.";
     /** selector string, e.g.: 'FAIR.SELECTOR.C=0:S=1:P=3:T=101' */
-    public String selector;
+    public String selector = "";
     /** Beam-Production-Chain (BPC) ID - uninitialised/wildcard value = -1 */
     public int cid;
     /** Sequence ID -- N.B. this is the timing sequence number not the disruptor sequence ID */
@@ -41,7 +42,7 @@ public class TimingCtx implements Filter {
     @Override
     public void clear() {
         hashCode = 0;
-        selector = null;
+        selector = "";
         cid = -1;
         sid = -1;
         pid = -1;
@@ -101,19 +102,23 @@ public class TimingCtx implements Filter {
         return t -> this.equals(other);
     }
 
+    /**
+     * TODO: add more thorough documentation or reference
+     *
+     * @param selector new selector to be parsed, e.g. 'FAIR.SELECTOR.ALL', 'FAIR.SELECTOR.C=1:S=3:P:3:T:103'
+     * @param bpcts beam-production-chain time-stamp [us]
+     */
+    @SuppressWarnings("PMD.NPathComplexity") // -- parser/format has intrinsically large number of possible combinations
     public void setSelector(final String selector, final long bpcts) {
-        if (selector == null) {
-            throw new IllegalArgumentException("selector string must not be null");
-        }
         if (bpcts < 0) {
             throw new IllegalArgumentException("BPCTS time stamp < 0 :" + bpcts);
         }
         try {
             clear();
-            this.selector = selector;
+            this.selector = Objects.requireNonNull(selector, "selector string must not be null");
             this.bpcts = bpcts;
 
-            final String selectorUpper = selector.toUpperCase();
+            final String selectorUpper = selector.toUpperCase(Locale.UK);
             if (selector.isBlank() || WILD_CARD.equals(selectorUpper)) {
                 return;
             }
@@ -159,7 +164,7 @@ public class TimingCtx implements Filter {
 
     @Override
     public String toString() {
-        final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+        final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.UK);
         return '[' + TimingCtx.class.getSimpleName() + ": bpcts=" + bpcts + " (\"" + sdf.format(bpcts / 1_000_000) + "\"), selector='" + selector + "', cid=" + cid + ", sid=" + sid + ", pid=" + pid + ", gid=" + gid + ']';
     }
 

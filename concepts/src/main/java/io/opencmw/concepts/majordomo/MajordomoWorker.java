@@ -33,6 +33,7 @@ import io.opencmw.utils.SystemProperties;
  * this implies also, that worker must either return their message within 'HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS ms' or decouple their secondary handler interface into another thread.
  *
  */
+@SuppressWarnings("PMD.DoNotUseThreads")
 public class MajordomoWorker extends Thread {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoWorker.class);
     private static final int HEARTBEAT_LIVENESS = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeatLiveness", 3); // [counts] 3-5 is reasonable
@@ -64,6 +65,7 @@ public class MajordomoWorker extends Thread {
     }
 
     protected MajordomoWorker(ZContext ctx, String brokerAddress, String serviceName, final RbacRole<?>... rbacRoles) {
+        super();
         assert (brokerAddress != null);
         assert (serviceName != null);
         this.brokerAddress = brokerAddress;
@@ -153,7 +155,7 @@ public class MajordomoWorker extends Thread {
 
                 //noinspection StringBufferReplaceableByString
                 final StringBuilder builder = new StringBuilder(); // NOPMD NOSONAR -- easier to read !?!?
-                builder.append(MajordomoWorker.this.getClass().getName())
+                builder.append(getClass().getName())
                         .append(" caught exception in user-provided call-back function for service '")
                         .append(getServiceName())
                         .append("'\nrequest msg: ")
@@ -184,7 +186,7 @@ public class MajordomoWorker extends Thread {
     }
 
     @Override
-    public synchronized void start() {
+    public void start() {
         run.set(true);
         reconnectToBroker();
         super.start();
