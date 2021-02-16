@@ -262,7 +262,7 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
         @Override
         public int hashCode() {
             int result = (protocol == null ? 0 : protocol.hashCode());
-            result = 31 * result + (command == null ? 0 : command.hashCode());
+            result = 31 * result + Objects.hashCode(command);
             result = 31 * result + Arrays.hashCode(serviceNameBytes);
             result = 31 * result + Arrays.hashCode(clientRequestID);
             result = 31 * result + (topic == null ? 0 : topic.hashCode());
