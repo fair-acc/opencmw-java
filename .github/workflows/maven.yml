@@ -28,7 +28,7 @@ jobs:
       with:
         fetch-depth: 100
     - id: version
-      uses: ./.github/actions/getVersion
+      uses: ./.github/actions/get-version
       with:
         versionPattern: '11.[0-9]*.[0-9]*'
     - uses: actions/cache@v1 # cache maven packages to speed up build
@@ -63,7 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - id: version
-        uses: ./.github/actions/getVersion
+        uses: ./.github/actions/get-version
         with:
           versionPattern: '11.[0-9]*.[0-9]*'
       - name: Cache the Maven packages to speed up build
