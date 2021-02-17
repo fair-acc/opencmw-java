@@ -8,10 +8,10 @@ inputs:
 outputs:
   revision:
     description: 'The version as retrieved from the last tag + eventual updates since that tag'
-    value: ${{ steps.get-version.outputs.version }}
+    value: ${{ steps.get-version.outputs.revision }}
   sha1:
     description: 'The shortened sha1 hash of the commit'
-    value: ${{ steps.get-version.outputs.rev }}
+    value: ${{ steps.get-version.outputs.sha1 }}
   changelist:
     description: 'empty for releases, otherwise -SNAPSHOT'
     value: ${{ steps.get-version.outputs.changelist }}
