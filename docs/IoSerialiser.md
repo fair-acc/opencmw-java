@@ -1,16 +1,20 @@
-# Yet-another-Serialiser (YaS)
-### or: why we are not reusing ... and opted to write yet another custom data serialiser 
+#Yet - another - Serialiser(YaS)
+## # or : why we are not reusing... and opted to write yet another custom data serialiser
 
-Data serialisation is a basic core functionality when information has to be transmitted, stored and later retrieved by (often quite) 
-different sub-systems. With a multitude of different serialiser libraries, a non-negligible subset of these claim to be the fastest, 
-most efficient, easiest-to-use or *&lt;add your favourite superlative here&gt;*.  
+                  Data serialisation is a basic core functionality when information has to be transmitted,
+        stored and later retrieved by(often quite)
+                        different sub
+                - systems.With a multitude of different serialiser libraries,
+        a non - negligible subset of these claim to be the fastest,
+        most efficient, easiest - to - use or *&lt;
+add your favourite superlative here &gt;*.  
 While this may be certainly true for the libraries' original design use-case, this often breaks down for other applications
 that are often quite diverse and may focus on different aspects depending on the application. Hence, a fair comparison of 
 their performance is usually rather complex and highly non-trivial because the underlying assumptions of 'what counts as important' 
 being quite different between specific domains, boundary constraints, application goals and resulting (de-)serialisation strategies.  
 Rather than claiming any superlative, or needlessly bashing solutions that are well suited for their design use-cases, we wanted 
 to document the considerations, constraints and application goals of our specific use-case and that guided our 
-[multi-protocol serialiser developments](https://github.com/GSI-CS-CO/chart-fx/microservice). 
+[multi-protocol serialiser developments](../serialiser). 
 This also in the hope that it might find interest, perhaps adoption, inspires new ideas, or any other form of improvements.
 Thus, if you find something missing, unclear, or things that could be improved, please feel encouraged to post a PR. 
 
@@ -20,7 +24,7 @@ and new serialiser design ideas expressed in the references [below](#references)
 for our specific use-case.
 
 ### [Our](https://fair-center.eu/) [Use-Case](https://fair-wiki.gsi.de/FC2WG)
-We use [this](../../microservice) and [Chart-Fx](https://github.com/GSI-CS-CO/chart-fx) in order to aid the development 
+We use [this](../serialiser) and [Chart-Fx](https://github.com/GSI-CS-CO/chart-fx) in order to aid the development 
 of functional microservices that monitor and control a large variety of device- and beam-based parameters that are necessary 
 for the operation of our [FAIR particle accelerators](https://www.youtube.com/watch?v=zy4b0ZQnsck). 
 These microservices cover in particular those that require the aggregation of measurement data from different sub-systems, 
@@ -29,32 +33,32 @@ in any other single device or sub-system.
 
 ### Quick Overview
 This serialiser implementation defines three levels of interface abstractions:
-  * [IoBuffer](../../microservice/src/main/java/de/gsi/serializer/IoBuffer.java) which defines the low-level byte-array format 
+  * [IoBuffer](../serialiser/src/main/java/io/opencmw/serialiser/IoBuffer.java) which defines the low-level byte-array format 
     of how data primitives (ie. `boolean`, `byte`, ...,`float`, `double`), `String`, and their array counter-part (ie. 
     `boolean[]`, `byte[]`, ...,`float[]', 'double[]`, `String[]`) are stored. There are two default implementations:  
-      - [ByteBuffer](../../microservice/src/main/java/de/gsi/serializer/spi/ByteBuffer.java) which basically wraps around and 
+      - [ByteBuffer](../serialiser/src/main/java/io/opencmw/serialiser/spi/ByteBuffer.java) which basically wraps around and 
     extends `java.nio.ByteBuffer` to also support `String` and primitive arrays, and
-      - [FastByteBuffer](../../microservice/src/main/java/de/gsi/serializer/spi/FastByteBuffer.java) which is the recommended 
+      - [FastByteBuffer](../serialiser/src/main/java/io/opencmw/serialiser/spi/FastByteBuffer.java) which is the recommended 
     (~ 25% faster) reimplementation using direct byte-array and cached field accesses.
-  * [IoSerialiser](../../microservice/src/main/java/de/gsi/serializer/IoSerialiser.java) which defines the compound wire-format 
+  * [IoSerialiser](../serialiser/src/main/java/io/opencmw/serialiser/IoSerialiser.java) which defines the compound wire-format 
     for more complex objects (e.g. `List<T>`, `Map<K,V>`, multi-dimensional arrays etc), including field headers, and annotations.  
     There are three default implementations:  
     *(N.B. `IoSerialiser` allows further extensions to any other structurally similar protocol. A robust implementation of
-    [IoSerialiser::checkHeaderInfo()](../../microservice/src/main/java/de/gsi/serializer/IoSerialiser.java#L20) 
+    [IoSerialiser::checkHeaderInfo()](../serialiser/src/main/java/io/opencmw/serialiser/IoSerialiser.java) 
     is critical in order to distinguish new protocols from existing ones.)*
-      - [BinarySerialiser](../../microservice/src/main/java/de/gsi/serializer/spi/BinarySerialiser.java) which is the primary
+      - [BinarySerialiser](../serialiser/src/main/java/io/opencmw/serialiser/spi/BinarySerialiser.java) which is the primary
       binary-based transport protocol used by this library,
-      - [CmwLightSerialiser](../../microservice/src/main/java/de/gsi/serializer/spi/CmwLightSerialiser.java) which is the backward
+      - [CmwLightSerialiser](../serialiser/src/main/java/io/opencmw/serialiser/spi/CmwLightSerialiser.java) which is the backward
       compatible re-implementation of an existing proprietary protocol internally used in our facility, and 
-      - [JsonSerialiser](../../microservice/src/main/java/de/gsi/serializer/spi/JsonSerialiser.java) which implements the
+      - [JsonSerialiser](../serialiser/src/main/java/io/opencmw/serialiser/spi/JsonSerialiser.java) which implements the
       [JSON](https://www.json.org/) protocol commonly used in RESTful HTTP-based services. 
-  * [IoClassSerialiser](../../microservice/src/main/java/de/gsi/serializer/IoClassSerialiser.java) which deals with the automatic 
+  * [IoClassSerialiser](../serialiser/src/main/java/io/opencmw/serialiser/IoClassSerialiser.java) which deals with the automatic 
     mapping and (de-)serialisation between the class field structure and specific wire-format. This class defines default strategies
     for generic and nested classes and can be further extended by custom serialiser prototypes for more complex classes,
     other custom nested protocols  or interfaces using the 
-    [FieldSerialiser](../../microservice/src/main/java/de/gsi/serializer/FieldSerialiser.java) interface.
+    [FieldSerialiser](../serialiser/src/main/java/io/opencmw/serialiser/FieldSerialiser.java) interface.
     
-A short working example of how these can be used is shown in [IoClassSerialiserSimpleTest](../../microservice/src/test/java/de/gsi/serializer/IoClassSerialiserSimpleTest.java):
+A short working example of how these can be used is shown in [IoClassSerialiserSimpleTest](../serialiser/src/test/java/io/opencmw/serialiser/IoClassSerialiserSimpleTest.java):
 ```Java
 @Test
 void simpleTest() {
@@ -74,7 +78,7 @@ void simpleTest() {
     assertEquals(data, received);
 }
 ```
-The specific wire-format that the [IoClassSerialiser](../../microservice/src/main/java/de/gsi/serializer/IoClassSerialiser.java) uses can be set either programmatically or dynamically (auto-detection based on serialised data content header) via:
+The specific wire-format that the [IoClassSerialiser](../serialiser/src/main/java/io/opencmw/serialiser/IoClassSerialiser.java) uses can be set either programmatically or dynamically (auto-detection based on serialised data content header) via:
 ```Java
     ioClassSerialiser.setMatchedIoSerialiser(BinarySerialiser.class);
     ioClassSerialiser.setMatchedIoSerialiser(CmwLightSerialiser.class);
@@ -88,14 +92,14 @@ The extension for arbitrary custom classes or interfaces can be achieved through
         (io, obj, field) -> field.getField().set(obj, DoubleArrayList.wrap(io.getDoubleArray())), // IoBuffer &rightarrow; class field reader function
         (io, obj, field) -> DoubleArrayList.wrap(io.getDoubleArray()), // return function - generates new object based on IoBuffer content
         (io, obj, field) -> { // class field &rightarrow; IoBuffer writer function
-            final DoubleArrayList retVal = (DoubleArrayList) field.getField().get(obj);
-            io.put(field, retVal.elements(), retVal.size());
+    final DoubleArrayList retVal = (DoubleArrayList) field.getField().get(obj);
+    io.put(field, retVal.elements(), retVal.size());
         }, 
         DoubleArrayList.class));
 ```
-The [DataSetSerialiser](../../microservice/src/main/java/de/gsi/serializer/spi/iobuffer/DataSetSerialiser.java) serialiser 
-implementation is a representative example and serialises the [DataSet](../../chartfx-dataset/src/main/java/de/gsi/dataset/DataSet.java) 
-interface into an abstract implementation-independet wire-format using the [FieldDataSetHelper](../../microservice/src/main/java/de/gsi/serializer/spi/iobuffer/FieldDataSetHelper.java) 
+The [DataSetSerialiser](../serialiser/src/main/java/io/opencmw/serialiser/spi/iobuffer/DataSetSerialiser.java) serialiser 
+implementation is a representative example and serialises the [DataSet](https://github.com/GSI-CS-CO/chart-fx/blob/master/chartfx-dataset/src/main/java/de/gsi/dataset/DataSet.java) 
+interface into an abstract implementation-independet wire-format using the [FieldDataSetHelper](../serialiser/src/main/java/io/opencmw/serialiser/spi/iobuffer/FieldDataSetHelper.java) 
 function. This is also the most prominent common domain object definition that is used within our MVC-pattern driven microservice-, 
 data-processing-, and UI-applications and one of the original primary motivations why we designed and built the `IoClassSerialiser` implementation.
 
@@ -165,13 +169,13 @@ Some of the aspects that were incorporated into the design, loosely ordered acco
       - smaller code usually leads to smaller compiled binary sizes that are more likely to fit into CPU cache, thus are less 
         likely to be evicted on context changes, and result into overall faster code.
         *N.B. while readability is an important issue, we found that certain needless use of 'interface + impl pattern' 
-        (ie. only one implementation for given per interface) are harder to read and harder to optimise for the (JIT) compiler too. 
+        (ie. only one implementation for a given interface) are harder to read and harder to optimise for by the (JIT) compiler too. 
         As an example, in-lining and keeping the code in one (albeit larger) source file proved to yield much faster results 
-        for the `CmwLightSerialiser` reimplementation of an existing internally used wire-format.* 
+        for the `CmwLightSerialiser` that is a reimplementation of an existing internally used wire-format.* 
       - maintenance: code should be able to be re-engineered or optimised within typically 2 weeks by one skilled developer.
         *N.B. more code requires more time to read and to understand. While there are many skilled developer, having a simple
         code base also implies that the code can be more easily be modified, tested, fixed or maintained by any internally 
-        available developer. Also, be believe that this makes it possibly more likely to be adopted by external users that 
+        available developer. Also, we believe that this makes it possibly more likely to be adopted by external users that 
         want to understand, upgrade, or bug-fix of 'what is under the hood' and is of specific interest to them. Having too 
         many paradigms, patterns or library dependencies -- even with modern IDEs -- makes it unnecessarily hard for new or 
         occasional users for getting started.*  
@@ -180,7 +184,7 @@ Some of the aspects that were incorporated into the design, loosely ordered acco
      but also to continuously re-evaluate design choices and quantitative evolution of the performance (for both: potential 
      regressions and/or improvements, if possible).* 
   9. free- and open-source code basis w/o strings-attached: 
-      - it is important to us that this code can be re-used, built- and improved-upon by anybody and not limited by 
+      - it is important to us that this code can be re-used, built- and improved-upon by anybody and is not limited by 
       unnecessary hurdles to due proprietary or IP-protected interfaces or licenses. 
      *N.B. we chose the [LGPLv3](https://www.gnu.org/licenses/lgpl-3.0.txt) license in order that this remains free for future use,
      and to foster evolution of ideas and further developments that build upon this. See also [this](https://github.com/GSI-CS-CO/chart-fx/issues/221).*
@@ -188,7 +192,7 @@ Some of the aspects that were incorporated into the design, loosely ordered acco
 ### Some Serialiser Performance Comparison Results
 The following examples are qualitative and primarily used to verify that our implementation is not significantly slower than 
 another reference implementation and to document possible performance regression when refactoring the code base.  
-Example output of [SerialiserQuickBenchmark.java](../src/test/java/de/gsi/serializer/benchmark/SerialiserQuickBenchmark.java) which compares the 
+Example output of [SerialiserQuickBenchmark.java](../serialiser/src/test/java/io/opencmw/serialiser/benchmark/SerialiserQuickBenchmark.java) which compares the 
 map-only, custom and full-pojo-to-pojo (de-)serialisation performance for the given low-level wire-format:
 <a name="SerialiserQuickBenchmarkRef"></a>
 ```text
@@ -229,7 +233,7 @@ Example output - numbers should be compared relatively (nIterations = 100000):
 ```
 
 A more thorough test using the Java micro-benchmark framework [JMH](https://openjdk.java.net/projects/code-tools/jmh/) output 
-of [SerialiserBenchmark.java](../src/test/java/de/gsi/serializer/benchmark/SerialiserBenchmark.java) for a string-heavy and 
+of [SerialiserBenchmark.java](../serialiser/src/test/java/io/opencmw/serialiser/benchmark/SerialiserBenchmark.java) for a string-heavy and 
 for a numeric-data-heavy test data class:
 <a name="SerialiserBenchmarkRef"></a>
 ```text
@@ -264,14 +268,14 @@ SerialiserBenchmark.pojoJsonCodeGen            string-heavy  thrpt   10   23586.
 SerialiserBenchmark.pojoJsonCodeGen           numeric-heavy  thrpt   10     163.250 ±    1.254  ops/s
 ```
 *N.B. The 'FlatBuffer' implementation is bit of an outlier and uses internally FlatBuffer's `FlexBuffer` builder which does not 
-support or is optimised for large primitive arrays. `FlexBuffer` was chosen primarily for comparison since it supported flexible 
+support and/or is not optimised for large primitive arrays. `FlexBuffer` was chosen primarily for comparison since it supported flexible 
 compile/run-time map-type structures similar to the other implementations, whereas the faster Protobuf and Flatbuffer builder 
 require IDL-based desciptions that are used during compile-time to generate the necessary data-serialiser stubs.*
 
 JSON-compatible strings are easy to construct and write. Nevertheless, we chose the [Json-Itererator](https://github.com/json-iterator/java) 
-library as backend for implementing the [JsonSerialiser](../../microservice/src/main/java/de/gsi/serializer/spi/JsonSerialiser.java) 
+library as backend for implementing the [JsonSerialiser](../serialiser/src/main/java/io/opencmw/serialiser/spi/JsonSerialiser.java) 
 for purely pragmatic reasons and to initially avoid common pitfalls in implementing a robust JSON deserialiser.
-The [JsonSelectionBenchmark.java](../src/test/java/de/gsi/serializer/benchmark/JsonSelectionBenchmark.java) compares the 
+The [JsonSelectionBenchmark.java](../serialiser/src/test/java/io/opencmw/serialiser/benchmark/JsonSelectionBenchmark.java) compares the 
 choice with several other commonly used JSON serialisation libraries for a string-heavy and a numeric-data-heavy test data class:
 ```text
 Benchmark                                   (testClassId)   Mode  Cnt      Score     Error  Units
@@ -299,5 +303,3 @@ numeric-heavy data is largely related to the inefficient string representation o
   * [Google's own FlatBuffer Serialiser](https://github.com/google/flatbuffers)
   * [Implementing High Performance Parsers in Java](https://www.infoq.com/articles/HIgh-Performance-Parsers-in-Java-V2/)
   * [Is Protobuf 5x Faster Than JSON?](https://dzone.com/articles/is-protobuf-5x-faster-than-json-part-ii) ([Part 1](https://dzone.com/articles/is-protobuf-5x-faster-than-json), [Part 2](https://dzone.com/articles/is-protobuf-5x-faster-than-json-part-ii)) and reference therein
-  
-  
