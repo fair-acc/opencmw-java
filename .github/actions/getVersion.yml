@@ -1,0 +1,42 @@
+name: 'Get Version'
+description: 'Get version/rev/changelist from github rev and git describe'
+inputs:
+  versionPattern:
+    description: 'glob pattern to recognize valid version tags'
+    required: false
+    default: '[0-9]*.[0-9].[0-9]'
+outputs:
+  revision:
+    description: 'The version as retrieved from the last tag + eventual updates since that tag'
+    value: ${{ steps.get-version.outputs.version }}
+  sha1:
+    description: 'The shortened sha1 hash of the commit'
+    value: ${{ steps.get-version.outputs.rev }}
+  changelist:
+    description: 'empty for releases, otherwise -SNAPSHOT'
+    value: ${{ steps.get-version.outputs.changelist }}
+runs:
+  using: "composite"
+  steps:
+    -id: get-version
+    -run: |
+      export gh_ref=${GITHUB_REF#refs/*/}
+      if [[ "${GITHUB_REF#refs/tags/}" =~ ^${{ env.JAVA_REFERENCE_VERSION }}\.[0-9]*\.[0-9]*$ ]]; then
+        export revision=${gh_rev/\//-}
+        export sha1=""
+        export changelist=""
+      else
+        export branch=${gh_rev/\//-}
+        export lasttag=`git describe --tags --match=${{ inputs.versionPattern }} --abbrev=0`
+        export desc=`git describe --tags --match=${{ inputs.versionPattern }} --long`
+        export tmp=${desc#"$lasttag"}
+        export newcommits=${tmp%-*}
+        export rev=${lasttag}${branch}${newcommits}
+        export sha1=$(git rev-parse --short HEAD)
+        export changelist="-SNAPSHOT"
+      fi
+      echo "::set-output name=revision::$(echo $rev)"
+      echo "::set-output name=sha1::$(echo $sha1)"
+      echo "::set-output name=changelist::$(echo $changelist)"
+      echo "Version will be:"
+      echo ${ver}${rev}${changelist}

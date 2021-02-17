@@ -26,19 +26,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
-        fetch-depth: 25
-    - name: Set version environment for version string
-      run: |
-        export REV=${GITHUB_REF#refs/*/}
-        echo "REVISION=${REV/\//-}" >> $GITHUB_ENV
-        if [[ "${GITHUB_REF#refs/tags/}" =~ ^${{ env.JAVA_REFERENCE_VERSION }}\.[0-9]*\.[0-9]*$ ]]; then
-          echo "CHANGELIST=" >> $GITHUB_ENV
-        else
-          echo "CHANGELIST=-SNAPSHOT" >> $GITHUB_ENV
-        fi
-        echo "github ref: ${GITHUB_REF}"
-        echo "setting env:"
-        cat ${GITHUB_ENV}
+        fetch-depth: 100
+    - id: version
+      uses: ./.github/actions/getVersion
+      with:
+        versionPattern: '11.[0-9]*.[0-9]*'
     - uses: actions/cache@v1 # cache maven packages to speed up build
       with:
         path: ~/.m2
@@ -49,7 +41,11 @@ jobs:
       with:
         java-version: ${{matrix.java}}
     - name: Test with Maven
-      run: mvn -Dgpg.skip=true --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dchangelist=${CHANGELIST} package
+      run: mvn -Dgpg.skip=true --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dsha1=${SHA1} -Dchangelist=${CHANGELIST} package
+      env:
+        REVISION: ${{ steps.version.outputs.revision }}
+        SHA1: ${{ steps.version.outputs.sha1 }}
+        CHANGELIST: ${{ steps.version.outputs.changelist }}
     - name: coverage report - send to Codecov
       if: matrix.java == env.JAVA_REFERENCE_VERSION
       uses: codecov/codecov-action@v1.2.1
@@ -66,18 +62,10 @@ jobs:
     environment: deploy
     steps:
       - uses: actions/checkout@v2
-      - name: Set version environment for version string
-        run: |
-          export REV=${GITHUB_REF#refs/*/}
-          echo "REVISION=${REV/\//-}" >> $GITHUB_ENV
-          if [[ "${GITHUB_REF#refs/tags/}" =~ ^${{ env.JAVA_REFERENCE_VERSION }}\.[0-9]*\.[0-9]*$ ]]; then
-            echo "CHANGELIST=" >> $GITHUB_ENV
-          else
-            echo "CHANGELIST=-SNAPSHOT" >> $GITHUB_ENV
-          fi
-          echo "github ref: ${GITHUB_REF}"
-          echo "setting env:"
-          cat ${GITHUB_ENV}
+      - id: version
+        uses: ./.github/actions/getVersion
+        with:
+          versionPattern: '11.[0-9]*.[0-9]*'
       - name: Cache the Maven packages to speed up build
         uses: actions/cache@v1
         with:
@@ -91,10 +79,13 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_KEY }}
           gpg-passphrase: GPG_PASS
       - name: Deploy to Github Packages
-        run: if [ -z "$CHANGELIST" ]; then mvn -DskipTests --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dchangelist=${CHANGELIST} -Drelease=github deploy; fi
+        run: if [ -z "$CHANGELIST" ]; then mvn -DskipTests --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dsha1=${SHA1} -Dchangelist=${CHANGELIST} -Drelease=github deploy; fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASS: ${{ secrets.GPG_PASSPHRASE }}
+          REVISION: ${{ steps.version.outputs.revision }}
+          SHA1: ${{ steps.version.outputs.sha1 }}
+          CHANGELIST: ${{ steps.version.outputs.changelist }}
       - name: Set up JDK to publish to OSSRH
         uses: actions/setup-java@v1.4.3
         with:
@@ -105,10 +96,13 @@ jobs:
           # gpg-private-key: ${{ secrets.GPG_KEY }} # gpg key was already added in the first java-setup phase, will fail the cleanup if added again
           gpg-passphrase: GPG_PASS
       - name: Deploy to Maven Central
-        run: mvn -DskipTests --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dchangelist=${CHANGELIST} -Drelease=ossrh deploy
+        run: mvn -DskipTests --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dsha1=${SHA1} -Dchangelist=${CHANGELIST} -Drelease=ossrh deploy
         env:
           GPG_PASS: ${{ secrets.GPG_PASSPHRASE }}
           SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
           SONATYPE_PASS: ${{ secrets.SONATYPE_PASS }}
+          REVISION: ${{ steps.version.outputs.revision }}
+          SHA1: ${{ steps.version.outputs.sha1 }}
+          CHANGELIST: ${{ steps.version.outputs.changelist }}
 
 ...
