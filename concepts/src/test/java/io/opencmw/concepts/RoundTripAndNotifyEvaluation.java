@@ -1,8 +1,12 @@
 package io.opencmw.concepts;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZFrame;
@@ -32,6 +36,7 @@ import org.zeromq.ZMsg;
  */
 @SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidInstantiatingObjectsInLoops" })
 class RoundTripAndNotifyEvaluation {
+    private static final Logger LOGGER = LoggerFactory.getLogger(RoundTripAndNotifyEvaluation.class);
     // private static final String SUB_TOPIC = "x";
     private static final String SUB_TOPIC = "<domain>/<property>?<filter>#<ctx> - a very long topic to test the dependence of pub/sub pairs on topic lengths";
     private static final byte[] SUB_DATA = "D".getBytes(StandardCharsets.UTF_8); // custom minimal data
@@ -45,9 +50,10 @@ class RoundTripAndNotifyEvaluation {
     public static final String TAG_EXTERNAL_INTERNAL = "I";
     public static final String START = "start";
     public static final String DUMMY_DATA = "hello";
-    public static final String TCP_LOCALHOST_5555 = "tcp://localhost:5555";
+    public static final String ENDPOINT_ROUTER = "tcp://localhost:5555";
+    public static final String ENDPOINT_TCP = "tcp://localhost:5556";
+    public static final String ENDPOINT_PUBSUB = "tcp://localhost:5557";
     private static final AtomicBoolean RUN = new AtomicBoolean(true);
-    private static final boolean VERBOSE_PRINTOUT = false;
     private static int sampleSize = 10_000;
     private static int sampleSizePub = 100_000;
 
@@ -95,9 +101,7 @@ class RoundTripAndNotifyEvaluation {
             assert false : "should not reach here if properly executed";
         }
 
-        if (VERBOSE_PRINTOUT) {
-            System.out.println("finished tests");
-        }
+        LOGGER.atDebug().log("finished tests");
     }
 
     private static void measure(final String topic, final int nExec, final Runnable... runnable) {
@@ -110,9 +114,7 @@ class RoundTripAndNotifyEvaluation {
         }
 
         final long stop = System.currentTimeMillis();
-        if (VERBOSE_PRINTOUT) {
-            System.out.printf("%-40s:  %10d calls/second\n", topic, (1000L * nExec) / (stop - start));
-        }
+        LOGGER.atDebug().addArgument(String.format("%-40s:  %10d calls/second", topic, (1000L * nExec) / (stop - start))).log("{}");
     }
 
     private static class Broker implements Runnable {
@@ -127,8 +129,8 @@ class RoundTripAndNotifyEvaluation {
                 tcpFrontend.setHWM(0);
                 tcpBackend.setHWM(0);
                 inprocBackend.setHWM(0);
-                tcpFrontend.bind("tcp://*:5555");
-                tcpBackend.bind("tcp://*:5556");
+                final boolean a = tcpFrontend.bind(ENDPOINT_ROUTER);
+                tcpBackend.bind(ENDPOINT_TCP);
                 inprocBackend.bind("inproc://broker");
                 items.register(tcpFrontend, ZMQ.Poller.POLLIN);
                 items.register(tcpBackend, ZMQ.Poller.POLLIN);
@@ -204,8 +206,6 @@ class RoundTripAndNotifyEvaluation {
                         address.destroy();
                         msg.send(tcpFrontend);
                     }
-
-                    items.close();
                 }
 
                 internalWorkerThread.interrupt();
@@ -278,7 +278,7 @@ class RoundTripAndNotifyEvaluation {
             try (ZContext ctx = new ZContext(); Socket worker = ctx.createSocket(SocketType.DEALER)) {
                 worker.setHWM(0);
                 worker.setIdentity(WORKER_ID);
-                worker.connect("tcp://localhost:5556");
+                worker.connect(ENDPOINT_TCP);
                 while (RUN.get() && !Thread.currentThread().isInterrupted()) {
                     ZMsg msg = ZMsg.recvMsg(worker);
                     msg.send(worker);
@@ -294,7 +294,7 @@ class RoundTripAndNotifyEvaluation {
         public void run() {
             try (ZContext ctx = new ZContext(); Socket worker = ctx.createSocket(SocketType.PUB)) {
                 worker.setHWM(0);
-                worker.bind("tcp://localhost:5557");
+                worker.bind(ENDPOINT_PUBSUB);
                 // System.err.println("PublishWorker: start publishing");
                 while (RUN.get() && !Thread.currentThread().isInterrupted()) {
                     worker.send(SUB_TOPIC, ZMQ.SNDMORE);
@@ -361,13 +361,12 @@ class RoundTripAndNotifyEvaluation {
                     Socket subClient = ctx.createSocket(SocketType.SUB)) {
                 client.setHWM(0);
                 client.setIdentity(CLIENT_ID);
-                client.connect(TCP_LOCALHOST_5555);
+                client.connect(ENDPOINT_ROUTER);
                 subClient.setHWM(0);
-                subClient.connect("tcp://localhost:5557");
+                subClient.connect(ENDPOINT_PUBSUB);
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
 
-                if (VERBOSE_PRINTOUT) {
-                    System.out.println("Setting up test");
-                }
+                LOGGER.atDebug().log("Setting up test");
                 // check and wait until broker is up and running
                 ZMsg.newStringMsg(TAG_EXTERNAL_STRING).addString(DUMMY_DATA).send(client);
                 ZMsg.recvMsg(client).destroy();
@@ -419,9 +418,9 @@ class RoundTripAndNotifyEvaluation {
                 });
                 subClient.unsubscribe(SUB_TOPIC.getBytes(ZMQ.CHARSET));
 
-                client.disconnect(TCP_LOCALHOST_5555);
+                client.disconnect(ENDPOINT_ROUTER);
                 client.setIdentity(SUBSCRIBER_ID);
-                client.connect(TCP_LOCALHOST_5555);
+                client.connect(ENDPOINT_ROUTER);
                 ZMsg.newStringMsg(START).addFirst(TAG_EXTERNAL_STRING).send(client);
                 measure("Subscription (DEALER) test (TCP)", sampleSizePub, () -> {
                     ZMsg req = ZMsg.recvMsg(client);
@@ -434,7 +433,7 @@ class RoundTripAndNotifyEvaluation {
                     req.destroy();
                 });
 
-                client.disconnect(TCP_LOCALHOST_5555);
+                client.disconnect(ENDPOINT_ROUTER);
                 client.connect("tcp://localhost:5558");
                 ZMsg.newStringMsg(START).send(client);
                 measure("Subscription (direct DEALER) test", sampleSizePub, () -> {
@@ -443,9 +442,7 @@ class RoundTripAndNotifyEvaluation {
                 });
 
             } catch (ZMQException e) {
-                if (VERBOSE_PRINTOUT) {
-                    System.out.println("terminate client");
-                }
+                LOGGER.atError().setCause(e).log("terminate client");
             }
         }
     }

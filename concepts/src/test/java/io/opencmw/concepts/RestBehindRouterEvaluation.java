@@ -100,9 +100,6 @@ public class RestBehindRouterEvaluation { // NOPMD -- nomen est omen
         }
         if (emptyFrame.hasMore() || emptyFrame.size() != 0) {
             System.err.println("did receive more " + emptyFrame);
-            //  Close erroneous connection to browser
-            //            handle.send(socket, ZFrame.MORE | ZFrame.REUSE);
-            //            socket.send((byte[]) null, 0);
             return null;
         }
 

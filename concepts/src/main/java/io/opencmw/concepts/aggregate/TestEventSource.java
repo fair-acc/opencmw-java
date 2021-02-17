@@ -116,13 +116,13 @@ public class TestEventSource implements Runnable {
      * Mock event entry.
      */
     public static class Event {
-        public long sourceTime;
-        public long publishTime;
-        public long bpcts;
-        public int chain;
-        public int type;
-        public String device;
-        public Object payload;
+        public final long sourceTime;
+        public final long publishTime;
+        public final long bpcts;
+        public final int chain;
+        public final int type;
+        public final String device;
+        public final Object payload;
 
         public Event(final long sourceTime, final long publishTime, final long bpcts, final int chain, final int type, final String device, final Object payload) {
             this.sourceTime = sourceTime;

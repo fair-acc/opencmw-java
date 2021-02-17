@@ -6,5 +6,4 @@ module io.opencmw.concepts {
     requires io.opencmw;
 
     exports io.opencmw.concepts.aggregate;
-    exports io.opencmw.concepts.majordomo;
 }

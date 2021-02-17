@@ -1,6 +1,7 @@
 package io.opencmw.concepts.majordomo;
 
 import static io.opencmw.concepts.majordomo.MajordomoProtocol.*;
+import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpWorkerCommand.*;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -147,7 +148,7 @@ public class MajordomoWorker extends Thread {
             try {
                 final byte[][] payload = requestHandler.handle(request.payload);
                 // serialise
-                return new MdpWorkerMessage(request.senderID, MdpWorkerCommand.W_REPLY, serviceBytes, clientSourceID, payload);
+                return new MdpWorkerMessage(request.senderID, W_REPLY, serviceBytes, clientSourceID, payload);
             } catch (Throwable e) { // NOPMD on purpose since we want to catch exceptions and courteously return this to the user
                 final StringWriter sw = new StringWriter();
                 final PrintWriter pw = new PrintWriter(sw);
@@ -163,7 +164,7 @@ public class MajordomoWorker extends Thread {
                         .append("\nexception: ")
                         .append(sw.toString());
                 final String exceptionMsg = builder.toString();
-                return new MdpWorkerMessage(request.senderID, MdpWorkerCommand.W_REPLY, serviceBytes, clientSourceID, exceptionMsg.getBytes(StandardCharsets.UTF_8));
+                return new MdpWorkerMessage(request.senderID, W_REPLY, serviceBytes, clientSourceID, exceptionMsg.getBytes(StandardCharsets.UTF_8));
             }
         }
         return null;
@@ -235,7 +236,7 @@ public class MajordomoWorker extends Thread {
                 }
 
                 if (reply != null) {
-                    sendWorkerMessage(workerSocket, MdpWorkerCommand.W_REPLY, reply.senderID, workerMessage.clientSourceID, reply.payload);
+                    sendWorkerMessage(workerSocket, W_REPLY, reply.senderID, workerMessage.clientSourceID, reply.payload);
                 }
 
             } else if (--liveness == 0) {
@@ -254,7 +255,7 @@ public class MajordomoWorker extends Thread {
 
             // Send HEARTBEAT if it's time
             if (System.currentTimeMillis() > heartbeatAt) {
-                sendWorkerMessage(workerSocket, MdpWorkerCommand.W_HEARTBEAT, null, null);
+                sendWorkerMessage(workerSocket, W_HEARTBEAT, null, null);
                 heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
             }
         }
@@ -278,7 +279,7 @@ public class MajordomoWorker extends Thread {
         LOGGER.atDebug().addArgument(uniqueID).addArgument(brokerAddress).log("worker '{}' connecting to broker at '{}'");
 
         // Register service with broker
-        sendWorkerMessage(workerSocket, MdpWorkerCommand.W_READY, null, serviceBytes, getUniqueID().getBytes(StandardCharsets.UTF_8));
+        sendWorkerMessage(workerSocket, W_READY, null, serviceBytes, getUniqueID().getBytes(StandardCharsets.UTF_8));
 
         if (poller != null) {
             poller.unregister(workerSocket);

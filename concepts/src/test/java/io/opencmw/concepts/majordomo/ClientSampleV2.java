@@ -19,8 +19,8 @@ public final class ClientSampleV2 { // NOPMD -- nomen est omen
     public static void main(String[] args) {
         MajordomoClientV2 clientSession = new MajordomoClientV2("tcp://localhost:5555");
         final byte[] serviceBytes = "mmi.echo".getBytes(StandardCharsets.UTF_8);
-        // final byte[] serviceBytes = "inproc.echo".getBytes(StandardCharsets.UTF_8);
-        // final byte[] serviceBytes = "echo".getBytes(StandardCharsets.UTF_8);
+        // final byte[] serviceBytes = "inproc.echo".getBytes(StandardCharsets.UTF_8)
+        // final byte[] serviceBytes = "echo".getBytes(StandardCharsets.UTF_8)
 
         int count;
         long start = System.currentTimeMillis();

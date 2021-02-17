@@ -3,6 +3,8 @@ package io.opencmw.concepts.majordomo;
 import static org.zeromq.ZMQ.Socket;
 
 import static io.opencmw.concepts.majordomo.MajordomoProtocol.*;
+import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpSubProtocol.*;
+import static io.opencmw.concepts.majordomo.MajordomoProtocol.MdpWorkerCommand.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -195,7 +197,7 @@ public class MajordomoBroker extends Thread {
     protected void deleteWorker(Worker worker, boolean disconnect) {
         assert (worker != null);
         if (disconnect) {
-            sendWorkerMessage(worker.socket, MdpWorkerCommand.W_DISCONNECT, worker.address, null);
+            sendWorkerMessage(worker.socket, W_DISCONNECT, worker.address, null);
         }
         if (worker.service != null) {
             worker.service.waiting.remove(worker);
@@ -229,7 +231,7 @@ public class MajordomoBroker extends Thread {
             }
             Worker worker = service.waiting.pop();
             waiting.remove(worker);
-            sendWorkerMessage(worker.socket, MdpWorkerCommand.W_REQUEST, worker.address, msg.senderID, msg.payload);
+            sendWorkerMessage(worker.socket, W_REQUEST, worker.address, msg.senderID, msg.payload);
         }
     }
 
@@ -280,7 +282,7 @@ public class MajordomoBroker extends Thread {
                     assert false : "getNextPrioritisedMessage should not be null";
                     return;
                 }
-                sendWorkerMessage(service.internalDispatchSocket, MdpWorkerCommand.W_REQUEST, null, msg.senderID, msg.payload);
+                sendWorkerMessage(service.internalDispatchSocket, W_REQUEST, null, msg.senderID, msg.payload);
             } else {
                 //dispatch(requireService(clientMessage.serviceName, clientMessage.serviceNameBytes));
                 dispatch(service);
@@ -316,7 +318,7 @@ public class MajordomoBroker extends Thread {
                     break;
                 }
 
-                if (client.protocol == MdpSubProtocol.C_CLIENT) { // OpenCMW
+                if (client.protocol == C_CLIENT) { // OpenCMW
                     sendClientMessage(client.socket, MdpClientCommand.C_UNKNOWN, msg.clientSourceID, serviceName, msg.payload);
                 } else {
                     // TODO: add other branches for:
@@ -433,7 +435,7 @@ public class MajordomoBroker extends Thread {
         // Send heartbeats to idle workers if it's time
         if (System.currentTimeMillis() >= heartbeatAt) {
             for (Worker worker : waiting) {
-                sendWorkerMessage(worker.socket, MdpWorkerCommand.W_HEARTBEAT, worker.address, null);
+                sendWorkerMessage(worker.socket, W_HEARTBEAT, worker.address, null);
             }
             heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
         }
@@ -633,7 +635,7 @@ public class MajordomoBroker extends Thread {
                         final MdpMessage reply = service.mdpWorker.processRequest(msg, msg.clientSourceID);
 
                         if (reply != null) {
-                            sendWorkerMessage(sendSocket, MdpWorkerCommand.W_REPLY, INTERNAL_SENDER_ID, msg.clientSourceID, reply.payload);
+                            sendWorkerMessage(sendSocket, W_REPLY, INTERNAL_SENDER_ID, msg.clientSourceID, reply.payload);
                         }
                     }
                 }

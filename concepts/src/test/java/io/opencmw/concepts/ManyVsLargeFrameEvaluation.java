@@ -1,8 +1,12 @@
 package io.opencmw.concepts;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZFrame;
@@ -16,6 +20,7 @@ import org.zeromq.ZMsg;
  */
 @SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidInstantiatingObjectsInLoops" })
 public class ManyVsLargeFrameEvaluation {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ManyVsLargeFrameEvaluation.class);
     private static final AtomicBoolean RUN = new AtomicBoolean(true);
     private static final byte[] CLIENT_ID = "C".getBytes(StandardCharsets.UTF_8); // client name
     private static final byte[] WORKER_ID = "W".getBytes(StandardCharsets.UTF_8); // worker-service name
@@ -23,7 +28,9 @@ public class ManyVsLargeFrameEvaluation {
     public static final char TAG_EXTERNAL = 'E';
     public static final String TAG_EXTERNAL_STRING = "E";
     public static final String TAG_EXTERNAL_INTERNAL = "I";
-    private static final boolean VERBOSE_PRINTOUT = true;
+    public static final String ENDPOINT_ROUTER = "tcp://localhost:5555";
+    public static final String ENDPOINT_TCP = "tcp://localhost:5556";
+    public static final String ENDPOINT_PUBSUB = "tcp://localhost:5557";
     private static int sampleSize = 100_000;
     private static final int N_BUFFER_SIZE = 8;
     private static final int N_FRAMES = 10;
@@ -62,9 +69,7 @@ public class ManyVsLargeFrameEvaluation {
             assert false : "should not reach here if properly executed";
         }
 
-        if (VERBOSE_PRINTOUT) {
-            System.out.println("finished tests");
-        }
+        LOGGER.atDebug().log("finished tests");
     }
 
     private static void measure(final String topic, final int nExec, final Runnable... runnable) {
@@ -77,9 +82,7 @@ public class ManyVsLargeFrameEvaluation {
         }
 
         final long stop = System.currentTimeMillis();
-        if (VERBOSE_PRINTOUT) {
-            System.out.printf("%-40s:  %10d calls/second\n", topic, (1000L * nExec) / (stop - start));
-        }
+        LOGGER.atDebug().addArgument(String.format("%-40s:  %10d calls/second", topic, (1000L * nExec) / (stop - start))).log("{}");
     }
 
     private static class Broker implements Runnable {
@@ -95,8 +98,8 @@ public class ManyVsLargeFrameEvaluation {
                 tcpFrontend.setHWM(0);
                 tcpBackend.setHWM(0);
                 inprocBackend.setHWM(0);
-                tcpFrontend.bind("tcp://*:5555");
-                tcpBackend.bind("tcp://*:5556");
+                tcpFrontend.bind(ENDPOINT_ROUTER);
+                tcpBackend.bind(ENDPOINT_TCP);
                 inprocBackend.bind("inproc://broker");
 
                 Thread internalWorkerThread = new Thread(new InternalWorker(ctx));
@@ -160,8 +163,6 @@ public class ManyVsLargeFrameEvaluation {
                         address.destroy();
                         msg.send(tcpFrontend);
                     }
-
-                    items.close();
                 }
 
                 internalWorkerThread.interrupt();
@@ -205,13 +206,12 @@ public class ManyVsLargeFrameEvaluation {
                     Socket subClient = ctx.createSocket(SocketType.SUB)) {
                 client.setHWM(0);
                 client.setIdentity(CLIENT_ID);
-                client.connect("tcp://localhost:5555");
+                client.connect(ENDPOINT_ROUTER);
                 subClient.setHWM(0);
-                subClient.connect("tcp://localhost:5557");
+                subClient.connect(ENDPOINT_PUBSUB);
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
 
-                if (VERBOSE_PRINTOUT) {
-                    System.out.println("Setting up test");
-                }
+                LOGGER.atDebug().log("Setting up test");
 
                 for (int l = 0; l < N_LOOPS; l++) {
                     for (final boolean external : new boolean[] { true, false }) {
@@ -256,9 +256,7 @@ public class ManyVsLargeFrameEvaluation {
                     }
                 }
             } catch (ZMQException e) {
-                if (VERBOSE_PRINTOUT) {
-                    System.out.println("terminate client");
-                }
+                LOGGER.atDebug().log("terminate client");
             }
         }
     }
@@ -270,7 +268,7 @@ public class ManyVsLargeFrameEvaluation {
                     Socket worker = ctx.createSocket(SocketType.DEALER)) {
                 worker.setHWM(0);
                 worker.setIdentity(WORKER_ID);
-                worker.connect("tcp://localhost:5556");
+                worker.connect(ENDPOINT_TCP);
                 while (RUN.get() && !Thread.currentThread().isInterrupted()) {
                     ZMsg msg = ZMsg.recvMsg(worker);
                     msg.send(worker);

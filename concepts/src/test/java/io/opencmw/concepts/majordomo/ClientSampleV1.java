@@ -20,8 +20,8 @@ public final class ClientSampleV1 { // nomen est omen
     public static void main(String[] args) {
         MajordomoClientV1 clientSession = new MajordomoClientV1("tcp://localhost:5555", "customClientName");
         final byte[] serviceBytes = "mmi.echo".getBytes(StandardCharsets.UTF_8);
-        // final byte[] serviceBytes = "inproc.echo".getBytes(StandardCharsets.UTF_8);
-        // final byte[] serviceBytes = "echo".getBytes(StandardCharsets.UTF_8);
+        // final byte[] serviceBytes = "inproc.echo".getBytes(StandardCharsets.UTF_8)
+        // final byte[] serviceBytes = "echo".getBytes(StandardCharsets.UTF_8)
 
         int count;
         long start = System.currentTimeMillis();
