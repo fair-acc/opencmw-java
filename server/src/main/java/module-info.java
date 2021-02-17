@@ -4,6 +4,7 @@ open module io.opencmw.server {
     requires io.opencmw;
     requires jeromq;
     requires java.management;
+    requires it.unimi.dsi.fastutil;
     requires org.apache.commons.lang3;
     requires velocity.engine.core;
     requires org.jetbrains.annotations;

@@ -86,6 +86,10 @@ class BinaryDataTest {
         assertThat("inequality for data differences", test, not(equalTo(reference)));
         test.data = reference.data;
         assertThat("equality for content-effective copy", test, is(equalTo(reference)));
+
+        final BinaryData dummy = new BinaryData();
+        reference.moveTo(dummy);
+        assertEquals(reference, test, "object equality after moveTo(..)");
     }
 
     @Test
@@ -107,4 +111,5 @@ class BinaryDataTest {
         assertEquals("/testA/testB/", BinaryData.getCategory("testA/testB/test.png"));
         assertEquals("/testA/testB/", BinaryData.getCategory("testA/testB/test"));
     }
+
 }

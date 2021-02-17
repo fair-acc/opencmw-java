@@ -23,11 +23,11 @@ import org.slf4j.LoggerFactory;
  * @author rstein
  */
 @Execution(ExecutionMode.SAME_THREAD)
-public class CacheTests {
+class CacheTests {
     private static final Logger LOGGER = LoggerFactory.getLogger(CacheTests.class);
 
     @Test
-    public void demoTestCase() {
+    void demoTestCase() {
         AtomicBoolean preListenerCalled = new AtomicBoolean(false);
         AtomicBoolean postListenerCalled = new AtomicBoolean(false);
         final Cache<String, Integer> cache = Cache.<String, Integer>builder().withLimit(10).withTimeout(100, TimeUnit.MILLISECONDS) //
@@ -63,7 +63,7 @@ public class CacheTests {
     }
 
     @Test
-    public void testCacheSizeLimit() {
+    void testCacheSizeLimit() {
         Cache<String, Integer> cache = Cache.<String, Integer>builder().withLimit(3).build();
 
         assertEquals(3, cache.getLimit());
@@ -124,7 +124,7 @@ public class CacheTests {
     }
 
     @Test
-    public void testConstructors() {
+    void testConstructors() {
         Cache<String, Object> cache1 = new Cache<>(20); // limit
         assertEquals(20, cache1.getLimit(), "limit");
         assertDoesNotThrow(() -> cache1.put("testKey", "testValue"));
@@ -163,30 +163,15 @@ public class CacheTests {
         });
 
         assertThrows(IllegalArgumentException.class, () -> {
-            // null TimeUnit check
-            Cache.builder().withTimeout(1, null).build();
-        });
-
-        assertThrows(IllegalArgumentException.class, () -> {
             // limit < 1 check
             Cache.builder().withLimit(0).build();
-        });
-
-        assertThrows(IllegalArgumentException.class, () -> {
-            // null pre-listener
-            Cache.builder().withPreListener(null).build();
-        });
-
-        assertThrows(IllegalArgumentException.class, () -> {
-            // null post-listener
-            Cache.builder().withPostListener(null).build();
         });
 
         // Cache cache4 = Cache.builder().withLimit(20).withTimeout(100, TimeUnit.MILLISECONDS).build();
     }
 
     @Test
-    public void testHelperMethods() {
+    void testHelperMethods() {
         // TimeUnit to ChronoUnit conversions
         for (TimeUnit timeUnit : TimeUnit.values()) {
             ChronoUnit chronoUnit = Cache.convertToChronoUnit(timeUnit);
@@ -209,7 +194,7 @@ public class CacheTests {
     }
 
     @Test
-    public void testPutVariants() {
+    void testPutVariants() {
         Cache<String, Integer> cache = Cache.<String, Integer>builder().withLimit(3).build();
 
         assertNull(cache.put("key", 2));

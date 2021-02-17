@@ -16,6 +16,7 @@ import io.opencmw.MimeType;
 import io.opencmw.OpenCmwProtocol;
 import io.opencmw.OpenCmwProtocol.MdpMessage;
 import io.opencmw.QueryParameterParser;
+import io.opencmw.domain.BinaryData;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoClassSerialiser;
@@ -36,7 +37,7 @@ import io.opencmw.serialiser.spi.JsonSerialiser;
  * @param <I> generic type for the input domain object
  * @param <O> generic type for the output domain object (also notify)
  */
-@SuppressWarnings("PMD.DataClass") // PMD - false positive data class
+@SuppressWarnings({ "PMD.DataClass", "PMD.NPathComplexity" }) // PMD - false positive data class
 @MetaInfo(description = "default MajordomoWorker implementation")
 public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoWorker.class);
@@ -66,6 +67,7 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
         this(ctx, "inproc://broker", serviceName, contextClassType, inputClassType, outputClassType, rbacRoles);
     }
 
+    @SuppressWarnings({ "PMD.ExcessiveMethodLength", "PMD.PrematureDeclaration" })
     protected MajordomoWorker(final ZContext ctx, final String brokerAddress, final String serviceName,
             @NotNull final Class<C> contextClassType,
             @NotNull final Class<I> inputClassType,
@@ -95,10 +97,12 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
             final C requestCtx = QueryParameterParser.parseQueryParameter(contextClassType, c.req.topic.getQuery());
             final C replyCtx = QueryParameterParser.parseQueryParameter(contextClassType, c.req.topic.getQuery()); // reply is initially a copy of request
             final MimeType requestedMimeType = QueryParameterParser.getMimeType(queryString);
+            // no MIME type given -> map default to BINARY
+            c.mimeType = requestedMimeType == MimeType.UNKNOWN ? MimeType.BINARY : requestedMimeType;
 
             final I input;
             if (c.req.data.length > 0) {
-                switch (requestedMimeType) {
+                switch (c.mimeType) {
                 case HTML:
                 case JSON:
                 case JSON_LD:
@@ -112,7 +116,6 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
                     input = deserialiser.deserialiseObject(inputClassType);
                     break;
                 case BINARY:
-                case UNKNOWN:
                 default:
                     deserialiser.setDataBuffer(FastByteBuffer.wrap(c.req.data));
                     deserialiser.setMatchedIoSerialiser(BinarySerialiser.class);
@@ -130,14 +133,23 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
             handler.handle(c, requestCtx, input, replyCtx, output);
 
             final String replyQuery = QueryParameterParser.generateQueryParameter(replyCtx);
-            c.rep.topic = new URI(reqTopic.getScheme(), reqTopic.getAuthority(), reqTopic.getPath(), replyQuery, reqTopic.getFragment());
+            if (c.rep.topic == null) {
+                c.rep.topic = new URI(reqTopic.getScheme(), reqTopic.getAuthority(), reqTopic.getPath(), replyQuery, reqTopic.getFragment());
+            } else {
+                final String oldQuery = c.rep.topic.getQuery();
+                final String newQuery = oldQuery == null || oldQuery.isBlank() ? replyQuery : (oldQuery + "&" + replyQuery);
+                c.rep.topic = new URI(c.rep.topic.getScheme(), c.rep.topic.getAuthority(), c.rep.topic.getPath(), newQuery, reqTopic.getFragment());
+            }
             final MimeType replyMimeType = QueryParameterParser.getMimeType(replyQuery);
+            // no MIME type given -> stick with the one specified in the request (if it exists) or keep default: BINARY
+            c.mimeType = replyMimeType == MimeType.UNKNOWN ? c.mimeType : replyMimeType;
 
             defaultBuffer.reset();
-            switch (replyMimeType) {
+            switch (c.mimeType) {
             case HTML:
                 htmlHandler.handle(c, requestCtx, input, replyCtx, output);
                 break;
+            case TEXT:
             case JSON:
             case JSON_LD:
                 serialiser.setMatchedIoSerialiser(JsonSerialiser.class);
@@ -154,12 +166,16 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
                 c.rep.data = Arrays.copyOf(defaultBuffer.elements(), defaultBuffer.limit());
                 break;
             case BINARY:
-            default:
                 serialiser.setMatchedIoSerialiser(BinarySerialiser.class);
                 serialiser.getMatchedIoSerialiser().setBuffer(defaultBuffer);
                 serialiser.serialiseObject(output);
                 defaultBuffer.flip();
                 c.rep.data = Arrays.copyOf(defaultBuffer.elements(), defaultBuffer.limit());
+                break;
+            default:
+                if (output instanceof BinaryData) {
+                    c.rep.data = ((BinaryData) output).data;
+                }
                 break;
             }
         });
@@ -186,18 +202,21 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
         this.htmlHandler = htmlHandler;
     }
 
-    public void notify(final C replyCtx, final O reply) {
+    public void notify(final @NotNull C replyCtx, final @NotNull O reply) {
+        notify("", replyCtx, reply);
+    }
+
+    public void notify(final @NotNull String path, final @NotNull C replyCtx, final @NotNull O reply) {
         defaultNotifyBuffer.reset();
         notifySerialiser.serialiseObject(reply);
         defaultNotifyBuffer.flip();
         final byte[] data = Arrays.copyOf(defaultNotifyBuffer.elements(), defaultNotifyBuffer.limit());
-        URI topic = URI.create(serviceName + '?' + QueryParameterParser.generateQueryParameter(replyCtx));
-        MdpMessage notifyMessage = new MdpMessage(null, PROT_WORKER, W_NOTIFY, serviceBytes, EMPTY_FRAME, topic, data, "", RBAC);
-
-        super.notify(notifyMessage);
+        final String query = QueryParameterParser.generateQueryParameter(replyCtx);
+        URI topic = URI.create(serviceName + path + (query.isBlank() ? "" : ('?' + query)));
+        super.notify(new MdpMessage(null, PROT_WORKER, W_NOTIFY, serviceBytes, EMPTY_FRAME, topic, data, "", RBAC));
     }
 
     public interface Handler<C, I, O> {
-        void handle(OpenCmwProtocol.Context ctx, C requestCtx, I request, C replyCtx, O reply);
+        void handle(OpenCmwProtocol.Context ctx, C requestCtx, I request, C replyCtx, O reply) throws Exception; // NOPMD NOSONAR - design choice
     }
 }

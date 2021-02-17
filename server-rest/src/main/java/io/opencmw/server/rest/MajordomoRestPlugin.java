@@ -22,6 +22,7 @@ import static io.opencmw.server.rest.RestServer.prefixPath;
 import static io.opencmw.server.rest.util.CombinedHandler.SseState.CONNECTED;
 import static io.opencmw.server.rest.util.CombinedHandler.SseState.DISCONNECTED;
 
+import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.net.ProtocolException;
 import java.net.URI;
@@ -34,10 +35,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
-import javax.validation.constraints.NotNull;
-
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jetty.util.BlockingArrayQueue;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
@@ -66,7 +66,10 @@ import io.opencmw.server.rest.util.CombinedHandler;
 import io.opencmw.server.rest.util.MessageBundle;
 import io.opencmw.utils.CustomFuture;
 
+import com.google.common.io.ByteStreams;
+import com.jsoniter.extra.Base64Support;
 import com.jsoniter.output.JsonStream;
+import com.jsoniter.spi.JsonException;
 
 /**
  * Majordomo Broker REST/HTTP plugin.
@@ -106,6 +109,13 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     private final BlockingArrayQueue<MdpMessage> requestQueue = new BlockingArrayQueue<>();
     private final ConcurrentMap<String, CustomFuture<MdpMessage>> requestReplies = new ConcurrentHashMap<>();
     private final BiConsumer<SseClient, CombinedHandler.SseState> newSseClientHandler;
+    static {
+        try {
+            Base64Support.enable();
+        } catch (JsonException e) {
+            // do nothing -- ensures that this is initialised only once
+        }
+    }
 
     public MajordomoRestPlugin(ZContext ctx, final String serverDescription, String httpAddress, final RbacRole<?>... rbacRoles) {
         super(ctx, MajordomoRestPlugin.class.getSimpleName(), rbacRoles);
@@ -139,8 +149,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     }
 
     @Override
-    public boolean notify(@NotNull final MdpMessage notifyMessage) {
-        assert notifyMessage != null : "notify message must not be null";
+    public boolean notify(final @NotNull MdpMessage notifyMessage) {
         notifyRaw(notifyMessage);
         return false;
     }
@@ -288,8 +297,8 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     protected void reconnectToBroker() {
         super.reconnectToBroker();
         final byte[] classNameByte = this.getClass().getName().getBytes(UTF_8); // used for OpenAPI purposes
-        new MdpMessage(null, PROT_WORKER, READY, serviceBytes, EMPTY_FRAME, RestServer.getPublicURI(), classNameByte, "", RBAC).send(workerSocket);
-        new MdpMessage(null, PROT_WORKER, READY, serviceBytes, EMPTY_FRAME, RestServer.getLocalURI(), classNameByte, "", RBAC).send(workerSocket);
+        new MdpMessage(null, PROT_WORKER, READY, serviceBytes, EMPTY_FRAME, Objects.requireNonNull(RestServer.getPublicURI()), classNameByte, "", RBAC).send(workerSocket);
+        new MdpMessage(null, PROT_WORKER, READY, serviceBytes, EMPTY_FRAME, Objects.requireNonNull(RestServer.getLocalURI()), classNameByte, "", RBAC).send(workerSocket);
     }
 
     protected void registerEndPoint(final String endpoint) {
@@ -418,6 +427,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             final String service = StringUtils.stripStart(Objects.requireNonNullElse(restCtx.path(), restHandler), "/");
             final MimeType acceptMimeType = MimeType.getEnum(restCtx.header(RestServer.HTML_ACCEPT));
             final Map<String, String[]> parameterMap = restCtx.req.getParameterMap();
+
             final String[] mimeType = parameterMap.get("contentType");
             final URI topic = mimeType == null || mimeType.length == 0 ? RestServer.appendUri(URI.create(restCtx.fullUrl()), "contentType=" + acceptMimeType.toString()) : URI.create(restCtx.fullUrl());
 
@@ -433,13 +443,14 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             CustomFuture<MdpMessage> reply = dispatchRequest(requestMsg, true);
             try {
                 final MdpMessage replyMessage = reply.get(); //TODO: add max time-out -- only if not long-polling (to be checked)
-                final @NotNull MimeType replyMimeType = QueryParameterParser.getMimeType(replyMessage.topic.getQuery());
+                MimeType replyMimeType = QueryParameterParser.getMimeType(replyMessage.topic.getQuery());
+                replyMimeType = replyMimeType == MimeType.UNKNOWN ? acceptMimeType : replyMimeType;
+
                 switch (replyMimeType) {
                 case HTML:
-                case TEXT:
                     final String queryString = topic.getQuery() == null ? "" : ("?" + topic.getQuery());
                     if (cmd == SET_REQUEST) {
-                        final String path = restCtx.req.getRequestURI() + StringUtils.replace(queryString, "&noMenu", "");
+                        final String path = replyMessage.topic.getPath() + StringUtils.replace(queryString, "&noMenu", "");
                         restCtx.redirect(path);
                     } else {
                         final boolean noMenu = queryString.contains("noMenu");
@@ -448,6 +459,10 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                         dataMap.put("noMenu", noMenu);
                         restCtx.render(TEMPLATE_EMBEDDED_HTML, dataMap);
                     }
+                    break;
+                case TEXT:
+                    restCtx.contentType(replyMimeType.toString());
+                    restCtx.result(new String(replyMessage.data, UTF_8));
                     break;
                 case BINARY:
                 default:
@@ -474,9 +489,8 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     }
 
     private byte[] getFormDataAsJson(final Context restCtx) {
-        final byte[] requestData;
         final Map<String, List<String>> formMap = restCtx.formParamMap();
-        final HashMap<String, String> requestMap = new HashMap<>();
+        final HashMap<String, Object> requestMap = new HashMap<>();
         formMap.forEach((k, v) -> {
             if (v.isEmpty()) {
                 requestMap.put(k, null);
@@ -484,8 +498,25 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 requestMap.put(k, v.get(0));
             }
         });
-        final String formData = JsonStream.serialize(requestMap);
-        requestData = formData.getBytes(UTF_8);
-        return requestData;
+
+        if (restCtx.isMultipartFormData()) {
+            requestMap.remove("files");
+            restCtx.uploadedFiles("files").forEach(file -> {
+                try {
+                    @SuppressWarnings("UnstableApiUsage")
+                    final byte[] rawData = ByteStreams.toByteArray(file.getContent()); // NOPMD NOSONAR
+                    requestMap.put("resourceName", file.getFilename());
+                    requestMap.put("contentType", file.getContentType());
+                    requestMap.put("data", Base64.getEncoder().encodeToString(rawData));
+                    requestMap.put("dataSize", rawData.length);
+                } catch (IOException e) {
+                    if (LOGGER.isDebugEnabled()) {
+                        LOGGER.atWarn().setCause(e).log("could not parse uploaded file");
+                    }
+                }
+            });
+        }
+
+        return JsonStream.serialize(requestMap).getBytes(UTF_8);
     }
 }

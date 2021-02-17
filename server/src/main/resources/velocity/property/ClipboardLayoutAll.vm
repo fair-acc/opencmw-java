@@ -1,0 +1,50 @@
+<style>
+    .mediaThumb { padding: 10px; display: flex; align-items: center; justify-content: center;}
+    .mediaThumb embed { border-radius: 5px; min-height: 200px; max-height: 200px; height: auto; width: auto; object-fit: contain; }
+    /* Very basic grid */
+    .col { margin: auto; text-align: center;}
+    .row { width: 100%; overflow: auto; }
+    .row > * { float: left; }
+    .row-3 .col { width: 32%; }
+    .row-3 .col:nth-child(3n+1) { margin: 0 1% 0 0;}
+    .row-3 .col:nth-child(3n+2) { margin: 0 1% 0 1%; }
+    .row-3 .col:nth-child(3n+3) {margin: 0 0 0 1%; }
+</style>
+
+<h1><a href='/$serviceName'>Snapshots</a> #if(!$category.isEmpty())- $category#end</h1>
+<small>
+#if(!$categories.isEmpty())
+        sub-categories:
+        #foreach($subcategory in $categories)
+            <a class="link" href="/$serviceName/$category/$subcategory">$subcategory</a>
+        #end
+#end
+    - <a class="link" href="/$serviceName/$category/upload">upload</a>
+</small>
+<div class="row row-3">
+    #foreach($binaryData in $clipboardData)
+        <div class="col">
+            ## media content
+            <a class="image" href="/$serviceName$binaryData.getResourceName()">
+                <div class="mediaThumb">
+                    <embed class="embedBinary" id="binaryData" src="$binaryData.getMimeData()" alt="$binaryData.getResourceName()"/>
+                </div>
+                <strong>$binaryData.getFileName()</strong><small><br>$binaryData.getTimeStamp()</small>
+            </a>
+            ## sub-title
+            <small>
+                (<a class="link" href="/$serviceName$binaryData.getResourceName()?noMenu&longPolling">long-polling</a>,
+                <a class="link" href="/$serviceName$binaryData.getResourceName()?noMenu&sse">SSE</a>)
+            </small>
+        </div>
+    #end
+</div>
+#if(!$clipboardDataBinary.isEmpty())
+    <br><h2>Non-Displayable Data</h2>
+    <div>
+        #foreach($dataItem in $clipboardDataBinary)
+        #set($dataStr = "/$serviceName/$dataItem.getEncodedResourceName()")
+            <a class="link" href=$dataStr target="_blank" rel="noopener">$dataItem.getResourceName()</a>
+        #end
+    </div>
+#end

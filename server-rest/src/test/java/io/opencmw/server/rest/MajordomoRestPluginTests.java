@@ -102,11 +102,7 @@ class MajordomoRestPluginTests {
         final Headers header = response.headers();
         final String body = Objects.requireNonNull(response.body()).string();
 
-        if (contentType == MimeType.TEXT) {
-            assertEquals(MimeType.HTML.getMediaType(), header.get("Content-Type"), "you get the content type you asked for");
-        } else {
-            assertEquals(contentType.getMediaType(), header.get("Content-Type"), "you get the content type you asked for");
-        }
+        assertEquals(contentType.getMediaType(), header.get("Content-Type"), "you get the content type you asked for");
         assertThat(body, containsString("byteReturnType"));
         assertThat(body, containsString("Hello World! The local time is:"));
 
@@ -181,6 +177,7 @@ class MajordomoRestPluginTests {
         Request request = new Request.Builder().url("http://localhost:8080/" + ImageService.PROPERTY_NAME).build();
         EventSourceListener eventSourceListener = new EventSourceListener() {
             private final BlockingQueue<Object> events = new LinkedBlockingDeque<>();
+
             @Override
             public void onEvent(final @NotNull EventSource eventSource, final String id, final String type, @NotNull String data) {
                 eventCounter.getAndIncrement();

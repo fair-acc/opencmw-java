@@ -6,9 +6,7 @@ import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
-import static io.opencmw.server.MajordomoBroker.SCHEME_MDP;
-import static io.opencmw.server.MajordomoBroker.SCHEME_MDS;
-import static io.opencmw.server.MajordomoBroker.SCHEME_TCP;
+import static io.opencmw.server.MajordomoBroker.*;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
 
@@ -17,11 +15,19 @@ import java.io.StringWriter;
 import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.BiPredicate;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
@@ -55,12 +61,12 @@ import io.opencmw.utils.SystemProperties;
 @MetaInfo(description = "default BasicMdpWorker implementation")
 @SuppressWarnings({ "PMD.GodClass", "PMD.ExcessiveImports", "PMD.TooManyStaticImports", "PMD.DoNotUseThreads", "PMD.TooManyFields", "PMD.TooManyMethods" }) // makes the code more readable/shorter lines
 public class BasicMdpWorker extends Thread {
+    private static final Logger LOGGER = LoggerFactory.getLogger(BasicMdpWorker.class);
     protected static final byte[] RBAC = {}; //TODO: implement RBAC between Majordomo and Worker
-    protected static final String WILDCARD = "*";
     protected static final int HEARTBEAT_LIVENESS = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeatLiveness", 3); // [counts] 3-5 is reasonable
     protected static final int HEARTBEAT_INTERVAL = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeat", 2500); // [ms]
     protected static final AtomicInteger WORKER_COUNTER = new AtomicInteger();
-    private static final Logger LOGGER = LoggerFactory.getLogger(BasicMdpWorker.class);
+    protected BiPredicate<URI, URI> subscriptionMatcher = new PathSubscriptionMatcher(); // <notify topic, subscribe topic>
 
     static {
         final String reason = "recursive definitions inside ZeroMQ";
@@ -80,7 +86,7 @@ public class BasicMdpWorker extends Thread {
     protected final SortedSet<RbacRole> rbacRoles; // NOSONAR NOPMD
     protected final ZMQ.Socket notifySocket; // Socket to listener -- needed for thread-decoupling
     protected final ZMQ.Socket notifyListenerSocket; // Socket to notifier -- needed for thread-decoupling
-    protected final List<String> activeSubscriptions = Collections.synchronizedList(new ArrayList<>());
+    protected final List<URI> activeSubscriptions = Collections.synchronizedList(new ArrayList<>());
     protected final boolean isExternal; // used to skip heart-beating and disconnect checks
     protected ZMQ.Socket workerSocket; // Socket to broker
     protected ZMQ.Socket pubSocket; // Socket to broker
@@ -153,12 +159,11 @@ public class BasicMdpWorker extends Thread {
      * @param notifyMessage the message that is supposed to be broadcast
      * @return {@code false} in case message has not been sent (e.g. due to no pending subscriptions
      */
-    public boolean notify(@NotNull final MdpMessage notifyMessage) {
+    public boolean notify(final @NotNull MdpMessage notifyMessage) {
         // send only if there are matching topics and duplicate messages based on topics as necessary
         final URI originalTopic = notifyMessage.topic;
-        final List<String> subTopics = new ArrayList<>(activeSubscriptions); // copy for decoupling/performance reasons
-        // N.B. for the time being only the path is matched - TODO: upgrade to full topic matching
-        if (subTopics.stream().filter(s -> s.startsWith(originalTopic.getPath()) || s.isBlank()).findFirst().isEmpty()) {
+        final List<URI> subTopics = new ArrayList<>(activeSubscriptions); // copy for decoupling/performance reasons
+        if (subTopics.stream().filter(s -> subscriptionMatcher.test(originalTopic, s)).findFirst().isEmpty()) {
             // block further processing of message
             return false;
         }
@@ -196,6 +201,7 @@ public class BasicMdpWorker extends Thread {
 
                 final ZMsg pubMsg = ZMsg.recvMsg(pubSocket, false);
                 dataReceived |= handleSubscriptionMsg(pubMsg);
+
 
                 // handle message from or to notify thread
                 final MdpMessage notifyMsg = receive(notifyListenerSocket, false);
@@ -284,12 +290,12 @@ public class BasicMdpWorker extends Thread {
             return false;
         }
         final Command subType = topicBytes[0] == 1 ? SUBSCRIBE : (topicBytes[0] == 0 ? UNSUBSCRIBE : UNKNOWN); // '1'('0' being the default ZeroMQ (un-)subscribe command
-        final String subscriptionTopic = new String(topicBytes, 1, topicBytes.length - 1, UTF_8);
-        if (LOGGER.isDebugEnabled() && (subscriptionTopic.isBlank() || subscriptionTopic.contains(getServiceName()))) {
+        final URI subscriptionTopic = URI.create(new String(topicBytes, 1, topicBytes.length - 1, UTF_8));
+        if (LOGGER.isDebugEnabled() && (subscriptionTopic.toString().isBlank() || subscriptionTopic.toString().contains(getServiceName()))) {
             LOGGER.atDebug().addArgument(getServiceName()).addArgument(subType).addArgument(subscriptionTopic).log("Service '{}' received subscription request: {} to '{}'");
         }
 
-        if (!subscriptionTopic.isBlank() && !subscriptionTopic.startsWith(getServiceName())) {
+        if (!subscriptionTopic.toString().isBlank() && !subscriptionTopic.getPath().startsWith(getServiceName())) {
             // subscription topic for another service
             return false;
         }
@@ -307,7 +313,6 @@ public class BasicMdpWorker extends Thread {
     }
 
     protected boolean notifyRaw(@NotNull final MdpMessage notifyMessage) {
-        assert notifyMessage != null : "notify message must not be null";
         return notifyMessage.send(notifySocket);
     }
 

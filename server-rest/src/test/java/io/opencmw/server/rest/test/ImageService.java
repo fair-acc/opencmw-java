@@ -31,12 +31,13 @@ public class ImageService extends MajordomoWorker<TestContext, NoData, BinaryDat
     private final byte[][] imageData;
     private final AtomicInteger selectedImage = new AtomicInteger();
 
+    @SuppressWarnings("UnstableApiUsage")
     public ImageService(final ZContext ctx, final int updateInterval, final RbacRole<?>... rbacRoles) {
         super(ctx, PROPERTY_NAME, TestContext.class, NoData.class, BinaryData.class, rbacRoles);
         imageData = new byte[TEST_IMAGES.length][];
         for (int i = 0; i < TEST_IMAGES.length; i++) {
             try (final InputStream in = this.getClass().getResourceAsStream(TEST_IMAGES[i])) {
-                imageData[i] = ByteStreams.toByteArray(in);
+                imageData[i] = ByteStreams.toByteArray(in); // NOPMD NOSONAR
                 LOGGER.atInfo().addArgument(TEST_IMAGES[i]).addArgument(imageData[i].length).log("read test image file: '{}' - bytes: {}");
             } catch (IOException e) {
                 LOGGER.atError().setCause(e).addArgument(TEST_IMAGES[i]).log("could not read test image file: '{}'");
@@ -51,7 +52,7 @@ public class ImageService extends MajordomoWorker<TestContext, NoData, BinaryDat
                 final TestContext replyCtx = new TestContext();
                 BinaryData reply = new BinaryData();
                 reply.resourceName = "test.png";
-                reply.data = imageData[selectedImage.get()]; //TODO rotate through images
+                reply.data = imageData[selectedImage.get()];
                 replyCtx.contentType = MimeType.PNG;
                 ImageService.this.notify(replyCtx, reply);
                 // System.err.println("notify new image " + replyCtx)

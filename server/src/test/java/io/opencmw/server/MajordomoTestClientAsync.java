@@ -2,6 +2,7 @@ package io.opencmw.server;
 
 import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
 import static io.opencmw.OpenCmwProtocol.Command.SUBSCRIBE;
+import static io.opencmw.OpenCmwProtocol.Command.UNSUBSCRIBE;
 import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 
@@ -82,6 +83,18 @@ public class MajordomoTestClientAsync {
         final String topic = new String(service, StandardCharsets.UTF_8);
         final byte[] rbacTokenByte = rbacToken.length > 0 ? rbacToken[0] : null;
         return new OpenCmwProtocol.MdpMessage(null, PROT_CLIENT, SUBSCRIBE, service, "requestID".getBytes(StandardCharsets.UTF_8), URI.create(topic), EMPTY_FRAME, "", rbacTokenByte).send(clientSocket);
+    }
+
+    /**
+     * Send subscription request to broker
+     *
+     * @param service UTF-8 encoded service name byte array
+     * @param rbacToken optional RBAC-token
+     */
+    public boolean unsubscribe(final byte[] service, final byte[]... rbacToken) {
+        final String topic = new String(service, StandardCharsets.UTF_8);
+        final byte[] rbacTokenByte = rbacToken.length > 0 ? rbacToken[0] : null;
+        return new OpenCmwProtocol.MdpMessage(null, PROT_CLIENT, UNSUBSCRIBE, service, "requestID".getBytes(StandardCharsets.UTF_8), URI.create(topic), EMPTY_FRAME, "", rbacTokenByte).send(clientSocket);
     }
 
     /**

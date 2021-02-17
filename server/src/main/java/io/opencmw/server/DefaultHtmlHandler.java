@@ -7,6 +7,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -47,7 +48,7 @@ public class DefaultHtmlHandler<C, I, O> implements MajordomoWorker.Handler<C, I
         final String queryString = rawCtx.req.topic.getQuery();
         final boolean noMenu = queryString != null && queryString.contains(NO_MENU);
 
-        final HashMap<String, Object> context = new HashMap<>();
+        final Map<String, Object> context = Objects.requireNonNullElse(rawCtx.htmlData, new HashMap<>()); // NOPMD - no concurrent access, used in a single thread and is then destroyed
         // pre-fill context
 
         context.put(NO_MENU, noMenu);

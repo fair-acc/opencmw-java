@@ -2,6 +2,7 @@ package io.opencmw;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.AbstractMap.SimpleImmutableEntry;
+import static java.util.Objects.requireNonNullElse;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
 
@@ -12,14 +13,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
@@ -47,20 +41,20 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
     public static final ConcurrentMap<Type, BiFunction<Object, ClassFieldDescription, String>> CLASS_TO_STRING_CONVERTER = new ConcurrentHashMap<>(); // NOSONAR NOPMD
     public static final ConcurrentMap<Type, BiFunction<Object, ClassFieldDescription, Object>> CLASS_TO_OBJECT_CONVERTER = new ConcurrentHashMap<>(); // NOSONAR NOPMD
     static {
-        STRING_TO_CLASS_CONVERTER.put(boolean.class, (str, obj, field) -> field.getField().setBoolean(obj, Boolean.parseBoolean(str)));
-        STRING_TO_CLASS_CONVERTER.put(byte.class, (str, obj, field) -> field.getField().setByte(obj, Byte.parseByte(str)));
-        STRING_TO_CLASS_CONVERTER.put(short.class, (str, obj, field) -> field.getField().setShort(obj, Short.parseShort(str)));
-        STRING_TO_CLASS_CONVERTER.put(int.class, (str, obj, field) -> field.getField().setInt(obj, Integer.parseInt(str)));
-        STRING_TO_CLASS_CONVERTER.put(long.class, (str, obj, field) -> field.getField().setLong(obj, Long.parseLong(str)));
-        STRING_TO_CLASS_CONVERTER.put(float.class, (str, obj, field) -> field.getField().setFloat(obj, Float.parseFloat(str)));
-        STRING_TO_CLASS_CONVERTER.put(double.class, (str, obj, field) -> field.getField().setDouble(obj, Double.parseDouble(str)));
-        STRING_TO_CLASS_CONVERTER.put(Boolean.class, (str, obj, field) -> field.getField().set(obj, Boolean.parseBoolean(str)));
-        STRING_TO_CLASS_CONVERTER.put(Byte.class, (str, obj, field) -> field.getField().set(obj, Byte.parseByte(str)));
-        STRING_TO_CLASS_CONVERTER.put(Short.class, (str, obj, field) -> field.getField().set(obj, Short.parseShort(str)));
-        STRING_TO_CLASS_CONVERTER.put(Integer.class, (str, obj, field) -> field.getField().set(obj, Integer.parseInt(str)));
-        STRING_TO_CLASS_CONVERTER.put(Long.class, (str, obj, field) -> field.getField().set(obj, Long.parseLong(str)));
-        STRING_TO_CLASS_CONVERTER.put(Float.class, (str, obj, field) -> field.getField().set(obj, Float.parseFloat(str)));
-        STRING_TO_CLASS_CONVERTER.put(Double.class, (str, obj, field) -> field.getField().set(obj, Double.parseDouble(str)));
+        STRING_TO_CLASS_CONVERTER.put(boolean.class, (str, obj, field) -> field.getField().setBoolean(obj, Boolean.parseBoolean(requireNonNullElse(str, "0"))));
+        STRING_TO_CLASS_CONVERTER.put(byte.class, (str, obj, field) -> field.getField().setByte(obj, Byte.parseByte(requireNonNullElse(str, "0"))));
+        STRING_TO_CLASS_CONVERTER.put(short.class, (str, obj, field) -> field.getField().setShort(obj, Short.parseShort(requireNonNullElse(str, "0"))));
+        STRING_TO_CLASS_CONVERTER.put(int.class, (str, obj, field) -> field.getField().setInt(obj, Integer.parseInt(requireNonNullElse(str, "0"))));
+        STRING_TO_CLASS_CONVERTER.put(long.class, (str, obj, field) -> field.getField().setLong(obj, Long.parseLong(requireNonNullElse(str, "0"))));
+        STRING_TO_CLASS_CONVERTER.put(float.class, (str, obj, field) -> field.getField().setFloat(obj, Float.parseFloat(requireNonNullElse(str,"0"))));
+        STRING_TO_CLASS_CONVERTER.put(double.class, (str, obj, field) -> field.getField().setDouble(obj, Double.parseDouble(requireNonNullElse(str,"0"))));
+        STRING_TO_CLASS_CONVERTER.put(Boolean.class, (str, obj, field) -> field.getField().set(obj, str == null ? null : Boolean.parseBoolean(str)));
+        STRING_TO_CLASS_CONVERTER.put(Byte.class, (str, obj, field) -> field.getField().set(obj, str == null ? null : Byte.parseByte(str)));
+        STRING_TO_CLASS_CONVERTER.put(Short.class, (str, obj, field) -> field.getField().set(obj, str == null ? null : Short.parseShort(str)));
+        STRING_TO_CLASS_CONVERTER.put(Integer.class, (str, obj, field) -> field.getField().set(obj, str == null ? null : Integer.parseInt(str)));
+        STRING_TO_CLASS_CONVERTER.put(Long.class, (str, obj, field) -> field.getField().set(obj, str == null ? null : Long.parseLong(str)));
+        STRING_TO_CLASS_CONVERTER.put(Float.class, (str, obj, field) -> field.getField().set(obj, str == null ? null : Float.parseFloat(str)));
+        STRING_TO_CLASS_CONVERTER.put(Double.class, (str, obj, field) -> field.getField().set(obj, str == null ? null : Double.parseDouble(str)));
         STRING_TO_CLASS_CONVERTER.put(String.class, (str, obj, field) -> field.getField().set(obj, str));
 
         final BiFunction<Object, ClassFieldDescription, String> objToString = (obj, field) -> {
@@ -88,7 +82,7 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         CLASS_TO_STRING_CONVERTER.put(Long.class, objToString);
         CLASS_TO_STRING_CONVERTER.put(Float.class, objToString);
         CLASS_TO_STRING_CONVERTER.put(Double.class, objToString);
-        CLASS_TO_STRING_CONVERTER.put(String.class, (obj, field) -> Objects.requireNonNullElse(field.getField().get(obj), "").toString());
+        CLASS_TO_STRING_CONVERTER.put(String.class, (obj, field) -> requireNonNullElse(field.getField().get(obj), "").toString());
 
         CLASS_TO_OBJECT_CONVERTER.put(boolean.class, (obj, field) -> field.getField().getBoolean(obj));
         CLASS_TO_OBJECT_CONVERTER.put(byte.class, (obj, field) -> field.getField().getByte(obj));
