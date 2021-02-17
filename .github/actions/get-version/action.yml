@@ -36,13 +36,13 @@ runs:
           if [[ -z "$lasttag" ]]; then
             echo "[warning] Could not find last valid version number!"
             export lasttag=0.0.1
-            export newcomits=-0
+            export newcommits=-0
           else
             export tmp=${desc#"$lasttag"}
             export newcommits=${tmp%-*}
           fi
-          export rev=${lasttag}${branch}${newcommits}
-          export sha1=$(git rev-parse --short HEAD)
+          export rev=${lasttag}-${branch}${newcommits}
+          export sha1=-$(git rev-parse --short HEAD)
           export changelist="-SNAPSHOT"
         fi
         echo "::set-output name=revision::$(echo $rev)"
