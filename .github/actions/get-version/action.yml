@@ -18,28 +18,29 @@ outputs:
 runs:
   using: "composite"
   steps:
-    -id: get-version
-    -run: |
-      export gh_ref=${GITHUB_REF#refs/*/}
-      if [[ "${GITHUB_REF#refs/tags/}" =~ ^${{ inputs.versionPattern }}$ ]]; then
-        export revision=${gh_rev/\//-}
-        export sha1=""
-        export changelist=""
-      else
-        export branch=${gh_rev/\//-}
-        if [[ $branch =~ [1-9]*-merge ]]; then
-          export branch=PR${branch%-merge}
+    - id: get-version
+      shell: bash
+      run: |
+        export gh_ref=${GITHUB_REF#refs/*/}
+        if [[ "${GITHUB_REF#refs/tags/}" =~ ^${{ inputs.versionPattern }}$ ]]; then
+          export revision=${gh_rev/\//-}
+          export sha1=""
+          export changelist=""
+        else
+          export branch=${gh_rev/\//-}
+          if [[ $branch =~ [1-9]*-merge ]]; then
+            export branch=PR${branch%-merge}
+          fi
+          export lasttag=`git describe --tags --match=${{ inputs.versionPattern }} --abbrev=0`
+          export desc=`git describe --tags --match=${{ inputs.versionPattern }} --long`
+          export tmp=${desc#"$lasttag"}
+          export newcommits=${tmp%-*}
+          export rev=${lasttag}${branch}${newcommits}
+          export sha1=$(git rev-parse --short HEAD)
+          export changelist="-SNAPSHOT"
         fi
-        export lasttag=`git describe --tags --match=${{ inputs.versionPattern }} --abbrev=0`
-        export desc=`git describe --tags --match=${{ inputs.versionPattern }} --long`
-        export tmp=${desc#"$lasttag"}
-        export newcommits=${tmp%-*}
-        export rev=${lasttag}${branch}${newcommits}
-        export sha1=$(git rev-parse --short HEAD)
-        export changelist="-SNAPSHOT"
-      fi
-      echo "::set-output name=revision::$(echo $rev)"
-      echo "::set-output name=sha1::$(echo $sha1)"
-      echo "::set-output name=changelist::$(echo $changelist)"
-      echo "Version will be:"
-      echo ${ver}${rev}${changelist}
+        echo "::set-output name=revision::$(echo $rev)"
+        echo "::set-output name=sha1::$(echo $sha1)"
+        echo "::set-output name=changelist::$(echo $changelist)"
+        echo "Version will be:"
+        echo ${ver}${rev}${changelist}
