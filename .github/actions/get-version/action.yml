@@ -27,14 +27,20 @@ runs:
           export sha1=""
           export changelist=""
         else
-          export branch=${gh_rev/\//-}
+          export branch=${gh_ref/\//-}
           if [[ $branch =~ [1-9]*-merge ]]; then
             export branch=PR${branch%-merge}
           fi
           export lasttag=`git describe --tags --match=${{ inputs.versionPattern }} --abbrev=0`
           export desc=`git describe --tags --match=${{ inputs.versionPattern }} --long`
-          export tmp=${desc#"$lasttag"}
-          export newcommits=${tmp%-*}
+          if [[ -z "$lasttag" ]]; then
+            echo "[warning] Could not find last valid version number!"
+            export lasttag=0.0.1
+            export newcomits=-0
+          else
+            export tmp=${desc#"$lasttag"}
+            export newcommits=${tmp%-*}
+          fi
           export rev=${lasttag}${branch}${newcommits}
           export sha1=$(git rev-parse --short HEAD)
           export changelist="-SNAPSHOT"
