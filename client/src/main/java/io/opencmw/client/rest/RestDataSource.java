@@ -1,11 +1,20 @@
 
 package io.opencmw.client.rest;
 
+import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
+
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -17,8 +26,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 
-import javax.validation.constraints.NotNull;
-
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.spi.LoggingEventBuilder;
@@ -42,11 +50,12 @@ import okhttp3.sse.EventSource;
 import okhttp3.sse.EventSourceListener;
 import okhttp3.sse.EventSources;
 
+@SuppressWarnings({ "PMD.TooManyFields", "PMD.ExcessiveImports" })
 public class RestDataSource extends DataSource implements Runnable {
     public static final Factory FACTORY = new Factory() {
         @Override
         public boolean matches(final String endpoint) {
-            return endpoint != null && !endpoint.isBlank() && endpoint.toLowerCase().startsWith("http");
+            return endpoint != null && !endpoint.isBlank() && endpoint.toLowerCase(Locale.UK).startsWith("http");
         }
 
         @Override
@@ -66,7 +75,7 @@ public class RestDataSource extends DataSource implements Runnable {
     private static final AtomicLong PUBLICATION_COUNTER = new AtomicLong();
     protected static OkHttpClient okClient;
     protected static EventSource.Factory eventSourceFactory;
-    protected final AtomicBoolean run = new AtomicBoolean(true);
+    protected final AtomicBoolean run = new AtomicBoolean(true); // NOPMD
     protected final String uniqueID;
     protected final byte[] uniqueIdBytes;
     protected final String endpoint;
@@ -105,9 +114,10 @@ public class RestDataSource extends DataSource implements Runnable {
     public RestDataSource(final ZContext ctx, final String endpoint, final Duration timeOut, final String clientID) {
         super(endpoint);
         synchronized (LOGGER) { // prevent race condition between multiple constructor invocations
+            // initialised only when needed, ie. when RestDataSource is actually instantiated
             if (okClient == null) {
-                okClient = new OkHttpClient();
-                eventSourceFactory = EventSources.createFactory(okClient);
+                okClient = new OkHttpClient(); // NOPMD
+                eventSourceFactory = EventSources.createFactory(okClient); // NOPMD
             }
         }
 
@@ -125,7 +135,7 @@ public class RestDataSource extends DataSource implements Runnable {
             timer.scheduleAtFixedRate(wakeupTask, 0, timeOut.toMillis());
         }
 
-        start();
+        start(); // NOPMD - starts on initialisation
     }
 
     /**
@@ -284,24 +294,23 @@ public class RestDataSource extends DataSource implements Runnable {
                         newData.wait(waitMax);
                     }
 
-                    byte[] header;
-                    byte[] data;
-                    byte[] exception;
                     for (RestCallBack callBack : completedCallbacks) {
                         // notify data
 
-                        if (callBack.response != null) {
+                        final byte[] header;
+                        final byte[] data;
+                        if (callBack.response == null) {
+                            // exception branch
+                            header = EMPTY_FRAME;
+                            data = EMPTY_FRAME;
+                        } else {
                             header = callBack.response.headers().toString().getBytes(StandardCharsets.UTF_8);
                             data = callBack.response.peekBody(Long.MAX_VALUE).bytes();
                             callBack.response.close();
-                        } else {
-                            // exception branch
-                            header = new byte[0];
-                            data = new byte[0];
                         }
-                        exception = callBack.exception == null ? new byte[0] : callBack.exception.getMessage().getBytes(StandardCharsets.UTF_8);
+                        final byte[] exception = callBack.exception == null ? EMPTY_FRAME : callBack.exception.getMessage().getBytes(StandardCharsets.UTF_8);
 
-                        ZMsg msg = new ZMsg();
+                        final ZMsg msg = new ZMsg(); // NOPMD - instantiation in loop
                         msg.add(callBack.hashKey);
                         msg.add(callBack.endPointName);
                         msg.add(header);
@@ -317,7 +326,7 @@ public class RestDataSource extends DataSource implements Runnable {
                     housekeeping();
                 }
             }
-        } catch (final Exception e) { // NOSONAR -- terminate normally beyond this point
+        } catch (final Exception e) { // NOPMD NOSONAR -- terminate normally beyond this point
             LOGGER.atError().setCause(e).log("data acquisition loop abnormally terminated");
         } finally {
             externalSocket.close();
@@ -328,7 +337,7 @@ public class RestDataSource extends DataSource implements Runnable {
 
     public void start() {
         createPair();
-        new Thread(this).start();
+        new Thread(this).start(); // NOPMD
     }
 
     public void stop() {

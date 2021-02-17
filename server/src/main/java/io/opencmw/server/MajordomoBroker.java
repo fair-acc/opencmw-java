@@ -12,7 +12,11 @@ import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
 import static io.opencmw.server.MmiServiceHelper.*;
 
-import java.net.*;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.URI;
+import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -20,8 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import javax.validation.constraints.NotNull;
-
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
@@ -54,9 +57,9 @@ import io.opencmw.utils.SystemProperties;
  * <small>N.B. if registered, a HEARTBEAT challenge will be send that needs to be replied with a READY command/re-registering</small></li>
  * </ul>
  */
-@SuppressWarnings({ "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.CommentSize" }) // package private explicitly needed for MmiServiceHelper, thread-safe/performance use of HashMap
+@SuppressWarnings({ "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.TooManyMethods", "PMD.TooManyStaticImports", "PMD.CommentSize", "PMD.UseConcurrentHashMap" }) // package private explicitly needed for MmiServiceHelper, thread-safe/performance use of HashMap
 public class MajordomoBroker extends Thread {
-    public static final byte[] RBAC = new byte[] {}; // TODO: implement RBAC between Majordomo and Worker
+    public static final byte[] RBAC = {}; // TODO: implement RBAC between Majordomo and Worker
     // ----------------- default service names -----------------------------
     public static final String SUFFIX_ROUTER = "/router";
     public static final String SUFFIX_PUBLISHER = "/publisher";
@@ -89,14 +92,14 @@ public class MajordomoBroker extends Thread {
     protected final String dnsAddress;
     protected final List<String> routerSockets = new NoDuplicatesList<>(); // Sockets for clients & public external workers
     protected final SortedSet<RbacRole<?>> rbacRoles;
-    final Map<String, Service> services = new HashMap<>(); // NOPMD known services Map<'service name', Service>
-    protected final Map<String, Worker> workers = new HashMap<>(); // NOPMD known workers Map<addressHex, Worker
-    protected final Map<String, Client> clients = new HashMap<>(); // NOPMD
-    protected final Map<String, AtomicInteger> activeSubscriptions = new HashMap<>(); // NOPMD Map<ServiceName,List<SubscriptionTopic>>
-    protected final Map<String, List<byte[]>> routerBasedSubscriptions = new HashMap<>(); // NOPMD Map<ServiceName,List<SubscriptionTopic>>
-    private final AtomicBoolean run = new AtomicBoolean(false);
+    /* default */ final Map<String, Service> services = new HashMap<>(); // known services Map<'service name', Service>
+    protected final Map<String, Worker> workers = new HashMap<>(); // known workers Map<addressHex, Worker
+    protected final Map<String, Client> clients = new HashMap<>();
+    protected final Map<String, AtomicInteger> activeSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
+    protected final Map<String, List<byte[]>> routerBasedSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
+    private final AtomicBoolean run = new AtomicBoolean(false); // NOPMD - nomen est omen
     private final Deque<Worker> waiting = new ArrayDeque<>(); // idle workers
-    final Map<String, DnsServiceItem> dnsCache = new HashMap<>(); // NOPMD <server name, DnsServiceItem>
+    /* default */ final Map<String, DnsServiceItem> dnsCache = new HashMap<>(); // <server name, DnsServiceItem>
     private long heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL; // When to send HEARTBEAT
     private long dnsHeartbeatAt = System.currentTimeMillis() + DNS_TIMEOUT; // When to send a DNS HEARTBEAT
 
@@ -287,7 +290,7 @@ public class MajordomoBroker extends Thread {
     }
 
     @Override
-    public synchronized void start() {
+    public synchronized void start() { // NOPMD - need to be synchronised on class level due to super definition
         run.set(true);
         services.forEach((serviceName, service) -> service.internalWorkers.forEach(Thread::start));
         super.start();
@@ -464,7 +467,7 @@ public class MajordomoBroker extends Thread {
      * @param receiveSocket the socket the message was received at
      * @param msg           the received and to be processed message
      */
-    protected void processWorker(final Socket receiveSocket, final MdpMessage msg) {
+    protected void processWorker(final Socket receiveSocket, final MdpMessage msg) { //NOPMD
         final String senderIdHex = strhex(msg.senderID);
         final String serviceName = msg.getServiceName();
         final boolean workerReady = workers.containsKey(senderIdHex);

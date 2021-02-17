@@ -125,13 +125,13 @@ public class RestUserHandlerImpl implements RestUserHandler {
         }
         synchronized (usersLock) {
             if (authenticate(userName, oldPassword)) {
-                // N.B. default rounds is 2^10, increase this if necessary to harden passwords
-                final String newSalt = BCrypt.gensalt();
-                final String newHashedPassword = BCrypt.hashpw(newPassword, newSalt);
                 final RestUser user = getUserByUsername(userName);
                 if (user == null) {
                     return false;
                 }
+                // N.B. default rounds is 2^10, increase this if necessary to harden passwords
+                final String newSalt = BCrypt.gensalt();
+                final String newHashedPassword = BCrypt.hashpw(newPassword, newSalt);
                 user.salt = newSalt;
                 user.hashedPassword = newHashedPassword;
                 writePasswordFile();
@@ -141,6 +141,7 @@ public class RestUserHandlerImpl implements RestUserHandler {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void writePasswordFile() {
         if (LOGGER.isDebugEnabled()) {
             LOGGER.atDebug().log("updatePasswordFile called");

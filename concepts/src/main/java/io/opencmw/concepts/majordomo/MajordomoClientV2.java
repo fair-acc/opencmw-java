@@ -44,8 +44,6 @@ public class MajordomoClientV2 {
      * all unanswered requests and resending them all…
      */
     public ZMsg recv() {
-        ZMsg reply = null;
-
         // Poll socket for a reply, with timeout
         if (poller.poll(timeout * 1000) == -1) {
             return null; // Interrupted
@@ -69,9 +67,9 @@ public class MajordomoClientV2 {
             ZFrame replyService = msg.pop();
             replyService.destroy();
 
-            reply = msg;
+            return msg;
         }
-        return reply;
+        return null;
     }
 
     /**
@@ -101,7 +99,7 @@ public class MajordomoClientV2 {
     /**
      * Connect or reconnect to broker
      */
-    void reconnectToBroker() {
+    private void reconnectToBroker() {
         if (clientSocket != null) {
             clientSocket.close();
         }

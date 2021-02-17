@@ -61,7 +61,7 @@ public final class SerialiserHelper {
         // final WireDataFieldDescription fieldRoot = SerialiserHelper.deserialiseMap(byteBuffer);
         // fieldRoot.printFieldStructure();
 
-        outputObject = (TestDataClass) ioSerialiser.deserialiseObject(outputObject);
+        outputObject = ioSerialiser.deserialiseObject(outputObject);
 
         // second test - both vectors should have the same initial values after serialise/deserialise
         assertArrayEquals(inputObject.stringArray, outputObject.stringArray);
@@ -295,7 +295,7 @@ public final class SerialiserHelper {
 
             byteBuffer.reset();
 
-            outputObject = (TestDataClass) ioSerialiser.deserialiseObject(outputObject);
+            outputObject = ioSerialiser.deserialiseObject(outputObject);
 
             if (!inputObject.string1.contentEquals(outputObject.string1)) {
                 // quick check necessary so that the above is not optimised by the Java JIT compiler to NOP

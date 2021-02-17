@@ -168,6 +168,7 @@ class AggregateEventHandlerTests {
         Awaitility.await().atMost(Duration.ofSeconds(repeat)).until(() -> endBarrier.asSequenceBarrier().getCursor() == rb.getCursor() && Arrays.stream(aggProc.getAggregationHander()).allMatch(w -> w.bpcts == -1));
         // compare aggregated results and timeouts
         assertFalse(aggResults.isEmpty());
+        //noinspection unchecked
         assertThat(aggResults, containsInAnyOrder(Arrays.stream(aggregatesAll.split(";"))
                                                           .filter(s -> !s.isEmpty())
                                                           .map(s -> containsInAnyOrder(Arrays.stream(s.split(" ")).map(String::trim).filter(e -> !e.isEmpty()).toArray()))

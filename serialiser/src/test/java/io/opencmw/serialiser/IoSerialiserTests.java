@@ -55,7 +55,7 @@ class IoSerialiserTests {
         serialiser.serialiseObject(inputObject);
 
         buffer.flip();
-        outputObject1 = (MyGenericClass) serialiser.deserialiseObject(outputObject1);
+        outputObject1 = serialiser.deserialiseObject(outputObject1);
 
         // second test - both vectors should have the same initial values
         // after serialise/deserialise
@@ -73,7 +73,7 @@ class IoSerialiserTests {
         serialiser.serialiseObject(inputObject);
 
         buffer.flip();
-        outputObject2 = (MyGenericClass) serialiser.deserialiseObject(outputObject2);
+        outputObject2 = serialiser.deserialiseObject(outputObject2);
 
         // third test - both vectors should have the same modified values
         assertEquals(inputObject, outputObject2);
@@ -124,7 +124,7 @@ class IoSerialiserTests {
         buffer.reset();
         serialiser.serialiseObject(inputObject);
         buffer.flip();
-        outputObject = (DataSet) serialiser.deserialiseObject(outputObject);
+        outputObject = serialiser.deserialiseObject(outputObject);
 
         assertEquals(inputObject, outputObject);
 
@@ -134,7 +134,7 @@ class IoSerialiserTests {
         buffer.reset();
         serialiser.serialiseObject(inputObject);
         buffer.flip();
-        outputObject = (DataSet) serialiser.deserialiseObject(outputObject);
+        outputObject = serialiser.deserialiseObject(outputObject);
 
         assertEquals(inputObject, outputObject);
 
@@ -145,7 +145,7 @@ class IoSerialiserTests {
         buffer.reset();
         serialiser.serialiseObject(inputObject);
         buffer.flip();
-        outputObject = (DoubleDataSet) serialiser.deserialiseObject(outputObject);
+        outputObject = serialiser.deserialiseObject(outputObject);
 
         assertEquals(inputObject, outputObject);
     }

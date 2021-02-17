@@ -7,8 +7,7 @@ import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
 import java.net.URI;
 import java.util.Arrays;
 
-import javax.validation.constraints.NotNull;
-
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.ZContext;
@@ -27,8 +26,9 @@ import io.opencmw.serialiser.spi.FastByteBuffer;
 import io.opencmw.serialiser.spi.JsonSerialiser;
 
 /**
- * More complex MajordomoWorker including de-serialising and re-serialising.
- * This implements handlers that are driven by PoJo domain objects.
+ * MajordomoWorker implementation including de-serialising and re-serialising to domain-objects.
+ * <p>
+ * This implements GET/SET/NOTIFY handlers that are driven by PoJo domain objects.
  *
  * @author rstein
  *

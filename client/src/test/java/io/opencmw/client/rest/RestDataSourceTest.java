@@ -1,10 +1,11 @@
 package io.opencmw.client.rest;
 
+import static java.util.Objects.requireNonNull;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -78,7 +79,7 @@ class RestDataSourceTest {
         assertThrows(IllegalArgumentException.class, () -> new RestDataSource(null, server.url("/sse").toString(), null, "clientName")); // NOSONAR
         RestDataSource dataSource = new RestDataSource(null, server.url("/sse").toString());
         assertNotNull(dataSource);
-        assertDoesNotThrow(() -> dataSource.housekeeping());
+        assertDoesNotThrow(dataSource::housekeeping);
     }
 
     @Test
@@ -127,15 +128,16 @@ class RestDataSourceTest {
             dataSource.cancelLastCall = 3; // required for unit-testing
             dataSource.enqueueRequest("testHashKey#1");
             ZMsg returnMessage = receiveAndCheckData(dataSource, "testHashKey#1", true);
-            assertNotEquals(0, returnMessage.pollLast().getData().length);
-            assertNotEquals(0, returnMessage.pollLast().getData().length);
+            System.err.println("returnMessage = " + returnMessage);
+            assertNotEquals(0, requireNonNull(requireNonNull(returnMessage.pollLast())).getData().length);
+            assertNotEquals(0, requireNonNull(requireNonNull(returnMessage.pollLast())).getData().length);
 
             // four retries  without successful response
             dataSource.cancelLastCall = 4; // required for unit-testing
             dataSource.enqueueRequest("testHashKey#1");
             returnMessage = receiveAndCheckData(dataSource, "testHashKey#1", true);
-            assertNotEquals(0, returnMessage.pollLast().getData().length);
-            assertEquals(0, returnMessage.pollLast().getData().length);
+            assertNotEquals(0, requireNonNull(requireNonNull(returnMessage.pollLast())).getData().length);
+            assertEquals(0, requireNonNull(requireNonNull(returnMessage.pollLast())).getData().length);
 
             dataSource.stop();
         }
@@ -227,7 +229,7 @@ class RestDataSourceTest {
                 LOGGER.atError().setCause(e).log("server-request exception");
                 return new MockResponse().setResponseCode(404);
             }
-            switch (Objects.requireNonNull(path)) {
+            switch (requireNonNull(path)) {
             case "/sse":
                 if ("text/event-stream".equals(acceptHeader)) {
                     return new MockResponse().setBody("data: event-stream init\n\n").setHeader("content-type", "text/event-stream");

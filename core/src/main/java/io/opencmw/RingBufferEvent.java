@@ -7,6 +7,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 import org.slf4j.Logger;
@@ -16,6 +18,7 @@ import io.opencmw.utils.SharedPointer;
 
 import com.lmax.disruptor.EventHandler;
 
+@SuppressWarnings("PMD.TooManyMethods")
 public class RingBufferEvent implements FilterPredicate, Cloneable {
     private final static Logger LOGGER = LoggerFactory.getLogger(RingBufferEvent.class);
     /**
@@ -62,7 +65,7 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "MethodDoesntCallSuperMethod" })
     public RingBufferEvent clone() { // NOSONAR NOPMD we do not want to call super (would be kind of stupid)
         final RingBufferEvent retVal = new RingBufferEvent(Arrays.stream(filters).map(Filter::getClass).toArray(Class[] ::new));
         this.copyTo(retVal);
@@ -118,7 +121,7 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
         if (payload != null) {
             payload.release();
         }
-        payload = null;
+        payload = null; // NOPMD - null use on purpose (faster/easier than an Optional)
     }
 
     @Override
@@ -126,8 +129,9 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
         return filterPredicate.test(filterClass.cast(getFilter(filterClass)));
     }
 
+    @Override
     public String toString() {
-        final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+        final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.UK);
         final StringBuilder builder = new StringBuilder();
         builder.append(RingBufferEvent.class.getSimpleName()).append(": arrivalTimeStamp ").append(arrivalTimeStamp).append(" (").append(sdf.format(arrivalTimeStamp)).append(") parent sequence number: ").append(parentSequenceNumber).append(" - filter: ");
         printToStringArrayList(builder, "[", "]", (Object[]) filters);
@@ -172,6 +176,7 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
      * default buffer element clearing handler
      */
     public static class ClearEventHandler implements EventHandler<RingBufferEvent> {
+        @Override
         public void onEvent(RingBufferEvent event, long sequence, boolean endOfBatch) {
             LOGGER.atTrace().addArgument(sequence).addArgument(endOfBatch).log("clearing RingBufferEvent sequence = {} endOfBatch = {}");
             event.clear();
@@ -199,7 +204,7 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
         if (!Arrays.equals(filters, other.filters)) {
             return false;
         }
-        if (payload != null ? !payload.equals(other.payload) : other.payload != null) {
+        if (!Objects.equals(payload, other.payload)) {
             return false;
         }
         return throwables.equals(other.throwables);
@@ -210,7 +215,7 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
         int result = (int) (arrivalTimeStamp ^ (arrivalTimeStamp >>> 32));
         result = 31 * result + (int) (parentSequenceNumber ^ (parentSequenceNumber >>> 32));
         result = 31 * result + Arrays.hashCode(filters);
-        result = 31 * result + (payload != null ? payload.hashCode() : 0);
+        result = 31 * result + (payload == null ? 0 : payload.hashCode());
         result = 31 * result + throwables.hashCode();
         return result;
     }

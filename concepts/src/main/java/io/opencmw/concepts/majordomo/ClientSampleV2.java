@@ -9,8 +9,13 @@ import org.zeromq.ZMsg;
  * all OpenCmwProtocol aspects
  */
 
-public class ClientSampleV2 {
+public final class ClientSampleV2 { // NOPMD -- nomen est omen
     private static final int N_SAMPLES = 1_000_000;
+
+    private ClientSampleV2() {
+        // requires only static methods for testing
+    }
+
     public static void main(String[] args) {
         MajordomoClientV2 clientSession = new MajordomoClientV2("tcp://localhost:5555");
         final byte[] serviceBytes = "mmi.echo".getBytes(StandardCharsets.UTF_8);
@@ -32,11 +37,10 @@ public class ClientSampleV2 {
             if (count < 10 || count % 100_000 == 0 || count >= (N_SAMPLES - 10)) {
                 System.err.println("client iteration = " + count + " - received: " + reply);
             }
-            if (reply != null) {
-                reply.destroy();
-            } else {
+            if (reply == null) {
                 break; // Interrupt or failure
             }
+            reply.destroy();
         }
         long mark2 = System.currentTimeMillis();
         double diff2 = 1e-3 * (mark2 - start);

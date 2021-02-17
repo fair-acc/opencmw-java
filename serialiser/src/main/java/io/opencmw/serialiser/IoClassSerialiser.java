@@ -6,7 +6,6 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,18 +39,20 @@ import de.gsi.dataset.utils.ByteArrayCache;
  *
  * @author rstein
  */
+@SuppressWarnings({ "PMD.TooManyMethods", "PMD.ExcessiveImports", "PMD.NPathComplexity" })
 public class IoClassSerialiser {
     private static final Logger LOGGER = LoggerFactory.getLogger(IoClassSerialiser.class);
+    public static final String UNCHECKED_CAST_SUPPRESSION = "unchecked";
     private static final Map<String, Constructor<Object>> CLASS_CONSTRUCTOR_MAP = new ConcurrentHashMap<>();
     protected final List<IoSerialiser> ioSerialisers = new ArrayList<>();
-    private final Map<Type, List<FieldSerialiser<?>>> classMap = new HashMap<>();
-    private final Map<FieldSerialiserKey, FieldSerialiserValue> cachedFieldMatch = new HashMap<>();
+    private final Map<Type, List<FieldSerialiser<?>>> classMap = new ConcurrentHashMap<>();
+    private final Map<FieldSerialiserKey, FieldSerialiserValue> cachedFieldMatch = new ConcurrentHashMap<>();
     protected IoSerialiser matchedIoSerialiser;
     protected IoBuffer dataBuffer;
     protected Consumer<FieldDescription> startMarkerFunction;
     protected Consumer<FieldDescription> endMarkerFunction;
     private boolean autoMatchSerialiser = true;
-    private boolean useCustomJsonSerialiser = false;
+    private boolean useCustomJsonSerialiser;
 
     /**
      * Initialises new IoBuffer-backed object serialiser
@@ -70,9 +71,9 @@ public class IoClassSerialiser {
         ioSerialisers.add(new JsonSerialiser(dataBuffer));
         ioSerialisers.add(new CmwLightSerialiser(dataBuffer));
         if (ioSerialiserTypeClass.length > 0) {
-            setMatchedIoSerialiser(ioSerialiserTypeClass[0]);
+            setMatchedIoSerialiser(ioSerialiserTypeClass[0]); // NOPMD
         } else {
-            setMatchedIoSerialiser(ioSerialisers.get(0));
+            setMatchedIoSerialiser(ioSerialisers.get(0)); // NOPMD
         }
 
         // register primitive and boxed data type handlers
@@ -137,6 +138,7 @@ public class IoClassSerialiser {
         }
     }
 
+    @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
     public <E> FieldSerialiser<E> cacheFindFieldSerialiser(Type clazz, List<Type> classGenericArguments) {
         // odd construction is needed since 'computeIfAbsent' cannot place 'null' element into the Map and since 'null' has a double interpretation of
         // a) a non-initialiser map value
@@ -144,15 +146,15 @@ public class IoClassSerialiser {
         return (FieldSerialiser<E>) cachedFieldMatch.computeIfAbsent(new FieldSerialiserKey(clazz, classGenericArguments), key -> new FieldSerialiserValue(findFieldSerialiser(clazz, classGenericArguments))).get();
     }
 
-    @SuppressWarnings("PMD.NPathComplexity")
-    public Object deserialiseObject(WireDataFieldDescription fieldRoot, final Object obj) {
+    public <T> T deserialiseObject(WireDataFieldDescription fieldRoot, final T obj) {
         autoUpdateSerialiser();
         final int startPosition = matchedIoSerialiser.getBuffer().position();
 
         // match field header with class field description
         final ClassFieldDescription clazz = ClassUtils.getFieldDescription(obj.getClass());
-        final FieldSerialiser<?> existingSerialiser = clazz.getFieldSerialiser();
-        final FieldSerialiser<?> fieldSerialiser = existingSerialiser == null ? cacheFindFieldSerialiser(clazz.getType(), clazz.getActualTypeArguments()) : existingSerialiser;
+        @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
+        final FieldSerialiser<T> existingSerialiser = (FieldSerialiser<T>) clazz.getFieldSerialiser();
+        final FieldSerialiser<T> fieldSerialiser = existingSerialiser == null ? cacheFindFieldSerialiser(clazz.getType(), clazz.getActualTypeArguments()) : existingSerialiser;
 
         if (clazz.getFieldSerialiser() == null && fieldSerialiser != null) {
             clazz.setFieldSerialiser(fieldSerialiser);
@@ -194,13 +196,13 @@ public class IoClassSerialiser {
             final Constructor<T> constructor = clazz.getDeclaredConstructor();
             constructor.setAccessible(true);
             T obj = constructor.newInstance();
-            return (T) deserialiseObject(obj);
+            return deserialiseObject(obj);
         } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new IllegalStateException("no public constructor for class " + clazz.getCanonicalName(), e);
         }
     }
 
-    public Object deserialiseObject(final Object obj) {
+    public <T> T deserialiseObject(final T obj) {
         if (obj == null) {
             throw new IllegalArgumentException("obj must not be null (yet)");
         }
@@ -221,11 +223,11 @@ public class IoClassSerialiser {
                 arrayCache.add(dataBuffer.elements());
             }
             // return buffer to cache
-            dataBuffer = null;
+            dataBuffer = null; // NOPMD on purpose
             for (IoSerialiser serialiser : ioSerialisers) {
                 serialiser.setBuffer(null);
             }
-        } catch (Exception e) {
+        } catch (Exception e) { // NOPMD
             // do nothing
         }
     }
@@ -237,7 +239,7 @@ public class IoClassSerialiser {
      * @return FieldSerialiser matching the base class/interface and generics arguments
      * @param <E> The type of the Object to (de)serialise
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ UNCHECKED_CAST_SUPPRESSION })
     public <E> FieldSerialiser<E> findFieldSerialiser(Type type, List<Type> classGenericArguments) {
         final Class<?> clazz = ClassUtils.getRawType(type);
         if (clazz == null) {
@@ -305,10 +307,11 @@ public class IoClassSerialiser {
         return matchedIoSerialiser;
     }
 
+    @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
     public final <E> BiFunction<Type, Type[], FieldSerialiser<E>> getSerialiserLookupFunction() {
         return (primaryType, secondaryType) -> {
             if (primaryType == null) {
-                throw new IllegalArgumentException("no serialiser implementation found for classType = " + primaryType);
+                throw new IllegalArgumentException("no serialiser implementation found for classType = " + null);
             }
             return (FieldSerialiser<E>) cacheFindFieldSerialiser(ClassUtils.getRawType(primaryType), secondaryType == null ? Collections.emptyList() : Arrays.asList(secondaryType));
         };
@@ -335,7 +338,7 @@ public class IoClassSerialiser {
 
     public void serialiseObject(final Object rootObj, final ClassFieldDescription classField, final int recursionDepth) {
         final FieldSerialiser<?> existingSerialiser = classField.getFieldSerialiser();
-        final FieldSerialiser fieldSerialiser = existingSerialiser == null ? cacheFindFieldSerialiser(classField.getType(), classField.getActualTypeArguments()) : existingSerialiser;
+        final FieldSerialiser<?> fieldSerialiser = existingSerialiser == null ? cacheFindFieldSerialiser(classField.getType(), classField.getActualTypeArguments()) : existingSerialiser;
 
         if (fieldSerialiser != null && recursionDepth != 0) {
             if (existingSerialiser == null) {
@@ -398,6 +401,7 @@ public class IoClassSerialiser {
 
         final ClassFieldDescription classField = ClassUtils.getFieldDescription(obj.getClass());
         final FieldSerialiser<?> existingSerialiser = classField.getFieldSerialiser();
+        @SuppressWarnings("rawtypes")
         final FieldSerialiser fieldSerialiser = existingSerialiser == null ? cacheFindFieldSerialiser(classField.getType(), classField.getActualTypeArguments()) : existingSerialiser;
 
         if (fieldSerialiser == null) {
@@ -409,7 +413,9 @@ public class IoClassSerialiser {
                 classField.setFieldSerialiser(fieldSerialiser);
             }
             matchedIoSerialiser.putHeaderInfo();
-            matchedIoSerialiser.putCustomData(classField, obj, obj.getClass(), fieldSerialiser);
+            @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
+            FieldSerialiser<Object> castFieldSerialiser = fieldSerialiser;
+            matchedIoSerialiser.putCustomData(classField, obj, obj.getClass(), castFieldSerialiser);
             final String dataEndMarkerName = "OBJ_ROOT_END";
             final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(matchedIoSerialiser, null, dataEndMarkerName.hashCode(), dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
             matchedIoSerialiser.putEndMarker(dataEndMarker);
@@ -446,7 +452,7 @@ public class IoClassSerialiser {
         if (ref1.size() != ref2.size()) {
             return false;
         }
-        if (ref1.isEmpty() && ref2.isEmpty()) {
+        if (ref1.isEmpty()) {
             return true;
         }
 
@@ -461,11 +467,12 @@ public class IoClassSerialiser {
         return true;
     }
 
-    @SuppressWarnings("PMD.NPathComplexity")
     protected <E> void deserialise(final Object obj, Class<E> clazz, final FieldDescription fieldRoot, final ClassFieldDescription classField, final int recursionDepth) {
         assert obj != null;
         assert clazz != null;
+        @SuppressWarnings("rawtypes")
         final FieldSerialiser existingSerialiser = classField.getFieldSerialiser();
+        @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
         final FieldSerialiser<E> fieldSerialiser = existingSerialiser == null ? cacheFindFieldSerialiser(classField.getType(), classField.getActualTypeArguments()) : existingSerialiser;
 
         if (fieldSerialiser != null) {
@@ -542,7 +549,7 @@ public class IoClassSerialiser {
         return result;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
     public static Constructor<Object> getClassConstructorByName(final String name, Class<?>... parameterTypes) {
         return CLASS_CONSTRUCTOR_MAP.computeIfAbsent(name, key -> {
             try {
@@ -584,10 +591,12 @@ public class IoClassSerialiser {
 
         @Override
         public boolean equals(final Object o) {
-            if (this == o)
+            if (this == o) {
                 return true;
-            if (o == null || getClass() != o.getClass())
+            }
+            if (o == null || getClass() != o.getClass()) {
                 return false;
+            }
             final FieldSerialiserKey that = (FieldSerialiserKey) o;
             return clazz.equals(that.clazz) && classGenericArguments.equals(that.classGenericArguments);
         }

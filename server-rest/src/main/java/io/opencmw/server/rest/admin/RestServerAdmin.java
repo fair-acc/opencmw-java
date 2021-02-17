@@ -36,7 +36,6 @@ public class RestServerAdmin { // NOPMD - nomen est omen
             description = "endpoint to receive admin requests",
             operationId = "serveAdminPage",
             summary = "serve ",
-            deprecated = false,
             tags = { "RestServerAdmin" },
             responses = {
                 @OpenApiResponse(status = "200", content = @OpenApiContent(type = "text/html"))
@@ -63,7 +62,6 @@ public class RestServerAdmin { // NOPMD - nomen est omen
             description = "endpoint to receive admin requests",
             operationId = "handleAdminPost",
             summary = "POST ",
-            deprecated = false,
             tags = { "RestServerAdmin" },
             responses = {
                 @OpenApiResponse(status = "200", content = @OpenApiContent(type = "text/html"))

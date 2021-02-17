@@ -15,6 +15,7 @@ public class LimitedArrayList<E> extends ArrayList<E> {
      * @param limit length of queue in terms of number of elements
      */
     public LimitedArrayList(final int limit) {
+        super();
         if (limit < 1) {
             throw new IllegalArgumentException("limit = '" + limit + "'must be >=1 ");
         }

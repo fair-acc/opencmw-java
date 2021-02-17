@@ -90,6 +90,7 @@ import com.jsoniter.output.JsonStream;
  *
  * @author rstein
  */
+@SuppressWarnings("PMD.ExcessiveImports")
 public final class RestServer { // NOPMD -- nomen est omen
     public static final String TAG_REST_SERVER_HOST_NAME = "restServerHostName";
     public static final String TAG_REST_SERVER_PORT = "restServerPort";
@@ -393,8 +394,7 @@ public final class RestServer { // NOPMD -- nomen est omen
         alpn.setDefaultProtocol("h2");
 
         // SSL Connection Factory
-        final SslContextFactory sslContextFactory = createSslContextFactory();
-        final SslConnectionFactory ssl = new SslConnectionFactory(sslContextFactory, alpn.getProtocol());
+        final SslConnectionFactory ssl = new SslConnectionFactory(createSslContextFactory(), alpn.getProtocol());
 
         // HTTP/2 Connector
         try (ServerConnector http2Connector = new ServerConnector(server, ssl, alpn, h2, new HttpConnectionFactory(httpsConfig))) {
@@ -444,6 +444,7 @@ public final class RestServer { // NOPMD -- nomen est omen
         }
 
         // SSL Context Factory for HTTPS and HTTP/2
+        //noinspection deprecation
         final SslContextFactory sslContextFactory = new SslContextFactory(true) {}; // trust all certificates
         if (readComplete) {
             sslContextFactory.setKeyStore(keyStore);

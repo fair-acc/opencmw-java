@@ -63,7 +63,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     protected final ZMQ.Socket socket;
     protected final AtomicReference<ConnectionState> connectionState = new AtomicReference<>(ConnectionState.DISCONNECTED);
     private final String address;
-    protected String sessionId;
+    protected final String sessionId;
     protected long connectionId;
     protected final Map<Long, Subscription> subscriptions = new HashMap<>(); // all subscriptions added to the server // NOPMD - only accessed from main thread
     protected final Map<String, Subscription> subscriptionsByReqId = new HashMap<>(); // all subscriptions added to the server // NOPMD - only accessed from main thread
@@ -107,7 +107,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     }
     @Override
     public ZMsg getMessage() { // return maintenance objects instead of replies
-        final long currentTime = System.currentTimeMillis();
+        final long currentTime = System.currentTimeMillis(); // NOPMD
         CmwLightMessage reply = receiveData();
         if (reply == null) {
             return null;
@@ -146,7 +146,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         }
     }
 
-    private ZMsg handleServerReply(final CmwLightMessage reply, final long currentTime) {
+    private ZMsg handleServerReply(final CmwLightMessage reply, final long currentTime) { //NOPMD
         final ZMsg result = new ZMsg();
         switch (reply.requestType) {
         case REPLY:
@@ -267,6 +267,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         return context;
     }
 
+    @Override
     public ZMQ.Socket getSocket() {
         return socket;
     }
@@ -515,7 +516,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         private final String requestId;
         private final String endpoint;
         private final byte[] rbacToken;
-        public CmwLightProtocol.RequestType requestType;
+        public final CmwLightProtocol.RequestType requestType;
 
         public Request(final CmwLightProtocol.RequestType requestType,
                 final String requestId,

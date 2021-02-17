@@ -53,7 +53,7 @@ public class JsonSelectionBenchmark {
     private static final GsonBuilder builder = new GsonBuilder();
     private static final Gson gson = builder.create();
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    private static boolean testIdentity = true;
+    private static final boolean TEST_IDENTITY = true;
     @Param({ INPUT_OBJECT_NAME_1, INPUT_OBJECT_NAME_2 })
     private String testClassId;
 
@@ -63,7 +63,7 @@ public class JsonSelectionBenchmark {
     public void pojoFastJson(Blackhole blackhole) {
         final String serialisedData = JSON.toJSONString(getTestClass(testClassId)); // from object to JSON String
         final TestDataClass outputPojo = JSON.parseObject(serialisedData, TestDataClass.class); // from JSON String to object
-        assert !testIdentity || getTestClass(testClassId).equals(outputPojo);
+        assert !TEST_IDENTITY || getTestClass(testClassId).equals(outputPojo);
         blackhole.consume(serialisedData);
         blackhole.consume(outputPojo);
     }
@@ -74,7 +74,7 @@ public class JsonSelectionBenchmark {
     public void pojoGson(Blackhole blackhole) {
         final String serialisedData = gson.toJson(getTestClass(testClassId)); // from object to JSON String
         final TestDataClass outputPojo = gson.fromJson(serialisedData, TestDataClass.class); // from JSON String to object
-        assert !testIdentity || getTestClass(testClassId).equals(outputPojo);
+        assert !TEST_IDENTITY || getTestClass(testClassId).equals(outputPojo);
         blackhole.consume(serialisedData);
         blackhole.consume(outputPojo);
     }
@@ -88,7 +88,7 @@ public class JsonSelectionBenchmark {
             objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
             final String serialisedData = objectMapper.writeValueAsString(getTestClass(testClassId)); // from object to JSON String
             final TestDataClass outputPojo = objectMapper.readValue(serialisedData, TestDataClass.class); // from JSON String to object
-            assert !testIdentity || getTestClass(testClassId).equals(outputPojo);
+            assert !TEST_IDENTITY || getTestClass(testClassId).equals(outputPojo);
             blackhole.consume(serialisedData);
             blackhole.consume(outputPojo);
         } catch (IOException e) {
@@ -104,7 +104,7 @@ public class JsonSelectionBenchmark {
         JsonIterator.setMode(DecodingMode.REFLECTION_MODE);
         final String serialisedData = JsonStream.serialize(getTestClass(testClassId)); // from object to JSON String
         final TestDataClass outputPojo = JsonIterator.deserialize(serialisedData, TestDataClass.class); // from JSON String to object
-        assert !testIdentity || getTestClass(testClassId).equals(outputPojo);
+        assert !TEST_IDENTITY || getTestClass(testClassId).equals(outputPojo);
         blackhole.consume(serialisedData);
         blackhole.consume(outputPojo);
     }
@@ -117,7 +117,7 @@ public class JsonSelectionBenchmark {
         JsonIterator.setMode(DecodingMode.DYNAMIC_MODE_AND_MATCH_FIELD_WITH_HASH);
         final String serialisedData = JsonStream.serialize(getTestClass(testClassId)); // from object to JSON String
         final TestDataClass outputPojo = JsonIterator.deserialize(serialisedData, TestDataClass.class); // from JSON String to object
-        assert !testIdentity || getTestClass(testClassId).equals(outputPojo);
+        assert !TEST_IDENTITY || getTestClass(testClassId).equals(outputPojo);
         blackhole.consume(serialisedData);
         blackhole.consume(outputPojo);
     }

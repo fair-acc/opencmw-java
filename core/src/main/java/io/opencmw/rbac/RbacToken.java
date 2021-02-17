@@ -1,6 +1,7 @@
 package io.opencmw.rbac;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import org.zeromq.ZMQ;
 
@@ -13,10 +14,10 @@ public class RbacToken {
 
     public RbacToken(final RbacRole<? extends RbacRole<?>> rbacRole, final String signedHashCode) {
         if (rbacRole == null) {
-            throw new IllegalArgumentException("rbacRole must not be null: " + rbacRole);
+            throw new IllegalArgumentException("rbacRole must not be null: " + null);
         }
         if (signedHashCode == null) {
-            throw new IllegalArgumentException("signedHashCode must not be null: " + signedHashCode);
+            throw new IllegalArgumentException("signedHashCode must not be null: " + null);
         }
         this.rbacRole = rbacRole;
         this.signedHashCode = signedHashCode;
@@ -40,7 +41,7 @@ public class RbacToken {
     }
 
     public byte[] getBytes() {
-        return byteRepresentation;
+        return Arrays.copyOf(byteRepresentation, byteRepresentation.length);
     }
 
     public static RbacToken from(final byte[] rbacToken) {

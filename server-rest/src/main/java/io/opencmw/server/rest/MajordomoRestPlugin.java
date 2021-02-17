@@ -95,7 +95,7 @@ import com.jsoniter.output.JsonStream;
 @SuppressWarnings({ "PMD.ExcessiveImports", "PMD.TooManyStaticImports", "PMD.DoNotUseThreads" }) // makes the code more readable/shorter lines
 public class MajordomoRestPlugin extends BasicMdpWorker {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPlugin.class);
-    private static final byte[] RBAC = new byte[] {}; // TODO: implement RBAC between Majordomo and Worker
+    private static final byte[] RBAC = {}; // TODO: implement RBAC between Majordomo and Worker
     private static final String TEMPLATE_EMBEDDED_HTML = "/velocity/property/defaultTextPropertyLayout.vm";
     private static final String TEMPLATE_BAD_REQUEST = "/velocity/errors/badRequest.vm";
     private static final AtomicLong REQUEST_COUNTER = new AtomicLong();
@@ -189,10 +189,6 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     protected RequestHandler getDefaultRequestHandler() {
         return handler -> {
             switch (handler.req.command) {
-            case GET_REQUEST:
-                break;
-            case SET_REQUEST:
-                break;
             case PARTIAL:
             case FINAL:
                 if (handler.req.clientRequestID.length == 0 || Arrays.equals(REST_SUB_ID, handler.req.clientRequestID)) {
@@ -221,6 +217,8 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 final Queue<SseClient> sseClients = RestServer.getEventClients(serviceName);
                 sseClients.forEach((final SseClient client) -> client.sendEvent(notifyMessage));
                 return;
+            case GET_REQUEST:
+            case SET_REQUEST:
             case DISCONNECT:
             case READY:
             case SUBSCRIBE:

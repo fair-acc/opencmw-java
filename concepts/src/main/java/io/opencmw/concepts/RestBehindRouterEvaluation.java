@@ -11,15 +11,20 @@ import org.zeromq.ZFrame;
 import org.zeromq.ZMQ.Poller;
 import org.zeromq.ZMQ.Socket;
 
-public class RestBehindRouterEvaluation {
+public class RestBehindRouterEvaluation { // NOPMD -- nomen est omen
     private static final byte[] ZERO_MQ_HEADER = { -1, 0, 0, 0, 0, 0, 0, 0, 7, 127 };
-    public static void main(final String[] argv) {
-        try (ZContext context = new ZContext()) {
-            Socket tcpProxy = context.createSocket(SocketType.ROUTER);
-            tcpProxy.setRouterRaw(true);
-            Socket router = context.createSocket(SocketType.ROUTER);
-            Socket stream = context.createSocket(SocketType.STREAM);
 
+    private RestBehindRouterEvaluation() {
+        // utility class
+    }
+
+    public static void main(final String[] argv) {
+        try (ZContext context = new ZContext();
+                Socket tcpProxy = context.createSocket(SocketType.ROUTER);
+                Socket router = context.createSocket(SocketType.ROUTER);
+                Socket stream = context.createSocket(SocketType.STREAM);
+                Poller poller = context.createPoller(2)) {
+            tcpProxy.setRouterRaw(true);
             if (!tcpProxy.bind("tcp://*:8080")) {
                 throw new IllegalStateException("could not bind socket");
             }
@@ -29,23 +34,22 @@ public class RestBehindRouterEvaluation {
             if (!stream.bind("tcp://*:8082")) {
                 throw new IllegalStateException("could not bind socket");
             }
+            poller.register(tcpProxy, Poller.POLLIN);
+            poller.register(stream, Poller.POLLIN);
 
             final TimerTask timerTask = new TimerTask() {
                 @Override
                 public void run() {
-                    Socket dealer = context.createSocket(SocketType.DEALER);
-                    dealer.setIdentity("dealer".getBytes(zmq.ZMQ.CHARSET));
+                    try (Socket dealer = context.createSocket(SocketType.DEALER)) {
+                        dealer.setIdentity("dealer".getBytes(zmq.ZMQ.CHARSET));
 
-                    System.err.println("clients sends request");
-                    dealer.connect("tcp://localhost:8080");
-                    dealer.send("Hello World");
+                        System.err.println("clients sends request");
+                        dealer.connect("tcp://localhost:8080");
+                        dealer.send("Hello World");
+                    }
                 }
             };
             new Timer().schedule(timerTask, 2000);
-
-            Poller poller = context.createPoller(2);
-            poller.register(tcpProxy, Poller.POLLIN);
-            poller.register(stream, Poller.POLLIN);
 
             while (!Thread.interrupted()) {
                 if (poller.poll(1000) == -1) {
@@ -129,8 +133,8 @@ public class RestBehindRouterEvaluation {
     private static void handleRouterSocket(final Socket router) {
         System.err.println("### called handleRouterSocket");
         // Get [id, ] message on client connection.
-        ZFrame handle;
-        if ((handle = getConnectionID(router)) == null) {
+        ZFrame handle = getConnectionID(router);
+        if (handle == null) {
             // did not receive proper [ID, null msg] frames
             return;
         }
@@ -156,7 +160,7 @@ public class RestBehindRouterEvaluation {
             // receive message
             final byte[] message = router.recv(0);
             final boolean more = router.hasReceiveMore();
-            System.err.println("router msg (" + (more ? "more" : "all ") + "): " + Arrays.toString(message) + "\n      - string: '" + new String(message) + "'");
+            System.err.println("router msg (" + (more ? "more" : "all ") + "): " + Arrays.toString(message) + "\n      - string: '" + new String(message) + "'"); // NOPMD
 
             //handleStreamHttpSocket(router);
             // Broker it -- throws an exception (too naive implementation?)
@@ -170,7 +174,7 @@ public class RestBehindRouterEvaluation {
     private static void handleStreamHttpSocket(Socket httpSocket, ZFrame handlerExt) {
         // Get [id, ] message on client connection.
         ZFrame handler = handlerExt;
-        if (handler == null && (handler = getConnectionID(httpSocket)) == null) {
+        if (handler == null && (handler = getConnectionID(httpSocket)) == null) { // NOPMD
             // did not receive proper [ID, null msg] frames
             return;
         }
@@ -198,9 +202,9 @@ public class RestBehindRouterEvaluation {
         System.err.println("received client request header : '" + header); //  Professional Logging(TM)
 
         //  Send Hello World response
-        final String URI = (header.length() == 0) ? "null" : header.split("\n")[0];
+        final String uri = (header.length() == 0) ? "null" : header.split("\n")[0];
         clientRequest.send(httpSocket, ZFrame.MORE | ZFrame.REUSE);
-        httpSocket.send("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, World!\nyou requested URI: " + URI);
+        httpSocket.send("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, World!\nyou requested URI: " + uri);
 
         //  Close connection to browser -- normally exit
         clientRequest.send(httpSocket, ZFrame.MORE | ZFrame.REUSE);
