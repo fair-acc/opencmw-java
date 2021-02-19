@@ -28,6 +28,8 @@ jobs:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 100
+    - name: Fetch tags
+      run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
     - id: version
       uses: ./.github/actions/get-version
       with:
@@ -67,6 +69,8 @@ jobs:
         uses: ./.github/actions/get-version
         with:
           versionPattern: '${{ env.JAVA_REFERENCE_VERSION }}.[0-9]*.[0-9]*'
+      - name: Fetch tags
+        run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - name: Cache the Maven packages to speed up build
         uses: actions/cache@v1
         with:
