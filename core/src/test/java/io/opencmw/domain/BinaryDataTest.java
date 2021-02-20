@@ -111,5 +111,4 @@ class BinaryDataTest {
         assertEquals("/testA/testB/", BinaryData.getCategory("testA/testB/test.png"));
         assertEquals("/testA/testB/", BinaryData.getCategory("testA/testB/test"));
     }
-
 }

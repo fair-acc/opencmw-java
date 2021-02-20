@@ -1,5 +1,11 @@
 package io.opencmw.server;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import static org.awaitility.Awaitility.await;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.jupiter.api.Assertions.*;
+
 import static io.opencmw.OpenCmwProtocol.Command.FINAL;
 import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
 import static io.opencmw.OpenCmwProtocol.Command.SET_REQUEST;
@@ -10,10 +16,6 @@ import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
 import static io.opencmw.server.MmiServiceHelper.INTERNAL_SERVICE_DNS;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.awaitility.Awaitility.await;
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
 import java.net.URI;

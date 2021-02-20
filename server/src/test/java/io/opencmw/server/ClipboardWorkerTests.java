@@ -129,7 +129,7 @@ class ClipboardWorkerTests {
 
         final ClipboardWorker.DataContainer container = new ClipboardWorker.DataContainer(domainObject);
         assertEquals(domainObject.resourceName, container.getResourceName());
-        assertEquals(domainObject.resourceName, URLDecoder.decode(container.getEncodedResourceName(),StandardCharsets.UTF_8));
+        assertEquals(domainObject.resourceName, URLDecoder.decode(container.getEncodedResourceName(), StandardCharsets.UTF_8));
         assertEquals(domainObject.resourceName.substring(1), container.getFileName());
         assertEquals(domainObject.resourceName.substring(1), container.getFileName());
         assertNotNull(container.getTimeStamp());
