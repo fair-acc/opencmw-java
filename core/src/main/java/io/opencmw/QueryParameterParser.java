@@ -35,6 +35,7 @@ import io.opencmw.serialiser.utils.ClassUtils;
  *
  * @author rstein
  */
+@SuppressWarnings({ "PMD.TooManyStaticImports" })
 public final class QueryParameterParser { // NOPMD - nomen est omen
     public static final String MIME_TYPE_TAG = "contentType";
     public static final ConcurrentMap<Type, TriConsumer> STRING_TO_CLASS_CONVERTER = new ConcurrentHashMap<>(); // NOSONAR NOPMD
@@ -46,8 +47,8 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         STRING_TO_CLASS_CONVERTER.put(short.class, (str, obj, field) -> field.getField().setShort(obj, Short.parseShort(requireNonNullElse(str, "0"))));
         STRING_TO_CLASS_CONVERTER.put(int.class, (str, obj, field) -> field.getField().setInt(obj, Integer.parseInt(requireNonNullElse(str, "0"))));
         STRING_TO_CLASS_CONVERTER.put(long.class, (str, obj, field) -> field.getField().setLong(obj, Long.parseLong(requireNonNullElse(str, "0"))));
-        STRING_TO_CLASS_CONVERTER.put(float.class, (str, obj, field) -> field.getField().setFloat(obj, Float.parseFloat(requireNonNullElse(str,"0"))));
-        STRING_TO_CLASS_CONVERTER.put(double.class, (str, obj, field) -> field.getField().setDouble(obj, Double.parseDouble(requireNonNullElse(str,"0"))));
+        STRING_TO_CLASS_CONVERTER.put(float.class, (str, obj, field) -> field.getField().setFloat(obj, Float.parseFloat(requireNonNullElse(str, "0"))));
+        STRING_TO_CLASS_CONVERTER.put(double.class, (str, obj, field) -> field.getField().setDouble(obj, Double.parseDouble(requireNonNullElse(str, "0"))));
         STRING_TO_CLASS_CONVERTER.put(Boolean.class, (str, obj, field) -> field.getField().set(obj, str == null ? null : Boolean.parseBoolean(str)));
         STRING_TO_CLASS_CONVERTER.put(Byte.class, (str, obj, field) -> field.getField().set(obj, str == null ? null : Byte.parseByte(str)));
         STRING_TO_CLASS_CONVERTER.put(Short.class, (str, obj, field) -> field.getField().set(obj, str == null ? null : Short.parseShort(str)));

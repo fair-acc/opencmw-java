@@ -1,5 +1,7 @@
 package io.opencmw.server.rest;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import static io.javalin.apibuilder.ApiBuilder.get;
 import static io.javalin.apibuilder.ApiBuilder.post;
 import static io.javalin.plugin.openapi.dsl.DocumentedContentKt.anyOf;
@@ -19,7 +21,6 @@ import static io.opencmw.server.MmiServiceHelper.INTERNAL_SERVICE_OPENAPI;
 import static io.opencmw.server.rest.RestServer.prefixPath;
 import static io.opencmw.server.rest.util.CombinedHandler.SseState.CONNECTED;
 import static io.opencmw.server.rest.util.CombinedHandler.SseState.DISCONNECTED;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
@@ -112,7 +113,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     private final ConcurrentMap<String, CustomFuture<MdpMessage>> requestReplies = new ConcurrentHashMap<>();
     private final BiConsumer<SseClient, CombinedHandler.SseState> newSseClientHandler;
     private final AtomicReference<String> rootService = new AtomicReference<>("/mmi.service");
-    private final Map<String, String> menuMap = new ConcurrentSkipListMap<>(); // <menu-tag,property-path>
+    private final Map<String, String> menuMap = new ConcurrentSkipListMap<>(); // NOPMD NOSONAR <menu-tag,property-path>
     static {
         try {
             Base64Support.enable();
@@ -160,7 +161,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     }
 
     /**
-     * @return default menu map <Menu Item, path to service>
+     * @return default menu map &lt;Menu Item, path to service&gt;
      */
     public Map<String, String> getMenuMap() {
         return menuMap;
@@ -359,7 +360,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         }
     }
 
-    @org.jetbrains.annotations.NotNull
+    @NotNull
     private OpenApiDocumentation getOpenApiDocumentation(final String handlerClassName) {
         OpenApiDocumentation openApi = OpenApiBuilder.document();
         try {

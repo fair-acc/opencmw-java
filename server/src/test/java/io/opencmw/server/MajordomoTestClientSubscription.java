@@ -89,7 +89,6 @@ public class MajordomoTestClientSubscription<T> extends Thread {
                 }
             }
         }
-
     }
 
     private void handleReceivedMessage(final MdpMessage msg) {
