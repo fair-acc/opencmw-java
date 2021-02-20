@@ -33,6 +33,12 @@ public class ClipboardSample {
         assertEquals(CLIPBOARD_SERVICE_NAME, clipboard.getServiceName());
         clipboard.start();
 
+        MajordomoRestPluginSample.restPlugin.getRootService().set("/clipboard");
+        MajordomoRestPluginSample.restPlugin.getMenuMap().put("COMMON_NAV_ALLIMAGES", "/clipboard");
+        MajordomoRestPluginSample.restPlugin.getMenuMap().put("COMMON_NAV_UPLOAD", "/clipboard/upload");
+        MajordomoRestPluginSample.restPlugin.getMenuMap().put("Properties", "/mmi.service");
+        MajordomoRestPluginSample.restPlugin.getMenuMap().put("Test", "/testImage");
+
         imageData = new byte[TEST_IMAGES.length][];
         for (int i = 0; i < TEST_IMAGES.length; i++) {
             try (final InputStream in = ImageService.class.getResourceAsStream(TEST_IMAGES[i])) {
@@ -52,7 +58,7 @@ public class ClipboardSample {
                 BinaryData reply = new BinaryData("/TestImages/test.png", MimeType.PNG, imageData[selectedImage.get()]);
                 clipboard.uploadAndNotifyData(reply, "");
             }
-        }, 1000, 2_000);
+        }, 1000, 10_000);
 
         // start simple test services/properties
         final HelloWorldService helloWorldService = new HelloWorldService(MajordomoRestPluginSample.primaryBroker.getContext());

@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -46,6 +47,7 @@ import zmq.util.Utils;
 class MajordomoRestPluginTests {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPluginTests.class);
     private MajordomoBroker primaryBroker;
+    private MajordomoRestPlugin restPlugin;
     private String brokerRouterAddress;
     private MajordomoBroker secondaryBroker;
     private String secondaryBrokerRouterAddress;
@@ -57,7 +59,7 @@ class MajordomoRestPluginTests {
         primaryBroker = new MajordomoBroker("PrimaryBroker", "", BasicRbacRole.values());
         brokerRouterAddress = primaryBroker.bind("mdp://localhost:" + Utils.findOpenPort());
         primaryBroker.bind("mds://localhost:" + Utils.findOpenPort());
-        MajordomoRestPlugin restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "*:8080", BasicRbacRole.ADMIN);
+        restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "*:8080", BasicRbacRole.ADMIN);
         primaryBroker.start();
         restPlugin.start();
         LOGGER.atInfo().log("Broker and REST plugin started");
@@ -187,6 +189,12 @@ class MajordomoRestPluginTests {
         await().alias("wait for thread to start worker").atMost(1, TimeUnit.SECONDS).until(eventCounter::get, greaterThanOrEqualTo(3));
         assertThat(eventCounter.get(), greaterThanOrEqualTo(3));
         source.cancel();
+    }
+
+    @Test
+    void testMisc() {
+        assertNotNull(restPlugin.getMenuMap());
+        assertNotNull(restPlugin.getRootService());
     }
 
     private static OkHttpClient getUnsafeOkHttpClient() {

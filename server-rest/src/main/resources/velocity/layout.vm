@@ -20,14 +20,16 @@
                 </form>
             </ul>
             <ul id="menu">
-#if ($navContent)
-                    $navContent
-#end
 #set($rolesStr = ($currentRoles.toString().toUpperCase()))
-                <li><a href="/">$msg.get("COMMON_NAV_ALLIMAGES")</a></li>
-#if ($rolesStr.contains("ADMIN") || $rolesStr.contains("READ_WRITE"))
-                    <li><a href="/upload">$msg.get("COMMON_NAV_UPLOAD")</a></li>
+#if (!$navContent.isEmpty())
+    #foreach ($mapEntry in $navContent.entrySet())
+        <li><a href="$mapEntry.value">$msg.get($mapEntry.key)</a></li>
+    #end
 #end
+
+###if ($rolesStr.contains("ADMIN") || $rolesStr.contains("READ_WRITE"))
+##                    <li><a href="/upload">$msg.get("COMMON_NAV_UPLOAD")</a></li>
+###end
 #if ($rolesStr.contains("ADMIN"))
                     <li><a href="/admin">$msg.get("COMMON_NAV_ADMIN")</a></li>
 #end

@@ -1,7 +1,5 @@
 package io.opencmw.server.rest;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
 import static io.javalin.apibuilder.ApiBuilder.get;
 import static io.javalin.apibuilder.ApiBuilder.post;
 import static io.javalin.plugin.openapi.dsl.DocumentedContentKt.anyOf;
@@ -21,6 +19,7 @@ import static io.opencmw.server.MmiServiceHelper.INTERNAL_SERVICE_OPENAPI;
 import static io.opencmw.server.rest.RestServer.prefixPath;
 import static io.opencmw.server.rest.util.CombinedHandler.SseState.CONNECTED;
 import static io.opencmw.server.rest.util.CombinedHandler.SseState.DISCONNECTED;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
@@ -29,9 +28,11 @@ import java.net.URI;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -101,6 +102,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     private static final byte[] RBAC = {}; // TODO: implement RBAC between Majordomo and Worker
     private static final String TEMPLATE_EMBEDDED_HTML = "/velocity/property/defaultTextPropertyLayout.vm";
     private static final String TEMPLATE_BAD_REQUEST = "/velocity/errors/badRequest.vm";
+    private static final String TAG_MENU_ITEMS = "navContent";
     private static final AtomicLong REQUEST_COUNTER = new AtomicLong();
     protected final ZMQ.Socket subSocket;
     protected final Map<String, AtomicInteger> subscriptionCount = new ConcurrentHashMap<>();
@@ -109,6 +111,8 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     private final BlockingArrayQueue<MdpMessage> requestQueue = new BlockingArrayQueue<>();
     private final ConcurrentMap<String, CustomFuture<MdpMessage>> requestReplies = new ConcurrentHashMap<>();
     private final BiConsumer<SseClient, CombinedHandler.SseState> newSseClientHandler;
+    private final AtomicReference<String> rootService = new AtomicReference<>("/mmi.service");
+    private final Map<String, String> menuMap = new ConcurrentSkipListMap<>(); // <menu-tag,property-path>
     static {
         try {
             Base64Support.enable();
@@ -141,11 +145,25 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         };
 
         // add default root - here: redirect to mmi.service
-        RestServer.getInstance().get("/", restCtx -> restCtx.redirect("/mmi.service"), RestServer.getDefaultRole());
+        RestServer.getInstance().get("/", restCtx -> restCtx.redirect(rootService.get()), RestServer.getDefaultRole());
 
         registerHandler(getDefaultRequestHandler()); // NOPMD - one-time call OK
 
         LOGGER.atInfo().addArgument(MajordomoRestPlugin.class.getName()).addArgument(RestServer.getPublicURI()).log("{} started on address: {}");
+    }
+
+    /**
+     * @return atomic reference to default root '/' service redirect path (default: 'mmi.service')
+     */
+    public AtomicReference<String> getRootService() {
+        return rootService;
+    }
+
+    /**
+     * @return default menu map <Menu Item, path to service>
+     */
+    public Map<String, String> getMenuMap() {
+        return menuMap;
     }
 
     @Override
@@ -455,6 +473,8 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                     } else {
                         final boolean noMenu = queryString.contains("noMenu");
                         Map<String, Object> dataMap = MessageBundle.baseModel(restCtx);
+
+                        dataMap.put(TAG_MENU_ITEMS, menuMap);
                         dataMap.put("textBody", new String(replyMessage.data, UTF_8));
                         dataMap.put("noMenu", noMenu);
                         restCtx.render(TEMPLATE_EMBEDDED_HTML, dataMap);
@@ -477,6 +497,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 case HTML:
                 case TEXT:
                     Map<String, Object> dataMap = MessageBundle.baseModel(restCtx);
+                    dataMap.put(TAG_MENU_ITEMS, menuMap);
                     dataMap.put("service", restHandler);
                     dataMap.put("exceptionText", e);
                     restCtx.render(TEMPLATE_BAD_REQUEST, dataMap);

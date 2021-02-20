@@ -16,12 +16,13 @@ import zmq.util.Utils;
 public class MajordomoRestPluginSample {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPluginSample.class);
     public static MajordomoBroker primaryBroker;
+    public static MajordomoRestPlugin restPlugin;
 
     public static void launchBroker() throws IOException {
         primaryBroker = new MajordomoBroker("PrimaryBroker", "", BasicRbacRole.values());
         final String brokerRouterAddress = primaryBroker.bind("tcp://*:" + Utils.findOpenPort());
         primaryBroker.bind("mds://*:" + Utils.findOpenPort());
-        MajordomoRestPlugin restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "*:8080", BasicRbacRole.ADMIN);
+        restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "*:8080", BasicRbacRole.ADMIN);
         primaryBroker.start();
         restPlugin.start();
         LOGGER.atInfo().log("Broker and REST plugin started");
