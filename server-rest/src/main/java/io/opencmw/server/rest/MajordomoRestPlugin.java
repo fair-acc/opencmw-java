@@ -1,5 +1,7 @@
 package io.opencmw.server.rest;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import static io.javalin.apibuilder.ApiBuilder.get;
 import static io.javalin.apibuilder.ApiBuilder.post;
 import static io.javalin.plugin.openapi.dsl.DocumentedContentKt.anyOf;
@@ -19,7 +21,6 @@ import static io.opencmw.server.MmiServiceHelper.INTERNAL_SERVICE_OPENAPI;
 import static io.opencmw.server.rest.RestServer.prefixPath;
 import static io.opencmw.server.rest.util.CombinedHandler.SseState.CONNECTED;
 import static io.opencmw.server.rest.util.CombinedHandler.SseState.DISCONNECTED;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.IOException;
 import java.lang.reflect.ParameterizedType;

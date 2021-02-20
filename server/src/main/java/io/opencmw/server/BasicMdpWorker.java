@@ -202,7 +202,6 @@ public class BasicMdpWorker extends Thread {
                 final ZMsg pubMsg = ZMsg.recvMsg(pubSocket, false);
                 dataReceived |= handleSubscriptionMsg(pubMsg);
 
-
                 // handle message from or to notify thread
                 final MdpMessage notifyMsg = receive(notifyListenerSocket, false);
                 if (notifyMsg != null) {
