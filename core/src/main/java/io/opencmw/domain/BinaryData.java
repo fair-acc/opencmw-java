@@ -12,6 +12,7 @@ import io.opencmw.serialiser.annotations.MetaInfo;
 /**
  * basic domain object definition for receiving or sending generic binary data
  */
+@SuppressWarnings({"PMD.GodClass"})
 @MetaInfo(description = "domain object definition for receiving/sending generic binary data")
 public class BinaryData {
     public String resourceName = "default";

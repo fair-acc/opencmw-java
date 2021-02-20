@@ -174,7 +174,7 @@ public class ClipboardWorker extends MajordomoWorker<BasicCtx, BinaryData, Binar
         }
 
         /**
-         * @return HTML resource tag 'data:<MIME type>;base64,<base65 encoded data>'
+         * @return HTML resource tag with embedded data 'data:&lt;MIME type&gt;base64,&lt;base65 encoded data&gt;'
          */
         public String getMimeData() {
             return "data:" + binaryData.contentType.getMediaType() + ";base64," + Base64.getEncoder().encodeToString(binaryData.data);

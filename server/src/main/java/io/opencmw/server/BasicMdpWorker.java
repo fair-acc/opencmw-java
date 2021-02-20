@@ -288,26 +288,24 @@ public class BasicMdpWorker extends Thread {
         if (topicBytes.length == 0) {
             return false;
         }
-        final Command subType = topicBytes[0] == 1 ? SUBSCRIBE : (topicBytes[0] == 0 ? UNSUBSCRIBE : UNKNOWN); // '1'('0' being the default ZeroMQ (un-)subscribe command
+
         final URI subscriptionTopic = URI.create(new String(topicBytes, 1, topicBytes.length - 1, UTF_8));
         if (LOGGER.isDebugEnabled() && (subscriptionTopic.toString().isBlank() || subscriptionTopic.toString().contains(getServiceName()))) {
-            LOGGER.atDebug().addArgument(getServiceName()).addArgument(subType).addArgument(subscriptionTopic).log("Service '{}' received subscription request: {} to '{}'");
+            LOGGER.atDebug().addArgument(getServiceName()).addArgument(topicBytes[0]).addArgument(subscriptionTopic).log("Service '{}' received subscription request: {} to '{}'");
         }
-
         if (!subscriptionTopic.toString().isBlank() && !subscriptionTopic.getPath().startsWith(getServiceName())) {
             // subscription topic for another service
             return false;
         }
-        switch (subType) {
-        case SUBSCRIBE:
+        switch (topicBytes[0]) {
+        case 1:
             activeSubscriptions.add(subscriptionTopic);
             return true;
-        case UNSUBSCRIBE:
+        case 0:
             activeSubscriptions.remove(subscriptionTopic);
             return true;
-        case UNKNOWN:
         default:
-            return false;
+            throw new IllegalStateException("receoved invalid subscription ID " + subMsg);
         }
     }
 
@@ -345,7 +343,7 @@ public class BasicMdpWorker extends Thread {
         workerSocket = ctx.createSocket(SocketType.DEALER);
         assert workerSocket != null : "worker socket is null";
         workerSocket.setHWM(0);
-        workerSocket.connect(translatedBrokerAddress + MajordomoBroker.SUFFIX_ROUTER);
+        workerSocket.connect(translatedBrokerAddress + SUFFIX_ROUTER);
 
         if (pubSocket != null) {
             pubSocket.close();
@@ -354,7 +352,7 @@ public class BasicMdpWorker extends Thread {
         assert pubSocket != null : "publication socket is null";
         pubSocket.setHWM(0);
         pubSocket.setXpubVerbose(true);
-        pubSocket.connect(translatedBrokerAddress + MajordomoBroker.SUFFIX_SUBSCRIBE);
+        pubSocket.connect(translatedBrokerAddress + SUFFIX_SUBSCRIBE);
 
         // Register service with broker
         LOGGER.atInfo().addArgument(brokerAddress).log("register service with broker '{}");

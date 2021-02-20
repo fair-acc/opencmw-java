@@ -113,7 +113,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     private final ConcurrentMap<String, CustomFuture<MdpMessage>> requestReplies = new ConcurrentHashMap<>();
     private final BiConsumer<SseClient, CombinedHandler.SseState> newSseClientHandler;
     private final AtomicReference<String> rootService = new AtomicReference<>("/mmi.service");
-    private final Map<String, String> menuMap = new ConcurrentSkipListMap<>(); // <menu-tag,property-path>
+    private final Map<String, String> menuMap = new ConcurrentSkipListMap<>(); // NOPMD NOSONAR <menu-tag,property-path>
     static {
         try {
             Base64Support.enable();
@@ -360,7 +360,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         }
     }
 
-    @org.jetbrains.annotations.NotNull
+    @NotNull
     private OpenApiDocumentation getOpenApiDocumentation(final String handlerClassName) {
         OpenApiDocumentation openApi = OpenApiBuilder.document();
         try {

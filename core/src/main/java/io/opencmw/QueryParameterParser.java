@@ -35,6 +35,7 @@ import io.opencmw.serialiser.utils.ClassUtils;
  *
  * @author rstein
  */
+@SuppressWarnings({ "PMD.TooManyStaticImports" })
 public final class QueryParameterParser { // NOPMD - nomen est omen
     public static final String MIME_TYPE_TAG = "contentType";
     public static final ConcurrentMap<Type, TriConsumer> STRING_TO_CLASS_CONVERTER = new ConcurrentHashMap<>(); // NOSONAR NOPMD
