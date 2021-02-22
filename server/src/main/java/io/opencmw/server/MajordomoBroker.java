@@ -39,6 +39,7 @@ import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.rbac.RbacToken;
 import io.opencmw.utils.NoDuplicatesList;
+import io.opencmw.utils.PathSubscriptionMatcher;
 import io.opencmw.utils.SystemProperties;
 
 /**

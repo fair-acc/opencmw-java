@@ -21,7 +21,7 @@ import org.zeromq.ZMQ.Socket;
 import io.opencmw.OpenCmwProtocol;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.BinarySerialiser;
-import io.opencmw.server.PathSubscriptionMatcher;
+import io.opencmw.utils.PathSubscriptionMatcher;
 
 /**
  * Client implementation for the OpenCMW protocol.

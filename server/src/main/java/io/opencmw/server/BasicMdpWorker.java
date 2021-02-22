@@ -41,6 +41,7 @@ import org.zeromq.ZMsg;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.serialiser.utils.ClassUtils;
+import io.opencmw.utils.PathSubscriptionMatcher;
 import io.opencmw.utils.SystemProperties;
 
 /**
