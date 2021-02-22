@@ -170,7 +170,7 @@ public class FastByteBuffer implements IoBuffer {
             throw new IllegalStateException("position " + intPos + " is beyond buffer capacity " + capacity());
         }
         if (!autoResize) {
-            throw new IndexOutOfBoundsException("required capacity: " + newCapacity + " out of bounds: " + capacity() + "and autoResize is disabled");
+            throw new IndexOutOfBoundsException("required capacity: " + newCapacity + " out of bounds: " + capacity() + " and autoResize is disabled");
         }
         //TODO: add smarter enlarging algorithm (ie. increase fast for small arrays, + n% for medium sized arrays, byte-by-byte for large arrays)
         final int addCapacity = Math.min(Math.max(DEFAULT_MIN_CAPACITY_INCREASE, newCapacity >> 3), DEFAULT_MAX_CAPACITY_INCREASE); // min, +12.5%, max

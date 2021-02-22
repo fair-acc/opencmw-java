@@ -3,6 +3,7 @@ package io.opencmw.domain;
 import java.util.Arrays;
 import java.util.Objects;
 
+import org.jetbrains.annotations.NotNull;
 import org.zeromq.util.ZData;
 
 import io.opencmw.MimeType;
@@ -11,10 +12,11 @@ import io.opencmw.serialiser.annotations.MetaInfo;
 /**
  * basic domain object definition for receiving or sending generic binary data
  */
+@SuppressWarnings({ "PMD.GodClass" })
 @MetaInfo(description = "domain object definition for receiving/sending generic binary data")
 public class BinaryData {
     public String resourceName = "default";
-    public MimeType contentType = MimeType.BINARY;
+    public MimeType contentType = MimeType.UNKNOWN;
     public byte[] data = {};
     public int dataSize = -1;
 
@@ -47,9 +49,17 @@ public class BinaryData {
         }
     }
 
+    public void moveTo(final @NotNull BinaryData other) {
+        other.resourceName = this.resourceName;
+        other.contentType = this.contentType;
+        other.data = this.data;
+        other.dataSize = this.dataSize;
+        other.checkConsistency(); // NOPMD
+    }
+
     @Override
     public String toString() {
-        return "BinaryData{resourceName='" + resourceName + "', contentType=" + contentType.name() + "(\"" + contentType + "\"), dataSize=" + dataSize + ", data=" + ZData.toString(data) + '}';
+        return "BinaryData{resourceName='" + resourceName + "', contentType=" + (contentType == null ? "null" : contentType.name()) + "(\"" + contentType + "\"), dataSize=" + dataSize + ", data=" + ZData.toString(data) + '}';
     }
 
     @Override
@@ -118,13 +128,12 @@ public class BinaryData {
         return fixPreAndPost(name.substring(0, p + 1));
     }
 
-    private static String checkField(final String field, final String category) {
+    private static void checkField(final String field, final String category) {
         if (category == null) {
             throw new IllegalArgumentException(field + "category not be null");
         }
         if (category.isBlank()) {
             throw new IllegalArgumentException(field + "must not be blank");
         }
-        return category;
     }
 }

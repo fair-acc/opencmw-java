@@ -4,6 +4,7 @@ import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 
 import io.javalin.http.Context;
@@ -21,7 +22,11 @@ public class MessageBundle {
     }
 
     public String get(final String message) {
-        return messages.getString(message);
+        try {
+            return messages.getString(message);
+        } catch (MissingResourceException e) {
+            return message;
+        }
     }
 
     public final String get(final String key, final Object... args) {

@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -343,31 +344,22 @@ public class Cache<K, V> implements Map<K, V> {
             return this;
         }
 
-        public CacheBuilder<K2, V2> withPostListener(final BiConsumer<K2, V2> listener) {
-            if (listener == null) {
-                throw new IllegalArgumentException("listener cannot be null");
-            }
-            this.postListener = listener;
+        public CacheBuilder<K2, V2> withPostListener(final @NotNull BiConsumer<K2, V2> listener) {
+            this.postListener = Objects.requireNonNull(listener, "post-listener must not be null");
             return this;
         }
 
-        public CacheBuilder<K2, V2> withPreListener(final BiConsumer<K2, V2> listener) {
-            if (listener == null) {
-                throw new IllegalArgumentException("listener cannot be null");
-            }
-            this.preListener = listener;
+        public CacheBuilder<K2, V2> withPreListener(final @NotNull BiConsumer<K2, V2> listener) {
+            this.preListener = Objects.requireNonNull(listener, "pre-listener must not be null");
             return this;
         }
 
-        public CacheBuilder<K2, V2> withTimeout(final long timeOut, final TimeUnit timeUnit) {
+        public CacheBuilder<K2, V2> withTimeout(final long timeOut, final @NotNull TimeUnit timeUnit) {
             if (timeOut < 0) {
                 throw new IllegalArgumentException("Timeout cannot be negative");
             }
-            if (null == timeUnit) {
-                throw new IllegalArgumentException("TimeUnit cannot be null");
-            }
             this.timeOut = clamp(0, Integer.MAX_VALUE, timeOut);
-            this.timeUnit = timeUnit;
+            this.timeUnit = Objects.requireNonNull(timeUnit, "timeUnit must not be null");
             return this;
         }
     }

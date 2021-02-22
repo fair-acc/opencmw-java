@@ -22,8 +22,10 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +59,8 @@ import io.opencmw.utils.SystemProperties;
  * <small>N.B. if registered, a HEARTBEAT challenge will be send that needs to be replied with a READY command/re-registering</small></li>
  * </ul>
  */
-@SuppressWarnings({ "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.TooManyMethods", "PMD.TooManyStaticImports", "PMD.CommentSize", "PMD.UseConcurrentHashMap" }) // package private explicitly needed for MmiServiceHelper, thread-safe/performance use of HashMap
+@SuppressWarnings({ "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.TooManyMethods", "PMD.TooManyStaticImports", "PMD.CommentSize", "PMD.UseConcurrentHashMap" })
+// package private explicitly needed for MmiServiceHelper, thread-safe/performance use of HashMap
 public class MajordomoBroker extends Thread {
     public static final byte[] RBAC = {}; // TODO: implement RBAC between Majordomo and Worker
     // ----------------- default service names -----------------------------
@@ -95,8 +98,9 @@ public class MajordomoBroker extends Thread {
     /* default */ final Map<String, Service> services = new HashMap<>(); // known services Map<'service name', Service>
     protected final Map<String, Worker> workers = new HashMap<>(); // known workers Map<addressHex, Worker
     protected final Map<String, Client> clients = new HashMap<>();
-    protected final Map<String, AtomicInteger> activeSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
-    protected final Map<String, List<byte[]>> routerBasedSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
+    protected BiPredicate<URI, URI> subscriptionMatcher = new PathSubscriptionMatcher(); // <notify topic, subscribe topic>
+    protected final Map<URI, AtomicInteger> activeSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
+    protected final Map<URI, List<byte[]>> routerBasedSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
     private final AtomicBoolean run = new AtomicBoolean(false); // NOPMD - nomen est omen
     private final Deque<Worker> waiting = new ArrayDeque<>(); // idle workers
     /* default */ final Map<String, DnsServiceItem> dnsCache = new HashMap<>(); // <server name, DnsServiceItem>
@@ -260,35 +264,6 @@ public class MajordomoBroker extends Thread {
         destroy(); // interrupted
     }
 
-    private boolean handleSubscriptionMsg(final ZMsg subMsg) {
-        if (subMsg == null || subMsg.isEmpty()) {
-            return false;
-        }
-        final byte[] topicBytes = subMsg.getFirst().getData();
-        if (topicBytes.length == 0) {
-            return false;
-        }
-        final Command subType = topicBytes[0] == 1 ? SUBSCRIBE : (topicBytes[0] == 0 ? UNSUBSCRIBE : UNKNOWN); // '1'('0' being the default ZeroMQ (un-)subscribe command
-        final String subscriptionTopic = new String(topicBytes, 1, topicBytes.length - 1, UTF_8);
-        LOGGER.atDebug().addArgument(subType).addArgument(subscriptionTopic).log("received subscription request: {} to '{}'");
-
-        switch (subType) {
-        case SUBSCRIBE:
-            if (activeSubscriptions.computeIfAbsent(subscriptionTopic, s -> new AtomicInteger()).incrementAndGet() == 1) {
-                subSocket.subscribe(subscriptionTopic);
-            }
-            return true;
-        case UNSUBSCRIBE:
-            if (activeSubscriptions.computeIfAbsent(subscriptionTopic, s -> new AtomicInteger()).decrementAndGet() <= 0) {
-                subSocket.unsubscribe(subscriptionTopic);
-            }
-            return true;
-        case UNKNOWN:
-        default:
-            return false;
-        }
-    }
-
     @Override
     public synchronized void start() { // NOPMD - need to be synchronised on class level due to super definition
         run.set(true);
@@ -360,6 +335,24 @@ public class MajordomoBroker extends Thread {
         }
     }
 
+    protected static String getLocalHostName() {
+        String ip;
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.connect(InetAddress.getByName("8.8.8.8"), 10_002); // NOPMD - bogus hardcoded IP acceptable in this context
+            if (socket.getLocalAddress() == null) {
+                throw new UnknownHostException("bogus exception can be ignored");
+            }
+            ip = socket.getLocalAddress().getHostAddress();
+
+            if (ip != null) {
+                return ip;
+            }
+        } catch (final SocketException | UnknownHostException e) {
+            LOGGER.atError().setCause(e).log("getLocalHostName()");
+        }
+        return "localhost";
+    }
+
     /**
      * Handle received message boolean.
      *
@@ -386,18 +379,18 @@ public class MajordomoBroker extends Thread {
                 }
                 return true;
             case SUBSCRIBE:
-                if (activeSubscriptions.computeIfAbsent(topic, s -> new AtomicInteger()).incrementAndGet() == 1) {
+                if (activeSubscriptions.computeIfAbsent(msg.topic, s -> new AtomicInteger()).incrementAndGet() == 1) {
                     subSocket.subscribe(topic);
                 }
-                routerBasedSubscriptions.computeIfAbsent(topic, s -> new ArrayList<>()).add(msg.senderID);
+                routerBasedSubscriptions.computeIfAbsent(msg.topic, s -> new ArrayList<>()).add(msg.senderID);
                 return true;
             case UNSUBSCRIBE:
-                if (activeSubscriptions.computeIfAbsent(topic, s -> new AtomicInteger()).decrementAndGet() <= 0) {
+                if (activeSubscriptions.computeIfAbsent(msg.topic, s -> new AtomicInteger()).decrementAndGet() <= 0) {
                     subSocket.unsubscribe(topic);
                 }
-                routerBasedSubscriptions.computeIfAbsent(topic, s -> new ArrayList<>()).remove(msg.senderID);
-                if (routerBasedSubscriptions.get(topic).isEmpty()) {
-                    routerBasedSubscriptions.remove(topic);
+                routerBasedSubscriptions.computeIfAbsent(msg.topic, s -> new ArrayList<>()).remove(msg.senderID);
+                if (Objects.requireNonNullElse(routerBasedSubscriptions.get(msg.topic), "").toString().isEmpty()) {
+                    routerBasedSubscriptions.remove(msg.topic);
                 }
                 return true;
             case W_HEARTBEAT:
@@ -436,7 +429,7 @@ public class MajordomoBroker extends Thread {
 
             // dispatch client message to worker queue
             // old : final Service service = services.get(clientMessage.getServiceName())
-            final Service service = getBestMatchingService(clientMessage.getServiceName());
+            final Service service = getBestMatchingService(StringUtils.strip(URI.create(clientMessage.getServiceName()).getPath(), "/"));
             if (service == null) {
                 // not implemented -- according to Majordomo Management Interface (MMI)
                 // as defined in http://rfc.zeromq.org/spec:8
@@ -454,11 +447,6 @@ public class MajordomoBroker extends Thread {
             // dispatch service
             dispatch(service);
         });
-    }
-
-    Service getBestMatchingService(final String serviceName) { // NOPMD package private OK
-        final List<String> sortedList = services.keySet().stream().filter(serviceName::startsWith).sorted(Comparator.comparingInt(String::length)).collect(Collectors.toList());
-        return sortedList.isEmpty() ? null : services.get(sortedList.get(0));
     }
 
     /**
@@ -547,30 +535,6 @@ public class MajordomoBroker extends Thread {
         }
     }
 
-    private void dispatchMessageToMatchingSubscriber(final MdpMessage msg) {
-        // final String queryString = msg.topic.getQuery()
-        // final String replyService = msg.topic.getPath() + (queryString == null || queryString.isBlank() ? "" : ("?" + queryString))
-        // N.B. for the time being only the path is matched - TODO: upgrade to full topic matching
-        for (String specificTopic : activeSubscriptions.keySet()) {
-            URI subTopic = URI.create(specificTopic);
-            if (!subTopic.getPath().startsWith(msg.topic.getPath())) {
-                continue;
-            }
-            pubSocket.sendMore(specificTopic);
-            msg.send(pubSocket);
-        }
-
-        // publish also via router socket directly to known and previously subscribed clients
-        final List<byte[]> tClients = routerBasedSubscriptions.get(msg.topic.toString());
-        if (tClients == null) {
-            return;
-        }
-        for (final byte[] clientID : tClients) {
-            msg.senderID = clientID;
-            msg.send(routerSocket);
-        }
-    }
-
     /**
      * Look for &amp; kill expired clients.
      */
@@ -594,23 +558,10 @@ public class MajordomoBroker extends Thread {
      * Look for &amp; kill expired workers. Workers are oldest to most recent, so
      * we stop at the first alive worker.
      */
-    protected void purgeWorkers() {
-        for (Worker w = waiting.peekFirst(); w != null && w.expiry < System.currentTimeMillis(); w = waiting.peekFirst()) {
-            if (LOGGER.isInfoEnabled()) {
-                LOGGER.atInfo().addArgument(w.addressHex).addArgument(w.service == null ? "(unknown)" : w.service.name).log("Majordomo broker deleting expired worker: '{}' - service: '{}'");
-            }
-            deleteWorker(waiting.pollFirst(), false);
-        }
-    }
-
-    /**
-     * Look for &amp; kill expired workers. Workers are oldest to most recent, so
-     * we stop at the first alive worker.
-     */
     protected void purgeDnsServices() {
         if (System.currentTimeMillis() >= dnsHeartbeatAt) {
             List<DnsServiceItem> cachedList = new ArrayList<>(dnsCache.values());
-            final MdpMessage challengeMessage = new MdpMessage(null, PROT_CLIENT, W_HEARTBEAT, null, "dnsChallenge".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
+            final MdpMessage challengeMessage = new MdpMessage(null, PROT_CLIENT, W_HEARTBEAT, EMPTY_FRAME, "dnsChallenge".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
             for (DnsServiceItem registeredService : cachedList) {
                 if (registeredService.serviceName.equalsIgnoreCase(brokerName)) {
                     registeredService.updateExpiryTimeStamp();
@@ -627,6 +578,19 @@ public class MajordomoBroker extends Thread {
                 }
             }
             dnsHeartbeatAt = System.currentTimeMillis() + DNS_TIMEOUT;
+        }
+    }
+
+    /**
+     * Look for &amp; kill expired workers. Workers are oldest to most recent, so
+     * we stop at the first alive worker.
+     */
+    protected void purgeWorkers() {
+        for (Worker w = waiting.peekFirst(); w != null && w.expiry < System.currentTimeMillis(); w = waiting.peekFirst()) {
+            if (LOGGER.isInfoEnabled()) {
+                LOGGER.atInfo().addArgument(w.addressHex).addArgument(w.service == null ? "(unknown)" : w.service.name).log("Majordomo broker deleting expired worker: '{}' - service: '{}'");
+            }
+            deleteWorker(waiting.pollFirst(), false);
         }
     }
 
@@ -679,22 +643,6 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-     * Send heartbeats to idle workers if it's time
-     */
-    protected void sendHeartbeats() {
-        // Send heartbeats to idle workers if it's time
-        if (System.currentTimeMillis() >= heartbeatAt) {
-            final MdpMessage heartbeatMsg = new MdpMessage(null, PROT_WORKER, W_HEARTBEAT, null, EMPTY_FRAME, EMPTY_URI, EMPTY_FRAME, "", RBAC);
-            for (Worker worker : waiting) {
-                heartbeatMsg.senderID = worker.address;
-                heartbeatMsg.serviceNameBytes = worker.service.nameBytes;
-                heartbeatMsg.send(worker.socket);
-            }
-            heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
-        }
-    }
-
-    /**
      * Send heartbeats to the DNS server if necessary
      *
      * @param force sending regardless of time-out
@@ -717,6 +665,22 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
+     * Send heartbeats to idle workers if it's time
+     */
+    protected void sendHeartbeats() {
+        // Send heartbeats to idle workers if it's time
+        if (System.currentTimeMillis() >= heartbeatAt) {
+            final MdpMessage heartbeatMsg = new MdpMessage(null, PROT_WORKER, W_HEARTBEAT, EMPTY_FRAME, EMPTY_FRAME, EMPTY_URI, EMPTY_FRAME, "", RBAC);
+            for (Worker worker : waiting) {
+                heartbeatMsg.senderID = worker.address;
+                heartbeatMsg.serviceNameBytes = worker.service.nameBytes;
+                heartbeatMsg.send(worker.socket);
+            }
+            heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
+        }
+    }
+
+    /**
      * This worker is now waiting for work.
      *
      * @param worker the worker
@@ -729,10 +693,112 @@ public class MajordomoBroker extends Thread {
         // frequently
         // do not know why original implementation wanted to spread across different
         // workers (load balancing across different machines perhaps?!=)
-        // worker.service.waiting.addLast(worker);
+        // worker.service.waiting.addLast(worker)
         worker.service.waiting.push(worker);
         worker.updateExpiryTimeStamp();
         dispatch(worker.service);
+    }
+
+    private void dispatchMessageToMatchingSubscriber(final MdpMessage msg) {
+        activeSubscriptions.keySet().stream().filter(s -> subscriptionMatcher.test(msg.topic, s)).forEach(s -> {
+            // sends notification with the topic that is expected by the client for its subscription
+            pubSocket.sendMore(s.toString());
+            msg.send(pubSocket);
+        });
+
+        // publish also via router socket directly to known and previously subscribed clients
+        final List<byte[]> tClients = routerBasedSubscriptions.get(msg.topic);
+        if (tClients == null) {
+            return;
+        }
+        for (final byte[] clientID : tClients) {
+            msg.senderID = clientID;
+            msg.send(routerSocket);
+        }
+    }
+
+    private boolean handleSubscriptionMsg(final ZMsg subMsg) {
+        if (subMsg == null || subMsg.isEmpty()) {
+            return false;
+        }
+        final byte[] topicBytes = subMsg.getFirst().getData();
+        if (topicBytes.length == 0) {
+            return false;
+        }
+        final URI subscriptionTopic = URI.create(new String(topicBytes, 1, topicBytes.length - 1, UTF_8));
+        LOGGER.atDebug().addArgument(topicBytes[0]).addArgument(subscriptionTopic).log("received subscription request: {} to '{}'");
+
+        switch (topicBytes[0]) {
+        case 0: // '0' being the default ZeroMQ un-subscribe command
+            if (activeSubscriptions.computeIfAbsent(subscriptionTopic, s -> new AtomicInteger()).decrementAndGet() <= 0) {
+                subSocket.unsubscribe(subscriptionTopic.toString());
+            }
+            return true;
+        case 1: // '1' being the default ZeroMQ subscribe command
+            if (activeSubscriptions.computeIfAbsent(subscriptionTopic, s -> new AtomicInteger()).incrementAndGet() == 1) {
+                subSocket.subscribe(subscriptionTopic.toString());
+            }
+            return true;
+        default:
+            throw new IllegalStateException("receoved invalid subscription ID " + subMsg);
+        }
+    }
+
+    /* default */ Service getBestMatchingService(final String serviceName) { // NOPMD package private OK
+        final List<String> sortedList = services.keySet().stream().filter(serviceName::startsWith).sorted(Comparator.comparingInt(String::length)).collect(Collectors.toList());
+        return sortedList.isEmpty() ? null : services.get(sortedList.get(0));
+    }
+
+    /**
+     * This defines a single service.
+     */
+    protected class Service {
+        protected final String name; // Service name
+        protected final byte[] nameBytes; // Service name as byte array
+        protected final List<BasicMdpWorker> mdpWorker = new ArrayList<>();
+        protected final Map<RbacRole<?>, Queue<MdpMessage>> requests = new HashMap<>(); // RBAC-based queuing
+        protected final Deque<Worker> waiting = new ArrayDeque<>(); // List of waiting workers
+        protected final List<Thread> internalWorkers = new ArrayList<>();
+        protected byte[] serviceDescription; // service OpenAPI description
+
+        private Service(final String name, final byte[] nameBytes, final BasicMdpWorker mdpWorker) {
+            this.name = name;
+            this.nameBytes = nameBytes == null ? name.getBytes(UTF_8) : nameBytes;
+            if (mdpWorker != null) {
+                this.mdpWorker.add(mdpWorker);
+            }
+            rbacRoles.forEach(role -> requests.put(role, new ArrayDeque<>()));
+            requests.put(BasicRbacRole.NULL, new ArrayDeque<>()); // add default queue
+        }
+
+        private MdpMessage getNextPrioritisedMessage() {
+            for (RbacRole<?> role : rbacRoles) {
+                final Queue<MdpMessage> queue = requests.get(role); // matched non-empty queue
+                if (!queue.isEmpty()) {
+                    return queue.poll();
+                }
+            }
+            final Queue<MdpMessage> queue = requests.get(BasicRbacRole.NULL); // default queue
+            return queue.isEmpty() ? null : queue.poll();
+        }
+
+        private void putPrioritisedMessage(final MdpMessage queuedMessage) {
+            if (queuedMessage.hasRbackToken()) {
+                // find proper RBAC queue
+                final RbacToken rbacToken = RbacToken.from(queuedMessage.rbacToken);
+                final Queue<MdpMessage> roleBasedQueue = requests.get(rbacToken.getRole());
+                if (roleBasedQueue != null) {
+                    roleBasedQueue.offer(queuedMessage);
+                }
+            } else {
+                requests.get(BasicRbacRole.NULL).offer(queuedMessage);
+            }
+        }
+
+        private boolean requestsPending() {
+            return requests.entrySet().stream().anyMatch(
+                    map -> !map.getValue().isEmpty());
+        }
     }
 
     /**
@@ -746,19 +812,19 @@ public class MajordomoBroker extends Thread {
         private final Deque<MdpMessage> requests = new ArrayDeque<>(); // List of client requests
         protected long expiry = System.currentTimeMillis() + CLIENT_TIMEOUT; // Expires at unless heartbeat
 
-        private Client(final Socket socket, final String name, final byte[] nameBytes) {
+        protected Client(final Socket socket, final String name, final byte[] nameBytes) {
             this.socket = socket;
             this.name = name;
             this.nameBytes = nameBytes == null ? name.getBytes(UTF_8) : nameBytes;
             this.nameHex = strhex(nameBytes);
         }
 
-        private void offerToQueue(final MdpMessage msg) {
+        protected void offerToQueue(final MdpMessage msg) {
             expiry = System.currentTimeMillis() + CLIENT_TIMEOUT;
             requests.offer(msg);
         }
 
-        private MdpMessage pop() {
+        protected MdpMessage pop() {
             return requests.isEmpty() ? null : requests.poll();
         }
     }
@@ -804,16 +870,6 @@ public class MajordomoBroker extends Thread {
             updateExpiryTimeStamp();
         }
 
-        private void updateExpiryTimeStamp() {
-            expiry = System.currentTimeMillis() + DNS_TIMEOUT * HEARTBEAT_LIVENESS;
-        }
-
-        @Override
-        public String toString() {
-            final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.UK);
-            return "DnsServiceItem{address=" + ZData.toString(address) + ", serviceName='" + serviceName + "', uri= '" + uri + "',expiry=" + expiry + " - " + sdf.format(expiry) + '}';
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -842,75 +898,15 @@ public class MajordomoBroker extends Thread {
         public int hashCode() {
             return serviceName.hashCode();
         }
-    }
 
-    /**
-     * This defines a single service.
-     */
-    protected class Service {
-        protected final String name; // Service name
-        protected final byte[] nameBytes; // Service name as byte array
-        protected final List<BasicMdpWorker> mdpWorker = new ArrayList<>();
-        protected final Map<RbacRole<?>, Queue<MdpMessage>> requests = new HashMap<>(); // RBAC-based queuing
-        protected final Deque<Worker> waiting = new ArrayDeque<>(); // List of waiting workers
-        protected final List<Thread> internalWorkers = new ArrayList<>();
-        protected byte[] serviceDescription; // service OpenAPI description
-
-        private Service(final String name, final byte[] nameBytes, final BasicMdpWorker mdpWorker) {
-            this.name = name;
-            this.nameBytes = nameBytes == null ? name.getBytes(UTF_8) : nameBytes;
-            if (mdpWorker != null) {
-                this.mdpWorker.add(mdpWorker);
-            }
-            rbacRoles.forEach(role -> requests.put(role, new ArrayDeque<>()));
-            requests.put(BasicRbacRole.NULL, new ArrayDeque<>()); // add default queue
+        @Override
+        public String toString() {
+            final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.UK);
+            return "DnsServiceItem{address=" + ZData.toString(address) + ", serviceName='" + serviceName + "', uri= '" + uri + "',expiry=" + expiry + " - " + sdf.format(expiry) + '}';
         }
 
-        private boolean requestsPending() {
-            return requests.entrySet().stream().anyMatch(
-                    map -> !map.getValue().isEmpty());
+        private void updateExpiryTimeStamp() {
+            expiry = System.currentTimeMillis() + DNS_TIMEOUT * HEARTBEAT_LIVENESS;
         }
-
-        private MdpMessage getNextPrioritisedMessage() {
-            for (RbacRole<?> role : rbacRoles) {
-                final Queue<MdpMessage> queue = requests.get(role); // matched non-empty queue
-                if (!queue.isEmpty()) {
-                    return queue.poll();
-                }
-            }
-            final Queue<MdpMessage> queue = requests.get(BasicRbacRole.NULL); // default queue
-            return queue.isEmpty() ? null : queue.poll();
-        }
-
-        private void putPrioritisedMessage(final MdpMessage queuedMessage) {
-            if (queuedMessage.hasRbackToken()) {
-                // find proper RBAC queue
-                final RbacToken rbacToken = RbacToken.from(queuedMessage.rbacToken);
-                final Queue<MdpMessage> roleBasedQueue = requests.get(rbacToken.getRole());
-                if (roleBasedQueue != null) {
-                    roleBasedQueue.offer(queuedMessage);
-                }
-            } else {
-                requests.get(BasicRbacRole.NULL).offer(queuedMessage);
-            }
-        }
-    }
-
-    protected static String getLocalHostName() {
-        String ip;
-        try (DatagramSocket socket = new DatagramSocket()) {
-            socket.connect(InetAddress.getByName("8.8.8.8"), 10_002); // NOPMD - bogus hardcoded IP acceptable in this context
-            if (socket.getLocalAddress() == null) {
-                throw new UnknownHostException("bogus exception can be ignored");
-            }
-            ip = socket.getLocalAddress().getHostAddress();
-
-            if (ip != null) {
-                return ip;
-            }
-        } catch (final SocketException | UnknownHostException e) {
-            LOGGER.atError().setCause(e).log("getLocalHostName()");
-        }
-        return "localhost";
     }
 }

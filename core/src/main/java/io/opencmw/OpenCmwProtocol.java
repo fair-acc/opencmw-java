@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -483,12 +484,22 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
      *  MDP reply/request context
      */
     public static class Context {
-        public final MdpMessage req; // input request
-        public MdpMessage rep; // return request
-
-        private Context() {
-            req = new MdpMessage();
-        }
+        /**
+         * input request message
+         */
+        public final MdpMessage req;
+        /**
+         * return request nessage
+         */
+        public MdpMessage rep;
+        /**
+         * default data MIME type. defaults to BINARY/YaS serialiser format if not expicitly set
+         */
+        public MimeType mimeType = MimeType.BINARY;
+        /**
+         * extra HTML/REST object data to be communicated to the HTML template engine - default: null
+         */
+        public Map<String, Object> htmlData;
 
         public Context(@NotNull MdpMessage requestMsg) {
             req = requestMsg;
@@ -497,7 +508,7 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
 
         @Override
         public String toString() {
-            return "OpenCmwProtocol.Context{req=" + req + ", rep=" + rep + '}';
+            return "OpenCmwProtocol.Context{req=" + req + ", rep=" + rep + ", mimeType=" + mimeType.name() + ", htmlData=" + htmlData + '}';
         }
 
         @Override

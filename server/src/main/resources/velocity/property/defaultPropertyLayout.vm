@@ -12,6 +12,7 @@
 
     /* embed container */
     .embedBinary {max-width: 100%;}
+    .embeddedFrame {width: 100%; min-height: 110vh; }
 
     /* switch and slider */
     .switch {position: relative; display:inline-block;width:38px;height: 17px;}
@@ -175,7 +176,7 @@ Subscribe:
 
 
 #if ($request && $requestClassData && $requestClassData.size() != 0 && $request.getClass().getSimpleName() != "NoData")
-<form id="defaultPropertyRequest" method="POST">
+<form id="defaultPropertyRequest" method="POST" enctype="multipart/form-data">
     <div class="wrap-collabsible">
         <input id="collapsibleRequest" class="toggle" type="checkbox">
         <label for="collapsibleRequest" class="lbl-toggle">Request:</label>
@@ -189,7 +190,7 @@ Subscribe:
 </form>
 #end
 
-<form id="defaultPropertyTopic" method="GET">
+<form id="defaultPropertyTopic" method="GET" enctype="multipart/form-data">
     <div class="wrap-collabsible">
         <input id="collapsibleRequestTopic" class="toggle" type="checkbox">
         <label for="collapsibleRequestTopic" class="lbl-toggle" title="reply context: $replyTopic">Reply Context</label>
@@ -201,7 +202,7 @@ Subscribe:
     </div>
 </form>
 
-<form id="defaultPropertyReply" method="POST">
+<form id="defaultPropertyReply" method="POST" enctype="multipart/form-data">
     <div class="wrap-collabsible">
         <input id="collapsibleReply" class="toggle" type="checkbox" checked>
         <label for="collapsibleReply" class="lbl-toggle">Reply:</label>

@@ -1,0 +1,9 @@
+#if ($serviceType == "upload")
+#parse("/velocity/property/ClipboardLayoutUpload.vm")
+#elseif($serviceType == "oneSSE")
+#parse("/velocity/property/ClipboardLayoutOneSse.vm")
+#elseif($serviceType == "onePolling")
+#parse("/velocity/property/ClipboardLayoutOneLong.vm")
+#else ##'all'
+    #parse("/velocity/property/ClipboardLayoutAll.vm")
+#end
