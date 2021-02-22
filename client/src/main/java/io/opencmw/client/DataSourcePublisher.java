@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static io.opencmw.client.DataSourceFilter.ReplyType.SUBSCRIBE;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -73,7 +74,7 @@ import io.opencmw.utils.SharedPointer;
  * @author Alexander Krimmm
  * @author rstein
  */
-public class DataSourcePublisher implements Runnable {
+public class DataSourcePublisher implements Runnable, Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisher.class);
     public static final int MIN_FRAMES_INTERNAL_MSG = 3;
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
@@ -135,6 +136,11 @@ public class DataSourcePublisher implements Runnable {
         return new Client();
     }
 
+    @Override
+    public void close() {
+        context.destroy();
+    }
+
     public class Client implements Closeable {
         private final ZMQ.Socket controlSocket;
         private IoBuffer byteBuffer;
@@ -164,8 +170,6 @@ public class DataSourcePublisher implements Runnable {
 
         private <R, C> ThePromisedFuture<R, ?> request(final DataSourceFilter.ReplyType replyType, final URI endpoint, R requestBody, C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
             final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final ThePromisedFuture<R, ?> requestFuture = newRequestFuture(endpoint, requestedDomainObjType, replyType, requestId);
-            final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
 
             URI endpointQuery = endpoint;
             if (requestContext != null) {
@@ -175,6 +179,7 @@ public class DataSourcePublisher implements Runnable {
                     throw new IllegalArgumentException("Invalid URL syntax for endpoint", e);
                 }
             }
+            final ThePromisedFuture<R, ?> requestFuture = newRequestFuture(endpointQuery, requestedDomainObjType, replyType, requestId);
             // signal socket for get with endpoint and request id
             final ZMsg msg = new ZMsg();
             msg.add(new byte[] { replyType.getID() });
@@ -184,7 +189,7 @@ public class DataSourcePublisher implements Runnable {
             if (requestBody == null) {
                 msg.add(EMPTY_FRAME);
             } else {
-                // todo: use per thread serialiser here
+                final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
                 final IoClassSerialiser serialiser = getSerialiser(); // lazily initialize IoClassSerialiser
                 serialiser.setMatchedIoSerialiser(matchingSerialiser); // needs to be converted in DataSource impl
                 serialiser.serialiseObject(requestBody);
@@ -208,7 +213,6 @@ public class DataSourcePublisher implements Runnable {
 
         public <T, C> String subscribe(final URI endpoint, final Class<T> requestedDomainObjType, final C context, final Class<C> contextType, NotificationListener<T, C> listener, final RbacProvider... rbacProvider) {
             final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final ThePromisedFuture<T, C> requestFuture = newSubscriptionFuture(endpoint, requestedDomainObjType, contextType, requestId, listener);
             URI endpointQuery = endpoint;
             if (context != null) {
                 try {
@@ -217,6 +221,7 @@ public class DataSourcePublisher implements Runnable {
                     throw new IllegalArgumentException("Invalid URL syntax for endpoint", e);
                 }
             }
+            final ThePromisedFuture<T, C> requestFuture = newSubscriptionFuture(endpointQuery, requestedDomainObjType, contextType, requestId, listener);
 
             // signal socket for get with endpoint and request id
             final ZMsg msg = new ZMsg();
@@ -258,6 +263,7 @@ public class DataSourcePublisher implements Runnable {
 
     public void stop() {
         running.set(false);
+        close();
     }
 
     @Override
@@ -386,10 +392,10 @@ public class DataSourcePublisher implements Runnable {
                     if (future.listener != null) {
                         final Object finalDomainObj = domainObj;
                         final Object contextObject;
-                        if (future.contextType != null) {
-                            contextObject = QueryParameterParser.parseQueryParameter(future.contextType, endpointURI.getQuery());
-                        } else {
+                        if (future.contextType == null) {
                             contextObject = QueryParameterParser.getMap(endpointURI.getQuery());
+                        } else {
+                            contextObject = QueryParameterParser.parseQueryParameter(future.contextType, endpointURI.getQuery());
                         }
                         executor.submit(() -> future.notifyListener(finalDomainObj, contextObject)); // NOPMD - threads are ok, not a webapp
                     }
@@ -470,7 +476,7 @@ public class DataSourcePublisher implements Runnable {
             final Class<C> contextType,
             final String requestId,
             final NotificationListener<R, C> listener) {
-        final ThePromisedFuture<R, C> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, contextType, DataSourceFilter.ReplyType.SUBSCRIBE, requestId, listener);
+        final ThePromisedFuture<R, C> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, contextType, SUBSCRIBE, requestId, listener);
         final Object oldEntry = requests.put(requestId, requestFuture);
         assert oldEntry == null : "requestID '" + requestId + "' already present in requestFutureMap";
         return requestFuture;

@@ -206,7 +206,7 @@ public class RestDataSource extends DataSource implements Runnable {
                 }
             }));
         } catch (MalformedURLException e) {
-            e.printStackTrace();
+            LOGGER.atWarn().addArgument(endpoint).setCause(e).log("Error building uri for endpoint: {}");
         }
     }
 

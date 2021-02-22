@@ -50,12 +50,10 @@ public class OpenCmwDataSource extends DataSource {
             return new OpenCmwDataSource(context, endpoint, timeout, clientId);
         }
     };
-    private final ZContext context;
-    private final Duration timeout;
     private final String clientId;
     private final URI endpoint;
     private final Socket socket;
-    private final Map<String, URI> subscriptions = new HashMap<>();
+    private final Map<String, URI> subscriptions = new HashMap<>(); // NOPMD: not accessed concurrently
     private final URI serverUri;
     private final BiPredicate<URI, URI> subscriptionMatcher = new PathSubscriptionMatcher(); // <notify topic, subscribe topic>
 
@@ -70,8 +68,6 @@ public class OpenCmwDataSource extends DataSource {
     public OpenCmwDataSource(final ZContext context, final URI endpoint, final Duration timeout, final String clientId) {
         super(endpoint);
         this.endpoint = endpoint; // todo: Strip unneeded parts?
-        this.context = context;
-        this.timeout = timeout;
         this.clientId = clientId;
         try {
             this.serverUri = new URI(endpoint.getScheme(), endpoint.getAuthority(), "/", null, null);

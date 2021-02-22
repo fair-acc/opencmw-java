@@ -157,7 +157,8 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                         new URI(new Endpoint(requestForReply.endpoint.toString()).getEndpointForContext(reply.dataContext.cycleName)),
                         null, reply.bodyData, null);
             } catch (URISyntaxException e) {
-                e.printStackTrace();
+                LOGGER.atWarn().addArgument(requestForReply.endpoint).addArgument(reply.dataContext.cycleName).log("Adding reply context to URI results in illegal url {} + {}");
+                return new ZMsg();
             }
         case EXCEPTION:
             final Request requestForException = pendingRequests.remove(reply.id);

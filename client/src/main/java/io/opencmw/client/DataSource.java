@@ -1,7 +1,6 @@
 package io.opencmw.client;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.List;
 
