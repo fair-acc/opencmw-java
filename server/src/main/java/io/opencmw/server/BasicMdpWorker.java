@@ -2,6 +2,8 @@ package io.opencmw.server;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import static io.opencmw.OpenCmwConstants.*;
+import static io.opencmw.OpenCmwConstants.HEARTBEAT_DEFAULT;
 import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;
@@ -38,10 +40,10 @@ import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
 
+import io.opencmw.filter.PathSubscriptionMatcher;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.serialiser.utils.ClassUtils;
-import io.opencmw.utils.PathSubscriptionMatcher;
 import io.opencmw.utils.SystemProperties;
 
 /**
@@ -64,8 +66,6 @@ import io.opencmw.utils.SystemProperties;
 public class BasicMdpWorker extends Thread {
     private static final Logger LOGGER = LoggerFactory.getLogger(BasicMdpWorker.class);
     protected static final byte[] RBAC = {}; //TODO: implement RBAC between Majordomo and Worker
-    protected static final int HEARTBEAT_LIVENESS = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeatLiveness", 3); // [counts] 3-5 is reasonable
-    protected static final int HEARTBEAT_INTERVAL = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeat", 2500); // [ms]
     protected static final AtomicInteger WORKER_COUNTER = new AtomicInteger();
     protected BiPredicate<URI, URI> subscriptionMatcher = new PathSubscriptionMatcher(); // <notify topic, subscribe topic>
 
@@ -91,6 +91,8 @@ public class BasicMdpWorker extends Thread {
     protected final boolean isExternal; // used to skip heart-beating and disconnect checks
     protected ZMQ.Socket workerSocket; // Socket to broker
     protected ZMQ.Socket pubSocket; // Socket to broker
+    protected final int heartBeatLiveness = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable
+    protected final long heartBeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms]
     protected long heartbeatAt; // When to send HEARTBEAT
     protected int liveness; // How many attempts left
     protected long reconnect = 2500L; // Reconnect delay, msecs
@@ -193,7 +195,7 @@ public class BasicMdpWorker extends Thread {
         // Poll socket for a reply, with timeout and/or until the process is stopped or interrupted
         // N.B. poll(..) returns '-1' when thread is interrupted
         final MdpMessage heartbeatMsg = new MdpMessage(null, PROT_WORKER, W_HEARTBEAT, serviceBytes, EMPTY_FRAME, EMPTY_URI, EMPTY_FRAME, "", RBAC);
-        while (runSocketHandlerLoop.get() && !Thread.currentThread().isInterrupted() && poller.poll(HEARTBEAT_INTERVAL) != -1) {
+        while (runSocketHandlerLoop.get() && !Thread.currentThread().isInterrupted() && poller.poll(heartBeatInterval) != -1) {
             boolean dataReceived = true;
             while (dataReceived) {
                 // handle message from or to broker
@@ -220,7 +222,7 @@ public class BasicMdpWorker extends Thread {
             // Send HEARTBEAT if it's time
             if (System.currentTimeMillis() > heartbeatAt) {
                 heartbeatMsg.send(workerSocket);
-                heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
+                heartbeatAt = System.currentTimeMillis() + heartBeatInterval;
             }
         }
         if (Thread.currentThread().isInterrupted()) {
@@ -250,7 +252,7 @@ public class BasicMdpWorker extends Thread {
             return Collections.emptyList();
         }
 
-        liveness = HEARTBEAT_LIVENESS;
+        liveness = heartBeatLiveness;
 
         switch (request.command) {
         case GET_REQUEST:
@@ -370,8 +372,8 @@ public class BasicMdpWorker extends Thread {
         poller.register(notifyListenerSocket, ZMQ.Poller.POLLIN);
 
         // If liveness hits zero, queue is considered disconnected
-        liveness = HEARTBEAT_LIVENESS;
-        heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
+        liveness = heartBeatLiveness;
+        heartbeatAt = System.currentTimeMillis() + heartBeatInterval;
     }
 
     public interface RequestHandler {

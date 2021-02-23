@@ -19,15 +19,17 @@ import org.zeromq.*;
 import org.zeromq.ZMQ.Socket;
 
 import io.opencmw.OpenCmwProtocol;
+import io.opencmw.filter.PathSubscriptionMatcher;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.BinarySerialiser;
-import io.opencmw.utils.PathSubscriptionMatcher;
 
 /**
  * Client implementation for the OpenCMW protocol.
  *
  * Implements the mdp:// (opencmw tcp get/set/sub), mds:// (opencmw udp multicast subscriptions) and mdr:// (majordomo
  * radio dish for e.g. timing updates) protocols.
+ *
+ * @author Alexander Krimm
  */
 public class OpenCmwDataSource extends DataSource {
     private static final Logger LOGGER = LoggerFactory.getLogger(OpenCmwDataSource.class);
@@ -94,7 +96,7 @@ public class OpenCmwDataSource extends DataSource {
 
     @Override
     public Socket getSocket() {
-        return socket; // todo: also return sub socket?
+        return socket;
     }
 
     @Override
@@ -156,7 +158,6 @@ public class OpenCmwDataSource extends DataSource {
         final ZMsg result = new ZMsg();
         result.add(reqId);
         result.add(endpoint.toString());
-        result.add(new byte[0]);
         result.add(body == null ? new ZFrame(new byte[0]) : body);
         result.add(exception == null ? new ZFrame(new byte[0]) : new ZFrame(exception));
         return result;
@@ -216,7 +217,7 @@ public class OpenCmwDataSource extends DataSource {
     }
 
     @Override
-    public void get(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+    public void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
         // todo: filters which are not in endpoint
         final byte[] serviceId = endpoint.getPath().substring(1).getBytes(StandardCharsets.UTF_8);
         final boolean sent = new OpenCmwProtocol.MdpMessage(null,
@@ -235,7 +236,7 @@ public class OpenCmwDataSource extends DataSource {
     }
 
     @Override
-    public void set(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+    public void set(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
         // todo: filters which are not in endpoint
         final byte[] serviceId = endpoint.getPath().substring(1).getBytes(StandardCharsets.UTF_8);
         final boolean sent = new OpenCmwProtocol.MdpMessage(null,

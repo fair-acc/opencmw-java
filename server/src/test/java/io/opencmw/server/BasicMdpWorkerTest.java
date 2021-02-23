@@ -98,7 +98,7 @@ class BasicMdpWorkerTest {
         assertTrue(worker.notifyRaw(msg)); // is unfiltered: no subscription -> true
 
         // wait for five heartbeats -> checks poller, heartbeat and reconnect features (to some extend)
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(5L * BasicMdpWorker.HEARTBEAT_INTERVAL));
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(5L * worker.heartBeatInterval));
 
         new Thread(() -> {
             run.set(true);

@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
@@ -39,6 +40,7 @@ import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.BinarySerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 
+@Timeout(20)
 class DataSourcePublisherTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisherTest.class);
     private static final AtomicReference<TestObject> testObject = new AtomicReference<>();
@@ -90,7 +92,6 @@ class DataSourcePublisherTest {
                         final ZMsg msg = new ZMsg();
                         msg.add(subscriptionId);
                         msg.add(endpoint.toString());
-                        msg.add(new byte[0]); // header
                         ioClassSerialiser.getDataBuffer().reset();
                         ioClassSerialiser.serialiseObject(testObject.get());
                         msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
@@ -107,7 +108,6 @@ class DataSourcePublisherTest {
                     final ZMsg msg = new ZMsg();
                     msg.add(requestId);
                     msg.add(endpoint.toString());
-                    msg.add(new byte[0]); // header
                     ioClassSerialiser.getDataBuffer().reset();
                     ioClassSerialiser.serialiseObject(testObject.get());
                     msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
@@ -122,12 +122,12 @@ class DataSourcePublisherTest {
         }
 
         @Override
-        public void get(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+        public void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
             requests.put(requestId, endpoint);
         }
 
         @Override
-        public void set(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+        public void set(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
             throw new UnsupportedOperationException("cannot perform set");
         }
 

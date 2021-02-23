@@ -17,6 +17,7 @@ import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.Utils;
@@ -30,6 +31,10 @@ import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.server.MajordomoBroker;
 import io.opencmw.server.MajordomoWorker;
 
+/**
+ * @author Alexander Krimm
+ */
+@Timeout(20)
 class OpenCmwDataSourceTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(OpenCmwDataSourceTest.class);
     private EventStore eventStore;

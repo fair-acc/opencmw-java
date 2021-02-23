@@ -5,6 +5,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.zeromq.ZMQ.Socket;
 import static org.zeromq.util.ZData.strhex;
 
+import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;
@@ -35,11 +36,11 @@ import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
 import org.zeromq.util.ZData;
 
+import io.opencmw.filter.PathSubscriptionMatcher;
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.rbac.RbacToken;
 import io.opencmw.utils.NoDuplicatesList;
-import io.opencmw.utils.PathSubscriptionMatcher;
 import io.opencmw.utils.SystemProperties;
 
 /**
@@ -58,6 +59,7 @@ import io.opencmw.utils.SystemProperties;
  * <li>'OpenCMW.nIoThreads' []: default (2) IO threads dedicated to network IO (ZeroMQ recommendation 1 thread per 1 GBit/s)</li>
  * <li>'OpenCMW.dnsTimeOut' [s]: default (60) DNS time-out after which an unresponsive client is dropped from the DNS table
  * <small>N.B. if registered, a HEARTBEAT challenge will be send that needs to be replied with a READY command/re-registering</small></li>
+ * @see io.opencmw.OpenCmwConstants for more details
  * </ul>
  */
 @SuppressWarnings({ "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.TooManyMethods", "PMD.TooManyStaticImports", "PMD.CommentSize", "PMD.UseConcurrentHashMap" })
@@ -79,12 +81,6 @@ public class MajordomoBroker extends Thread {
     public static final String SCHEME_TCP = "tcp://";
     public static final String WILDCARD = "*";
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoBroker.class);
-    private static final long HEARTBEAT_LIVENESS = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeatLiveness", 3); // [counts] 3-5 is reasonable
-    private static final long HEARTBEAT_INTERVAL = SystemProperties.getValueIgnoreCase("OpenCMW.heartBeat", 2500); // [ms]
-    private static final long HEARTBEAT_EXPIRY = HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS;
-    private static final long CLIENT_TIMEOUT = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase("OpenCMW.clientTimeOut", 0)); // [s]
-    private static final int N_IO_THREAD = SystemProperties.getValueIgnoreCase("OpenCMW.nIoThreads", 1); // [] typ. 1 for < 1 GBit/s
-    private static final long DNS_TIMEOUT = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase("OpenCMW.dnsTimeOut", 10)); // [ms] time when
     private static final AtomicInteger BROKER_COUNTER = new AtomicInteger();
     // ---------------------------------------------------------------------
     protected final ZContext ctx;
@@ -103,10 +99,15 @@ public class MajordomoBroker extends Thread {
     protected final Map<URI, AtomicInteger> activeSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
     protected final Map<URI, List<byte[]>> routerBasedSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
     private final AtomicBoolean run = new AtomicBoolean(false); // NOPMD - nomen est omen
-    private final Deque<Worker> waiting = new ArrayDeque<>(); // idle workers
+    protected final Deque<Worker> waiting = new ArrayDeque<>(); // idle workers
     /* default */ final Map<String, DnsServiceItem> dnsCache = new HashMap<>(); // <server name, DnsServiceItem>
-    private long heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL; // When to send HEARTBEAT
-    private long dnsHeartbeatAt = System.currentTimeMillis() + DNS_TIMEOUT; // When to send a DNS HEARTBEAT
+    protected final int heartBeatLiveness = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable
+    protected final long heartBeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms]
+    protected final long heartBeatExpiry = heartBeatInterval * heartBeatLiveness;
+    protected final long clientTimeOut = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase(CLIENT_TIMEOUT, CLIENT_TIMEOUT_DEFAULT)); // [s]
+    protected final long dnsTimeOut = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase("OpenCMW.dnsTimeOut", 10)); // [ms] time when
+    protected long heartbeatAt = System.currentTimeMillis() + heartBeatInterval; // When to send HEARTBEAT
+    protected long dnsHeartbeatAt = System.currentTimeMillis() + dnsTimeOut; // When to send a DNS HEARTBEAT
 
     /**
      * Initialize broker state.
@@ -122,7 +123,7 @@ public class MajordomoBroker extends Thread {
         this.dnsAddress = dnsAddress.isBlank() ? "" : SCHEME_TCP + dnsService.getAuthority() + dnsService.getPath();
         this.setName(MajordomoBroker.class.getSimpleName() + "(" + brokerName + ")#" + BROKER_COUNTER.getAndIncrement());
 
-        ctx = new ZContext(N_IO_THREAD);
+        ctx = new ZContext(SystemProperties.getValueIgnoreCase(N_IO_THREADS, N_IO_THREADS_DEFAULT));
 
         // initialise RBAC role-based priority queues
         this.rbacRoles = Collections.unmodifiableSortedSet(new TreeSet<>(Set.of(rbacRoles)));
@@ -232,7 +233,7 @@ public class MajordomoBroker extends Thread {
             items.register(dnsSocket, ZMQ.Poller.POLLIN);
             items.register(pubSocket, ZMQ.Poller.POLLIN);
             items.register(subSocket, ZMQ.Poller.POLLIN);
-            while (run.get() && !Thread.currentThread().isInterrupted() && items.poll(HEARTBEAT_INTERVAL) != -1) {
+            while (run.get() && !Thread.currentThread().isInterrupted() && items.poll(heartBeatInterval) != -1) {
                 int loopCount = 0;
                 boolean receivedMsg = true;
                 while (run.get() && !Thread.currentThread().isInterrupted() && receivedMsg) {
@@ -540,7 +541,7 @@ public class MajordomoBroker extends Thread {
      * Look for &amp; kill expired clients.
      */
     protected void purgeClients() {
-        if (CLIENT_TIMEOUT <= 0) {
+        if (clientTimeOut <= 0) {
             return;
         }
         for (String clientName : clients.keySet()) { // NOSONAR NOPMD copy because
@@ -578,7 +579,7 @@ public class MajordomoBroker extends Thread {
                     dnsCache.remove(registeredService.serviceName);
                 }
             }
-            dnsHeartbeatAt = System.currentTimeMillis() + DNS_TIMEOUT;
+            dnsHeartbeatAt = System.currentTimeMillis() + dnsTimeOut;
         }
     }
 
@@ -677,7 +678,7 @@ public class MajordomoBroker extends Thread {
                 heartbeatMsg.serviceNameBytes = worker.service.nameBytes;
                 heartbeatMsg.send(worker.socket);
             }
-            heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
+            heartbeatAt = System.currentTimeMillis() + heartBeatInterval;
         }
     }
 
@@ -805,13 +806,13 @@ public class MajordomoBroker extends Thread {
     /**
      * This defines a client service.
      */
-    protected static class Client {
+    protected class Client {
         protected final Socket socket; // Socket client is connected to
         protected final String name; // client name
         protected final byte[] nameBytes; // client name as byte array
         protected final String nameHex; // client name as hex String
         private final Deque<MdpMessage> requests = new ArrayDeque<>(); // List of client requests
-        protected long expiry = System.currentTimeMillis() + CLIENT_TIMEOUT; // Expires at unless heartbeat
+        protected long expiry = System.currentTimeMillis() + clientTimeOut; // Expires at unless heartbeat
 
         protected Client(final Socket socket, final String name, final byte[] nameBytes) {
             this.socket = socket;
@@ -821,7 +822,7 @@ public class MajordomoBroker extends Thread {
         }
 
         protected void offerToQueue(final MdpMessage msg) {
-            expiry = System.currentTimeMillis() + CLIENT_TIMEOUT;
+            expiry = System.currentTimeMillis() + clientTimeOut;
             requests.offer(msg);
         }
 
@@ -833,7 +834,7 @@ public class MajordomoBroker extends Thread {
     /**
      * This defines one worker, idle or active.
      */
-    protected static class Worker {
+    protected class Worker {
         protected final Socket socket; // Socket worker is connected to
         protected final byte[] address; // Address ID frame to route to
         protected final String addressHex; // Address ID frame of worker expressed as hex-String
@@ -851,7 +852,7 @@ public class MajordomoBroker extends Thread {
         }
 
         private void updateExpiryTimeStamp() {
-            expiry = System.currentTimeMillis() + HEARTBEAT_EXPIRY;
+            expiry = System.currentTimeMillis() + heartBeatExpiry;
         }
     }
 
@@ -859,7 +860,7 @@ public class MajordomoBroker extends Thread {
      * This defines one DNS service item, idle or active.
      */
     @SuppressWarnings("PMD.CommentDefaultAccessModifier") // needed for utility classes in the same package
-    static class DnsServiceItem {
+    class DnsServiceItem {
         protected final byte[] address; // Address ID frame to route to
         protected final String serviceName;
         protected final List<URI> uri = new NoDuplicatesList<>();
@@ -907,7 +908,7 @@ public class MajordomoBroker extends Thread {
         }
 
         private void updateExpiryTimeStamp() {
-            expiry = System.currentTimeMillis() + DNS_TIMEOUT * HEARTBEAT_LIVENESS;
+            expiry = System.currentTimeMillis() + dnsTimeOut * heartBeatLiveness;
         }
     }
 }

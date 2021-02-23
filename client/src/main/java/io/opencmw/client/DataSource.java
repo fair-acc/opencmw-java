@@ -94,22 +94,20 @@ public abstract class DataSource {
      * @param requestId request id which later allows to match the returned value to this query.
      *                  This is the only mandatory parameter, all the following may be null.
      * @param endpoint extend the filters originally supplied to the endpoint e.g. "ctx=selector&amp;channel=chanA"
-     * @param filters The serialised filters which will determine which data to update
      * @param data The serialised data which can be used by the get call
      * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
      */
-    public abstract void get(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken);
+    public abstract void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken);
 
     /**
      * Perform a set request on this endpoint using additional filters
      * @param requestId request id which later allows to match the returned value to this query.
      *                  This is the only mandatory parameter, all the following may be null.
      * @param endpoint extend the filters originally supplied to the endpoint e.g. "ctx=selector&amp;channel=chanA"
-     * @param filters The serialised filters which will determine which data to update
      * @param data The serialised data which can be used by the get call
      * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
      */
-    public abstract void set(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken);
+    public abstract void set(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken);
 
     protected interface Factory {
         boolean matches(final URI endpoint);

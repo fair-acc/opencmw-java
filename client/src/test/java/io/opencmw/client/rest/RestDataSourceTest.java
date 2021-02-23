@@ -14,10 +14,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
 import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.ZContext;
@@ -37,6 +34,7 @@ import okhttp3.sse.EventSource;
 import okhttp3.sse.EventSources;
 import zmq.ZError;
 
+@Timeout(20)
 class RestDataSourceTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(RestDataSourceTest.class);
     private static final String TEST_DATA = "Hello World!";

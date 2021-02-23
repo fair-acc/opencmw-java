@@ -390,8 +390,9 @@ class MajordomoBrokerTests {
 
     @Test
     void testMisc() {
-        assertDoesNotThrow(() -> new MajordomoBroker.Client(null, "testClient", "testClient".getBytes(UTF_8)));
-        final MajordomoBroker.Client testClient = new MajordomoBroker.Client(null, "testClient", "testClient".getBytes(UTF_8));
+        final MajordomoBroker broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());
+        assertDoesNotThrow(() -> broker.new Client(null, "testClient", "testClient".getBytes(UTF_8)));
+        final MajordomoBroker.Client testClient = broker.new Client(null, "testClient", "testClient".getBytes(UTF_8));
         final MdpMessage testMsg = new MdpMessage(null, PROT_CLIENT, GET_REQUEST, DEFAULT_ECHO_SERVICE.getBytes(UTF_8), EMPTY_FRAME, URI.create(DEFAULT_ECHO_SERVICE), DEFAULT_REQUEST_MESSAGE_BYTES, "", new byte[0]);
         assertDoesNotThrow(() -> testClient.offerToQueue(testMsg));
         assertEquals(testMsg, testClient.pop());

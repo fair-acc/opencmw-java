@@ -176,12 +176,12 @@ public class RestDataSource extends DataSource implements Runnable {
     }
 
     @Override
-    public void get(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+    public void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
         enqueueRequest(requestId); //TODO: refactor interface
     }
 
     @Override
-    public void set(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+    public void set(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
         throw new UnsupportedOperationException("set not (yet) implemented");
     }
 
@@ -293,7 +293,7 @@ public class RestDataSource extends DataSource implements Runnable {
                             header = EMPTY_FRAME;
                             data = EMPTY_FRAME;
                         } else {
-                            header = callBack.response.headers().toString().getBytes(StandardCharsets.UTF_8);
+                            // callBack.response.headers().toString().getBytes(StandardCharsets.UTF_8);
                             data = callBack.response.peekBody(Long.MAX_VALUE).bytes();
                             callBack.response.close();
                         }
@@ -302,7 +302,6 @@ public class RestDataSource extends DataSource implements Runnable {
                         final ZMsg msg = new ZMsg(); // NOPMD - instantiation in loop
                         msg.add(callBack.hashKey);
                         msg.add(callBack.endPointName);
-                        msg.add(header);
                         msg.add(data);
                         msg.add(exception);
 

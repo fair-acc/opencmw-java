@@ -56,6 +56,11 @@ public final class SystemProperties { // NOPMD -- nomen est omen
         return value == null ? defaultValue : Integer.parseInt(value);
     }
 
+    public static long getValueIgnoreCase(String key, long defaultValue) {
+        final String value = getPropertyIgnoreCase(key);
+        return value == null ? defaultValue : Long.parseLong(value);
+    }
+
     public static Object put(final Object key, final Object value) {
         return SYSTEM_PROPERTIES.put(key, value);
     }

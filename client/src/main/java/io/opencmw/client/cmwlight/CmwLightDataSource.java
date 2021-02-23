@@ -1,5 +1,7 @@
 package io.opencmw.client.cmwlight;
 
+import static io.opencmw.OpenCmwConstants.*;
+
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -25,16 +27,21 @@ import org.zeromq.ZMQ;
 import org.zeromq.ZMQException;
 import org.zeromq.ZMsg;
 
+import io.opencmw.OpenCmwConstants;
 import io.opencmw.client.DataSource;
 import io.opencmw.client.Endpoint;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
+import io.opencmw.utils.SystemProperties;
 
 /**
  * A lightweight implementation of the CMW RDA3 client part.
  * Reads all sockets from a single Thread, which can also be embedded into other event loops.
  * Manages connection state and automatically reconnects broken connections and subscriptions.
+ *
+ * @author Alexander Krimm
  */
+@SuppressWarnings({ "PMD.UseConcurrentHashMap" }) // - only accessed from main thread
 public class CmwLightDataSource extends DataSource { // NOPMD - class should probably be smaller
     private static final Logger LOGGER = LoggerFactory.getLogger(CmwLightDataSource.class);
     private static final AtomicLong CONNECTION_ID_GENERATOR = new AtomicLong(0); // global counter incremented for each connection
@@ -56,25 +63,25 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             return new CmwLightDataSource(context, endpoint, clientId);
         }
     };
-    protected static final int HEARTBEAT_INTERVAL = 1000; // time between to heartbeats in ms
-    protected static final int HEARTBEAT_ALLOWED_MISSES = 3; // number of heartbeats which can be missed before resetting the conection
-    protected static final long SUBSCRIPTION_TIMEOUT = 1000; // maximum time after which a connection should be reconnected
     private static DirectoryLightClient directoryLightClient;
     protected final AtomicInteger channelId = new AtomicInteger(0); // connection local counter incremented for each channel
     protected final ZContext context;
     protected final ZMQ.Socket socket;
     protected final AtomicReference<ConnectionState> connectionState = new AtomicReference<>(ConnectionState.DISCONNECTED);
-    private final String address;
+    protected final String address;
     protected final String sessionId;
+    protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
+    protected final int heartbeatAllowedMisses = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, OpenCmwConstants.HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable number of heartbeats which can be missed before resetting the conection
+    protected final long subscriptionTimeout = SystemProperties.getValueIgnoreCase(OpenCmwConstants.SUBSCRIPTION_TIMEOUT, OpenCmwConstants.SUBSCRIPTION_TIMEOUT_DEFAULT); // maximum time after which a connection should be reconnected
+    protected final Map<Long, Subscription> subscriptions = new HashMap<>(); // all subscriptions added to the server
+    protected final Map<String, Subscription> subscriptionsByReqId = new HashMap<>(); // all subscriptions added to the server
+    protected final Map<Long, Subscription> replyIdMap = new HashMap<>(); // all acknowledged subscriptions by their reply id
     protected long connectionId;
-    protected final Map<Long, Subscription> subscriptions = new HashMap<>(); // all subscriptions added to the server // NOPMD - only accessed from main thread
-    protected final Map<String, Subscription> subscriptionsByReqId = new HashMap<>(); // all subscriptions added to the server // NOPMD - only accessed from main thread
-    protected final Map<Long, Subscription> replyIdMap = new HashMap<>(); // all acknowledged subscriptions by their reply id // NOPMD - only accessed from main thread
-    protected long lastHbReceived = -1;
-    protected long lastHbSent = -1;
+    protected long lastHeartbeatReceived = -1;
+    protected long lastHeartbeatSent = -1;
     protected int backOff = 20;
     private final Queue<Request> queuedRequests = new LinkedBlockingQueue<>();
-    private final Map<Long, Request> pendingRequests = new HashMap<>(); // NOPMD - only accessed from main thread
+    private final Map<Long, Request> pendingRequests = new HashMap<>();
     private String connectedAddress = "";
 
     public CmwLightDataSource(final ZContext context, final URI endpoint, final String clientId) {
@@ -116,10 +123,9 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         final long currentTime = System.currentTimeMillis(); // NOPMD
         switch (reply.messageType) {
         case SERVER_CONNECT_ACK:
-            if (connectionState.get().equals(ConnectionState.CONNECTING)) {
+            if (connectionState.compareAndSet(ConnectionState.CONNECTING, ConnectionState.CONNECTED)) {
                 LOGGER.atTrace().addArgument(connectedAddress).log("Connected to server: {}");
-                connectionState.set(ConnectionState.CONNECTED);
-                lastHbReceived = currentTime;
+                lastHeartbeatReceived = currentTime;
                 backOff = 20; // reset back-off time
             } else {
                 LOGGER.atWarn().addArgument(reply).log("ignoring unsolicited connection acknowledgement: {}");
@@ -130,14 +136,14 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                 LOGGER.atWarn().addArgument(reply).log("ignoring heartbeat received before connection established: {}");
                 return new ZMsg();
             }
-            lastHbReceived = currentTime;
+            lastHeartbeatReceived = currentTime;
             return new ZMsg();
         case SERVER_REP:
             if (connectionState.get() != ConnectionState.CONNECTED) {
                 LOGGER.atWarn().addArgument(reply).log("ignoring data received before connection established: {}");
                 return new ZMsg();
             }
-            lastHbReceived = currentTime;
+            lastHeartbeatReceived = currentTime;
             return handleServerReply(reply, currentTime);
         case CLIENT_CONNECT:
         case CLIENT_REQ:
@@ -154,15 +160,14 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             Request requestForReply = pendingRequests.remove(reply.id);
             try {
                 return createInternalMsg(requestForReply.requestId,
-                        new URI(new Endpoint(requestForReply.endpoint.toString()).getEndpointForContext(reply.dataContext.cycleName)),
-                        null, reply.bodyData, null);
+                        new URI(new Endpoint(requestForReply.endpoint.toString()).getEndpointForContext(reply.dataContext.cycleName)), reply.bodyData, null);
             } catch (URISyntaxException e) {
                 LOGGER.atWarn().addArgument(requestForReply.endpoint).addArgument(reply.dataContext.cycleName).log("Adding reply context to URI results in illegal url {} + {}");
                 return new ZMsg();
             }
         case EXCEPTION:
             final Request requestForException = pendingRequests.remove(reply.id);
-            return createInternalMsg(requestForException.requestId, requestForException.endpoint, null, null, reply.exceptionMessage.message);
+            return createInternalMsg(requestForException.requestId, requestForException.endpoint, null, reply.exceptionMessage.message);
         case SUBSCRIBE:
             final long id = reply.id;
             final Subscription sub = subscriptions.get(id);
@@ -181,7 +186,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         case NOTIFICATION_DATA:
             final Subscription subscriptionForNotification = replyIdMap.get(reply.id);
             if (subscriptionForNotification == null) {
-                LOGGER.atInfo().addArgument(reply.toString()).log("Got unsolicited subscription data: {}");
+                LOGGER.atInfo().addArgument(reply.toString()).log("received unsolicited subscription data: {}");
                 return new ZMsg();
             }
             final URI endpointForNotificationContext;
@@ -191,21 +196,21 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                 e.printStackTrace();
                 return new ZMsg();
             }
-            return createInternalMsg(subscriptionForNotification.idString, endpointForNotificationContext, null, reply.bodyData, null);
+            return createInternalMsg(subscriptionForNotification.idString, endpointForNotificationContext, reply.bodyData, null);
         case NOTIFICATION_EXC:
             final Subscription subscriptionForNotifyExc = replyIdMap.get(reply.id);
             if (subscriptionForNotifyExc == null) {
-                LOGGER.atInfo().addArgument(reply.toString()).log("Got unsolicited subscription notification error: {}");
+                LOGGER.atInfo().addArgument(reply.toString()).log("received unsolicited subscription notification error: {}");
                 return new ZMsg();
             }
-            return createInternalMsg(subscriptionForNotifyExc.idString, subscriptionForNotifyExc.endpoint, null, null, reply.exceptionMessage.message);
+            return createInternalMsg(subscriptionForNotifyExc.idString, subscriptionForNotifyExc.endpoint, null, reply.exceptionMessage.message);
         case SUBSCRIBE_EXCEPTION:
             final Subscription subForSubExc = subscriptions.get(reply.id);
             subForSubExc.subscriptionState = SubscriptionState.UNSUBSCRIBED;
             subForSubExc.timeoutValue = currentTime + subForSubExc.backOff;
             subForSubExc.backOff *= 2;
             LOGGER.atDebug().addArgument(subForSubExc.device).addArgument(subForSubExc.property).log("exception during subscription, retrying: {}/{}");
-            return createInternalMsg(subForSubExc.idString, subForSubExc.endpoint, null, null, reply.exceptionMessage.message);
+            return createInternalMsg(subForSubExc.idString, subForSubExc.endpoint, null, reply.exceptionMessage.message);
         // unsupported or non-actionable replies
         case GET:
         case SET:
@@ -217,11 +222,10 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         }
     }
 
-    private ZMsg createInternalMsg(final String reqId, final URI endpoint, final byte[] header, final ZFrame body, final String exception) {
+    private ZMsg createInternalMsg(final String reqId, final URI endpoint, final ZFrame body, final String exception) {
         final ZMsg result = new ZMsg();
         result.add(reqId);
         result.add(endpoint.toString());
-        result.add(header == null ? new byte[0] : header);
         result.add(body == null ? new ZFrame(new byte[0]) : body);
         result.add(exception == null ? new ZFrame(new byte[0]) : new ZFrame(exception));
         return result;
@@ -234,14 +238,14 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     }
 
     @Override
-    public void get(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
-        final Request request = new Request(CmwLightProtocol.RequestType.GET, requestId, endpoint, filters, data, rbacToken);
+    public void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
+        final Request request = new Request(CmwLightProtocol.RequestType.GET, requestId, endpoint, data, rbacToken);
         queuedRequests.add(request);
     }
 
     @Override
-    public void set(final String requestId, final URI endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
-        final Request request = new Request(CmwLightProtocol.RequestType.SET, requestId, endpoint, filters, data, rbacToken);
+    public void set(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
+        final Request request = new Request(CmwLightProtocol.RequestType.SET, requestId, endpoint, data, rbacToken);
         queuedRequests.add(request);
     }
 
@@ -311,7 +315,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                 return;
             }
         }
-        lastHbSent = System.currentTimeMillis();
+        lastHeartbeatSent = System.currentTimeMillis();
         try {
             final String identity = getIdentity();
             connectedAddress = "tcp://" + address;
@@ -345,41 +349,41 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         final long currentTime = System.currentTimeMillis();
         switch (connectionState.get()) {
         case DISCONNECTED: // reconnect after adequate back off
-            if (currentTime > lastHbSent + backOff) {
+            if (currentTime > lastHeartbeatSent + backOff) {
                 LOGGER.atTrace().addArgument(address).log("Connecting to {}");
                 connect();
             }
-            return lastHbSent + backOff;
+            return lastHeartbeatSent + backOff;
         case CONNECTING:
-            if (currentTime > lastHbSent + HEARTBEAT_INTERVAL * HEARTBEAT_ALLOWED_MISSES) { // connect timed out -> increase back of and retry
+            if (currentTime > lastHeartbeatSent + heartbeatInterval * heartbeatAllowedMisses) { // connect timed out -> increase back of and retry
                 backOff = backOff * 2;
-                lastHbSent = currentTime;
+                lastHeartbeatSent = currentTime;
                 LOGGER.atTrace().addArgument(connectedAddress).addArgument(backOff).log("Connection timed out for {}, retrying in {} ms");
                 disconnect();
             }
-            return lastHbSent + HEARTBEAT_INTERVAL * HEARTBEAT_ALLOWED_MISSES;
+            return lastHeartbeatSent + heartbeatInterval * heartbeatAllowedMisses;
         case CONNECTED:
             Request request;
             while ((request = queuedRequests.poll()) != null) {
                 pendingRequests.put(request.id, request);
                 sendRequest(request);
             }
-            if (currentTime > lastHbSent + HEARTBEAT_INTERVAL) { // check for heartbeat interval
+            if (currentTime > lastHeartbeatSent + heartbeatInterval) { // check for heartbeat interval
                 // send Heartbeats
                 sendHeartBeat();
-                lastHbSent = currentTime;
+                lastHeartbeatSent = currentTime;
                 // check if heartbeat was received
-                if (lastHbReceived + HEARTBEAT_INTERVAL * HEARTBEAT_ALLOWED_MISSES < currentTime) {
+                if (lastHeartbeatReceived + heartbeatInterval * heartbeatAllowedMisses < currentTime) {
                     LOGGER.atDebug().addArgument(backOff).log("Connection timed out, reconnecting in {} ms");
                     disconnect();
-                    return HEARTBEAT_INTERVAL;
+                    return heartbeatInterval;
                 }
                 // check timeouts of connection/subscription requests
                 for (Subscription sub : subscriptions.values()) {
                     updateSubscription(currentTime, sub);
                 }
             }
-            return lastHbSent + HEARTBEAT_INTERVAL;
+            return lastHeartbeatSent + heartbeatInterval;
         default:
             throw new IllegalStateException("unexpected connection state: " + connectionState.get());
         }
@@ -461,7 +465,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                                                      new CmwLightMessage.RequestContext(sub.selector, sub.filters, null),
                                                      CmwLightProtocol.UpdateType.IMMEDIATE_UPDATE));
             sub.subscriptionState = SubscriptionState.SUBSCRIBING;
-            sub.timeoutValue = System.currentTimeMillis() + SUBSCRIPTION_TIMEOUT;
+            sub.timeoutValue = System.currentTimeMillis() + subscriptionTimeout;
         } catch (CmwLightProtocol.RdaLightException e) {
             LOGGER.atDebug().setCause(e).log("Error subscribing to property:");
             sub.timeoutValue = System.currentTimeMillis() + sub.backOff;
@@ -504,13 +508,11 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
         @Override
         public String toString() {
-            return "Subscription{"
-                    + "property='" + property + '\'' + ", device='" + device + '\'' + ", selector='" + selector + '\'' + ", filters=" + filters + ", subscriptionState=" + subscriptionState + ", backOff=" + backOff + ", id=" + id + ", updateId=" + updateId + ", timeoutValue=" + timeoutValue + '}';
+            return "Subscription{property='" + property + '\'' + ", device='" + device + '\'' + ", selector='" + selector + '\'' + ", filters=" + filters + ", subscriptionState=" + subscriptionState + ", backOff=" + backOff + ", id=" + id + ", updateId=" + updateId + ", timeoutValue=" + timeoutValue + '}';
         }
     }
 
     public static class Request { // NOPMD - data class
-        public final byte[] filters;
         public final byte[] data;
         public final long id;
         private final String requestId;
@@ -521,14 +523,12 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         public Request(final CmwLightProtocol.RequestType requestType,
                 final String requestId,
                 final URI endpoint,
-                final byte[] filters, // NOPMD - zero copy contract
                 final byte[] data, // NOPMD - zero copy contract
                 final byte[] rbacToken) { // NOPMD - zero copy contract
             this.requestType = requestType;
             this.id = REQUEST_ID_GENERATOR.incrementAndGet();
             this.requestId = requestId;
             this.endpoint = endpoint;
-            this.filters = filters;
             this.data = data;
             this.rbacToken = rbacToken;
         }
