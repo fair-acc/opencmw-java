@@ -101,7 +101,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         CmwLightDataSource.directoryLightClient = directoryLightClient;
     }
 
-    public CmwLightMessage receiveData() {
+    private CmwLightMessage receiveData() {
         // receive data
         try {
             final ZMsg data = ZMsg.recvMsg(socket, ZMQ.DONTWAIT);
@@ -179,9 +179,9 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             return new ZMsg();
         case UNSUBSCRIBE:
             // successfully removed subscription
-            final Subscription subscriptionForUnsub = subscriptions.remove(reply.id);
+            final Subscription subscriptionForUnsub = replyIdMap.remove(reply.id);
             subscriptionsByReqId.remove(subscriptionForUnsub.idString);
-            replyIdMap.remove(subscriptionForUnsub.updateId);
+            subscriptions.remove(subscriptionForUnsub.id);
             return new ZMsg();
         case NOTIFICATION_DATA:
             final Subscription subscriptionForNotification = replyIdMap.get(reply.id);

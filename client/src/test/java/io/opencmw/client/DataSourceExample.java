@@ -42,8 +42,8 @@ public class DataSourceExample {
         // run the publisher's main loop
         new Thread(dataSourcePublisher).start();
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            client.subscribe(new URI("rda3://", address, '/' + DEV_NAME + '/' + PROP, "?ctx=" + SELECTOR + '&' + "acquisitionModeFilter=int:0" + '&' + "channelNameFilter=GS11MU2:Current_1@10Hz", null), CmwLightExample.AcquisitionDAQ.class);
-            client.subscribe(new URI("rda3://", address2, '/' + DEV2_NAME + '/' + PROP, "?ctx=FAIR.SELECTOR.ALL" + '&' + "acquisitionModeFilter=int:4&channelNameFilter=GS02P:SumY:Triggered@25MHz", null), CmwLightExample.AcquisitionDAQ.class);
+            client.subscribe(new URI("rda3", address, '/' + DEV_NAME + '/' + PROP, "?ctx=" + SELECTOR + '&' + "acquisitionModeFilter=int:0" + '&' + "channelNameFilter=GS11MU2:Current_1@10Hz", null), CmwLightExample.AcquisitionDAQ.class);
+            client.subscribe(new URI("rda3", address2, '/' + DEV2_NAME + '/' + PROP, "?ctx=FAIR.SELECTOR.ALL" + '&' + "acquisitionModeFilter=int:4&channelNameFilter=GS02P:SumY:Triggered@25MHz", null), CmwLightExample.AcquisitionDAQ.class);
         }
     }
 }
