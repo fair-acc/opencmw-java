@@ -27,7 +27,6 @@ import org.zeromq.ZMQ;
 import org.zeromq.ZMQException;
 import org.zeromq.ZMsg;
 
-import io.opencmw.OpenCmwConstants;
 import io.opencmw.client.DataSource;
 import io.opencmw.client.Endpoint;
 import io.opencmw.serialiser.IoSerialiser;

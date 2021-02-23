@@ -59,8 +59,8 @@ import io.opencmw.utils.SystemProperties;
  * <li>'OpenCMW.nIoThreads' []: default (2) IO threads dedicated to network IO (ZeroMQ recommendation 1 thread per 1 GBit/s)</li>
  * <li>'OpenCMW.dnsTimeOut' [s]: default (60) DNS time-out after which an unresponsive client is dropped from the DNS table
  * <small>N.B. if registered, a HEARTBEAT challenge will be send that needs to be replied with a READY command/re-registering</small></li>
- * @see io.opencmw.OpenCmwConstants for more details
  * </ul>
+ * @see io.opencmw.OpenCmwConstants for more details
  */
 @SuppressWarnings({ "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.TooManyMethods", "PMD.TooManyStaticImports", "PMD.CommentSize", "PMD.UseConcurrentHashMap" })
 // package private explicitly needed for MmiServiceHelper, thread-safe/performance use of HashMap
