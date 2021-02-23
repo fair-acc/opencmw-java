@@ -71,8 +71,8 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     protected final String address;
     protected final String sessionId;
     protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
-    protected final int heartbeatAllowedMisses = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, OpenCmwConstants.HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable number of heartbeats which can be missed before resetting the conection
-    protected final long subscriptionTimeout = SystemProperties.getValueIgnoreCase(OpenCmwConstants.SUBSCRIPTION_TIMEOUT, OpenCmwConstants.SUBSCRIPTION_TIMEOUT_DEFAULT); // maximum time after which a connection should be reconnected
+    protected final int heartbeatAllowedMisses = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable number of heartbeats which can be missed before resetting the conection
+    protected final long subscriptionTimeout = SystemProperties.getValueIgnoreCase(SUBSCRIPTION_TIMEOUT, SUBSCRIPTION_TIMEOUT_DEFAULT); // maximum time after which a connection should be reconnected
     protected final Map<Long, Subscription> subscriptions = new HashMap<>(); // all subscriptions added to the server
     protected final Map<String, Subscription> subscriptionsByReqId = new HashMap<>(); // all subscriptions added to the server
     protected final Map<Long, Subscription> replyIdMap = new HashMap<>(); // all acknowledged subscriptions by their reply id
@@ -193,7 +193,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             try {
                 endpointForNotificationContext = new URI(new Endpoint(subscriptionForNotification.endpoint.toString()).getEndpointForContext(reply.dataContext.cycleName));
             } catch (URISyntaxException e) {
-                e.printStackTrace();
+                LOGGER.atWarn().setCause(e).log("Error generating reply context URI");
                 return new ZMsg();
             }
             return createInternalMsg(subscriptionForNotification.idString, endpointForNotificationContext, reply.bodyData, null);

@@ -286,11 +286,9 @@ public class RestDataSource extends DataSource implements Runnable {
                     for (RestCallBack callBack : completedCallbacks) {
                         // notify data
 
-                        final byte[] header;
                         final byte[] data;
                         if (callBack.response == null) {
                             // exception branch
-                            header = EMPTY_FRAME;
                             data = EMPTY_FRAME;
                         } else {
                             // callBack.response.headers().toString().getBytes(StandardCharsets.UTF_8);

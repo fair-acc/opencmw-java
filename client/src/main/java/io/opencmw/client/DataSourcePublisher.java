@@ -3,10 +3,7 @@ package io.opencmw.client;
 import static java.util.Objects.requireNonNull;
 
 import static io.opencmw.OpenCmwConstants.*;
-import static io.opencmw.OpenCmwConstants.HEARTBEAT_DEFAULT;
-import static io.opencmw.client.DataSourceFilter.ReplyType.GET;
-import static io.opencmw.client.DataSourceFilter.ReplyType.SET;
-import static io.opencmw.client.DataSourceFilter.ReplyType.SUBSCRIBE;
+import static io.opencmw.client.DataSourceFilter.ReplyType.*;
 
 import java.io.Closeable;
 import java.lang.reflect.InvocationTargetException;
@@ -193,7 +190,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
         public void unsubscribe(String requestId) {
             // signal socket for get with endpoint and request id
             final ZMsg msg = new ZMsg();
-            msg.add(new byte[] { DataSourceFilter.ReplyType.UNSUBSCRIBE.getID() });
+            msg.add(new byte[] { UNSUBSCRIBE.getID() });
             msg.add(requestId);
             msg.add(requests.get(requestId).endpoint.toString());
             msg.send(controlSocket);
@@ -353,13 +350,13 @@ public class DataSourcePublisher implements Runnable, Closeable {
         final DataSourceFilter dataSourceFilter = event.getFilter(DataSourceFilter.class);
         final ThePromisedFuture<?, ?> future = dataSourceFilter.future;
         final URI endpointURI = URI.create(dataSourceFilter.endpoint);
-        if (future.replyType == SUBSCRIBE || future.replyType == DataSourceFilter.ReplyType.GET || future.replyType == DataSourceFilter.ReplyType.SET) {
+        if (future.replyType == SUBSCRIBE || future.replyType == GET || future.replyType == SET) {
             // get data from socket
             final ZMsg cmwMsg = event.payload.get(ZMsg.class);
             final byte[] body = requireNonNull(cmwMsg.poll()).getData();
             String exc = requireNonNull(cmwMsg.poll()).getString(Charset.defaultCharset());
             Object domainObj = null;
-            final boolean notifyFuture = future.replyType == DataSourceFilter.ReplyType.GET || future.replyType == DataSourceFilter.ReplyType.SET;
+            final boolean notifyFuture = future.replyType == GET || future.replyType == SET;
             if (exc == null || exc.isBlank()) {
                 try {
                     if (body != null && body.length != 0) {
@@ -380,7 +377,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
                         }
                         executor.submit(() -> future.notifyListener(finalDomainObj, contextObject)); // NOPMD - threads are ok, not a webapp
                     }
-                } catch (Exception e) {
+                } catch (Exception e) { // NOPMD: exception is forwarded to client
                     if (notifyFuture) {
                         exc = "Error deserialising object: " + e.getMessage();
                         future.setException(e);

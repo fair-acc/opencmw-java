@@ -19,6 +19,11 @@ package io.opencmw;
  * </ul>
  */
 public final class OpenCmwConstants {
+    public static final String SCHEME_HTTP = "http://";
+    public static final String SCHEME_HTTPS = "https://";
+    public static final String SCHEME_MDP = "mdp://";
+    public static final String SCHEME_MDS = "mds://";
+    public static final String SCHEME_TCP = "tcp://";
     public static final String HEARTBEAT = "OpenCMW.heartBeat";
     public static final long HEARTBEAT_DEFAULT = 1000L;
     public static final String HEARTBEAT_LIVENESS = "OpenCMW.heartBeatLiveness";

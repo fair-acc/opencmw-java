@@ -74,11 +74,6 @@ public class MajordomoBroker extends Thread {
     public static final String INTERNAL_ADDRESS_BROKER = INPROC_BROKER + SUFFIX_ROUTER;
     public static final String INTERNAL_ADDRESS_PUBLISHER = INPROC_BROKER + SUFFIX_PUBLISHER;
     public static final String INTERNAL_ADDRESS_SUBSCRIBE = INPROC_BROKER + SUFFIX_SUBSCRIBE;
-    public static final String SCHEME_HTTP = "http://";
-    public static final String SCHEME_HTTPS = "https://";
-    public static final String SCHEME_MDP = "mdp://";
-    public static final String SCHEME_MDS = "mds://";
-    public static final String SCHEME_TCP = "tcp://";
     public static final String WILDCARD = "*";
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoBroker.class);
     private static final AtomicInteger BROKER_COUNTER = new AtomicInteger();

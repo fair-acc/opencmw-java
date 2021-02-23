@@ -3,7 +3,6 @@ package io.opencmw.server;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static io.opencmw.OpenCmwConstants.*;
-import static io.opencmw.OpenCmwConstants.HEARTBEAT_DEFAULT;
 import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;

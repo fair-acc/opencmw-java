@@ -49,7 +49,7 @@ public class OpenCmwDataSource extends DataSource {
 
         @Override
         public DataSource newInstance(final ZContext context, final URI endpoint, final Duration timeout, final String clientId) {
-            return new OpenCmwDataSource(context, endpoint, timeout, clientId);
+            return new OpenCmwDataSource(context, endpoint, clientId);
         }
     };
     private final String clientId;
@@ -62,12 +62,10 @@ public class OpenCmwDataSource extends DataSource {
     /**
      * @param context zeroMQ context used for internal as well as external communication
      * @param endpoint The endpoint to connect to. Only the server part is used and everything else is discarded.
-     * @param timeout Timeout to determine after what time a reaction from the server is expected. Futures will time out
-     *                if there is no reaction from the server during this timespan.
      * @param clientId Identification string sent to the OpenCMW server. Should be unique per client and is used by the
      *                 Server to identify clients.
      */
-    public OpenCmwDataSource(final ZContext context, final URI endpoint, final Duration timeout, final String clientId) {
+    public OpenCmwDataSource(final ZContext context, final URI endpoint, final String clientId) {
         super(endpoint);
         this.endpoint = endpoint; // todo: Strip unneeded parts?
         this.clientId = clientId;
