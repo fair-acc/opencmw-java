@@ -363,9 +363,13 @@ public class DataSourcePublisher implements Runnable, Closeable {
             dataAvailable = true;
             // the received data consists of the following frames:
             // replyType(byte), reqId(string), endpoint(string), dataBody(byte[])
+            final String reqId = requireNonNull(reply.pollFirst()).getString(UTF_8);
+            final ThePromisedFuture<?, ?> returnFuture = requests.get(reqId);
+            if (returnFuture == null) {
+                LOGGER.atError().addArgument(reqId).log("no future available for reqId: {}");
+                continue;
+            }
             rawDataEventStore.getRingBuffer().publishEvent((event, sequence) -> {
-                final String reqId = requireNonNull(reply.pollFirst()).getString(UTF_8);
-                final ThePromisedFuture<?, ?> returnFuture = requireNonNull(requests.get(reqId), "null request for id: " + reqId);
                 if (returnFuture.getReplyType() != Command.SUBSCRIBE) { // remove entries for one time replies
                     assert returnFuture.getInternalRequestID().equals(reqId)
                         : "requestID mismatch";
