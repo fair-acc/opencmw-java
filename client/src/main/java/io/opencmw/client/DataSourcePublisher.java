@@ -577,7 +577,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
         void updateException(final Throwable exception);
     }
 
-    private static class InternalDomainObject {
+    public static class InternalDomainObject {
         public final ZMsg data;
         public final ThePromisedFuture<?, ?> future;
 
