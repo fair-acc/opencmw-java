@@ -1,33 +1,46 @@
 package io.opencmw.client.cmwlight;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Objects;
 
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
+import org.zeromq.ZMsg;
 
 import io.opencmw.serialiser.IoClassSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 
+/**
+ * Small sample to test subscription using the CmwLightClient without the DataSourcePublisher.
+ * Most of the times this is not what you want to use, see DataSourceExample instead.
+ * The program needs the location of a cmw nameserver (host:port) as a command line argument.
+ */
 public class CmwLightExample { // NOPMD is not a utility class but a sample
-    private final static String CMW_NAMESERVER = "cmwpro00a.acc.gsi.de:5021";
     private final static String DEVICE = "GSCD002";
     // private final static String PROPERTY = "SnoopTriggerEvents";
     private final static String PROPERTY = "AcquisitionDAQ";
     private final static String SELECTOR = "FAIR.SELECTOR.ALL";
 
-    public static void main(String[] args) throws DirectoryLightClient.DirectoryClientException {
-        subscribeAcqFromDigitizer();
+    public static void main(String[] args) throws DirectoryLightClient.DirectoryClientException, URISyntaxException {
+        if (args.length == 0) {
+            System.out.println("no directory server supplied");
+            return;
+        }
+        subscribeAcqFromDigitizer(args[0]);
     }
 
-    public static void subscribeAcqFromDigitizer() throws DirectoryLightClient.DirectoryClientException {
-        final DirectoryLightClient directoryClient = new DirectoryLightClient(CMW_NAMESERVER);
+    public static void subscribeAcqFromDigitizer(final String nameserver) throws DirectoryLightClient.DirectoryClientException, URISyntaxException {
+        final DirectoryLightClient directoryClient = new DirectoryLightClient(nameserver);
         DirectoryLightClient.Device device = directoryClient.getDeviceInfo(Collections.singletonList(DEVICE)).get(0);
         System.out.println(device);
-        final String address = device.servers.stream().findFirst().orElseThrow().get("Address:");
+        final String address = device.servers.stream().findFirst().orElseThrow().get("Address:").replace("tcp://", "rda3://");
         System.out.println("connect client to " + address);
-        final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), address, "testclient");
+        final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), URI.create(address + '/'), "testclient");
         final ZMQ.Poller poller = client.getContext().createPoller(1);
         poller.register(client.getSocket(), ZMQ.Poller.POLLIN);
         client.connect();
@@ -36,21 +49,28 @@ public class CmwLightExample { // NOPMD is not a utility class but a sample
         // 4 = Triggered Acquisition Mode; 0 = Continuous Acquisition mode
         String filtersString = "acquisitionModeFilter=int:0&channelNameFilter=GS11MU2:Current_1@10Hz";
         String filters2String = "acquisitionModeFilter=int:0&channelNameFilter=GS11MU2:Voltage_1@10Hz";
-        client.subscribe("r1", "rda3://" + DEVICE + '/' + DEVICE + '/' + PROPERTY + "?ctx=" + SELECTOR + "&" + filtersString, null);
-        client.subscribe("r1", "rda3://" + DEVICE + '/' + DEVICE + '/' + PROPERTY + "?ctx=" + SELECTOR + "&" + filters2String, null);
+        client.subscribe("r1", new URI("rda3://", DEVICE, '/' + DEVICE + '/' + PROPERTY, "ctx=" + SELECTOR + "&" + filtersString, null), null);
+        client.subscribe("r2", new URI("rda3://", DEVICE, '/' + DEVICE + '/' + PROPERTY, "ctx=" + SELECTOR + "&" + filters2String, null), null);
         client.subscriptions.forEach((id, c) -> System.out.println(id + " -> " + c));
 
         int i = 0;
         while (i < 45) {
             client.housekeeping();
-            poller.poll();
-            final CmwLightMessage result = client.receiveData();
-            if (result != null && result.requestType == CmwLightProtocol.RequestType.NOTIFICATION_DATA) {
-                System.out.println(result);
-                final byte[] bytes = result.bodyData.getData();
-                final IoClassSerialiser classSerialiser = new IoClassSerialiser(FastByteBuffer.wrap(bytes), CmwLightSerialiser.class);
-                final AcquisitionDAQ acq = classSerialiser.deserialiseObject(AcquisitionDAQ.class);
-                System.out.println("body: " + acq);
+            poller.poll(1000);
+            final ZMsg result = client.getMessage();
+            if (result != null && result.size() == 4) {
+                final String reqId = Objects.requireNonNull(result.poll()).getString(Charset.defaultCharset());
+                final String endpoint = Objects.requireNonNull(result.poll()).getString(Charset.defaultCharset());
+                System.out.println("Update (" + reqId + ") for endpoint: " + endpoint);
+                final byte[] bytes = Objects.requireNonNull(result.poll()).getData();
+                final String exc = Objects.requireNonNull(result.poll()).getString(Charset.defaultCharset());
+                if (!exc.isBlank()) {
+                    System.out.println("exception: " + exc);
+                } else {
+                    final IoClassSerialiser classSerialiser = new IoClassSerialiser(FastByteBuffer.wrap(bytes), CmwLightSerialiser.class);
+                    final AcquisitionDAQ acq = classSerialiser.deserialiseObject(AcquisitionDAQ.class);
+                    System.out.println("body: " + acq);
+                }
             } else {
                 if (result != null)
                     System.out.println(result);

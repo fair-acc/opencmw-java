@@ -1,10 +1,12 @@
-package io.opencmw.server;
+package io.opencmw.filter;
 
 import java.net.URI;
 import java.util.function.BiPredicate;
 
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
+
+import io.opencmw.filter.PathSubscriptionMatcher;
 
 class PathSubscriptionMatcherTest {
     @Test

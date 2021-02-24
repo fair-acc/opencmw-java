@@ -2,6 +2,8 @@ package io.opencmw.client;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -18,13 +20,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
 
 import io.opencmw.EventStore;
+import io.opencmw.client.DataSourcePublisher.NotificationListener;
+import io.opencmw.client.DataSourcePublisher.ThePromisedFuture;
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.serialiser.IoClassSerialiser;
@@ -32,30 +40,27 @@ import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.BinarySerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 
+@Timeout(20)
 class DataSourcePublisherTest {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisherTest.class);
     private static final AtomicReference<TestObject> testObject = new AtomicReference<>();
-    private final Integer requestBody = 10;
-    private final Map<String, Object> requestFilter = new HashMap<>();
-
-    private DataSourcePublisher.ThePromisedFuture<Float> getTestFuture() {
-        return new DataSourcePublisher.ThePromisedFuture<>("endPoint", requestFilter, requestBody, Float.class, DataSourceFilter.ReplyType.GET, "TestClientID");
-    }
+    private static final String TEST_ERROR_MSG = "Test error occurred";
 
     private static class TestDataSource extends DataSource {
         public static final Factory FACTORY = new Factory() {
             @Override
-            public boolean matches(final String endpoint) {
-                return endpoint.startsWith("test://");
+            public boolean matches(final URI endpoint) {
+                return endpoint.getScheme().equals("test");
             }
 
             @Override
-            public Class<? extends IoSerialiser> getMatchingSerialiserType(final String endpoint) {
+            public Class<? extends IoSerialiser> getMatchingSerialiserType(final URI endpoint) {
                 return BinarySerialiser.class;
             }
 
             @Override
-            public DataSource newInstance(final ZContext context, final String endpoint, final Duration timeout, final String clientId) {
-                return new TestDataSource(context, endpoint, timeout, clientId);
+            public DataSource newInstance(final ZContext context, final URI endpoint, final Duration timeout, final String clientId) {
+                return new TestDataSource(context, endpoint);
             }
         };
         private final static String INPROC = "inproc://testDataSource";
@@ -64,11 +69,11 @@ class DataSourcePublisherTest {
         private ZMQ.Socket internalSocket;
         private long nextHousekeeping = 0;
         private final IoClassSerialiser ioClassSerialiser = new IoClassSerialiser(new FastByteBuffer(2000));
-        private final Map<String, String> subscriptions = new HashMap<>();
-        private final Map<String, String> requests = new HashMap<>();
+        private final Map<String, URI> subscriptions = new HashMap<>();
+        private final Map<String, URI> requests = new HashMap<>();
         private long nextNotification = 0L;
 
-        public TestDataSource(final ZContext context, final String endpoint, final Duration timeOut, final String clientId) {
+        public TestDataSource(final ZContext context, final URI endpoint) {
             super(endpoint);
             this.context = context;
             this.socket = context.createSocket(SocketType.DEALER);
@@ -80,39 +85,65 @@ class DataSourcePublisherTest {
             final long currentTime = System.currentTimeMillis();
             if (currentTime > nextHousekeeping) {
                 if (currentTime > nextNotification) {
-                    subscriptions.forEach((subscriptionId, endpoint) -> {
+                    if (testObject.get() == null) {
+                        subscriptions.forEach((subscriptionId, endpoint) -> {
+                            if (internalSocket == null) {
+                                internalSocket = context.createSocket(SocketType.DEALER);
+                                internalSocket.connect(INPROC);
+                            }
+                            final ZMsg msg = new ZMsg();
+                            msg.add(subscriptionId);
+                            msg.add(endpoint.toString());
+                            msg.add(new byte[0]); // no data
+                            msg.add(TEST_ERROR_MSG); // exception
+                            msg.send(internalSocket);
+                        });
+                    } else {
+                        subscriptions.forEach((subscriptionId, endpoint) -> {
+                            if (internalSocket == null) {
+                                internalSocket = context.createSocket(SocketType.DEALER);
+                                internalSocket.connect(INPROC);
+                            }
+                            final ZMsg msg = new ZMsg();
+                            msg.add(subscriptionId);
+                            msg.add(endpoint.toString());
+                            ioClassSerialiser.getDataBuffer().reset();
+                            ioClassSerialiser.serialiseObject(testObject.get());
+                            msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
+                            msg.add(new byte[0]); // exception
+                            msg.send(internalSocket);
+                        });
+                    }
+                    nextNotification = currentTime + 3000;
+                }
+                requests.forEach((requestId, endpoint) -> {
+                    if (testObject.get() == null) {
                         if (internalSocket == null) {
                             internalSocket = context.createSocket(SocketType.DEALER);
                             internalSocket.connect(INPROC);
                         }
                         final ZMsg msg = new ZMsg();
-                        msg.add(subscriptionId);
-                        msg.add(endpoint);
-                        msg.add(new byte[0]); // header
+                        msg.add(requestId);
+                        msg.add(endpoint.toString());
+                        msg.add(new byte[0]); // body
+                        msg.add(TEST_ERROR_MSG); // exception
+                        msg.send(internalSocket);
+                        LOGGER.atDebug().addArgument(requestId).addArgument(testObject.get()).log("answering request({}): {}");
+                    } else {
+                        if (internalSocket == null) {
+                            internalSocket = context.createSocket(SocketType.DEALER);
+                            internalSocket.connect(INPROC);
+                        }
+                        final ZMsg msg = new ZMsg();
+                        msg.add(requestId);
+                        msg.add(endpoint.toString());
                         ioClassSerialiser.getDataBuffer().reset();
                         ioClassSerialiser.serialiseObject(testObject.get());
-                        // todo: the serialiser does not report the correct position after serialisation
-                        msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position() + 4));
+                        msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position()));
                         msg.add(new byte[0]); // exception
                         msg.send(internalSocket);
-                    });
-                    nextNotification = currentTime + 3000;
-                }
-                requests.forEach((requestId, endpoint) -> {
-                    if (internalSocket == null) {
-                        internalSocket = context.createSocket(SocketType.DEALER);
-                        internalSocket.connect(INPROC);
+                        LOGGER.atDebug().addArgument(requestId).addArgument(testObject.get()).log("answering request({}): {}");
                     }
-                    final ZMsg msg = new ZMsg();
-                    msg.add(requestId);
-                    msg.add(endpoint);
-                    msg.add(new byte[0]); // header
-                    ioClassSerialiser.getDataBuffer().reset();
-                    ioClassSerialiser.serialiseObject(testObject.get());
-                    // todo: the serialiser does not report the correct position after serialisation
-                    msg.add(Arrays.copyOfRange(ioClassSerialiser.getDataBuffer().elements(), 0, ioClassSerialiser.getDataBuffer().position() + 4));
-                    msg.add(new byte[0]); // exception
-                    msg.send(internalSocket);
                 });
                 requests.clear();
                 nextHousekeeping = currentTime + 200;
@@ -121,12 +152,12 @@ class DataSourcePublisherTest {
         }
 
         @Override
-        public void get(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+        public void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
             requests.put(requestId, endpoint);
         }
 
         @Override
-        public void set(final String requestId, final String endpoint, final byte[] filters, final byte[] data, final byte[] rbacToken) {
+        public void set(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
             throw new UnsupportedOperationException("cannot perform set");
         }
 
@@ -146,13 +177,43 @@ class DataSourcePublisherTest {
         }
 
         @Override
-        public void subscribe(final String reqId, final String endpoint, final byte[] rbacToken) {
+        public void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken) {
             subscriptions.put(reqId, endpoint);
         }
 
         @Override
         public void unsubscribe(final String reqId) {
             subscriptions.remove(reqId);
+        }
+    }
+
+    public static class TestContext {
+        public String ctx;
+        public String filter;
+
+        public TestContext(final String ctx, final String filter) {
+            this.ctx = ctx;
+            this.filter = filter;
+        }
+
+        public TestContext() {
+            this.ctx = "";
+            this.filter = "";
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            final TestContext that = (TestContext) o;
+            return Objects.equals(ctx, that.ctx) && Objects.equals(filter, that.filter);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(ctx, filter);
         }
     }
 
@@ -193,13 +254,16 @@ class DataSourcePublisherTest {
         }
     }
 
+    @BeforeAll
+    static void registerDataSource() {
+        DataSource.register(TestDataSource.FACTORY);
+    }
+
     @Test
-    void testSubscribe() {
+    void testSubscribe() throws URISyntaxException {
         final AtomicBoolean eventReceived = new AtomicBoolean(false);
         final TestObject referenceObject = new TestObject("foo", 1.337);
         testObject.set(referenceObject);
-
-        DataSource.register(TestDataSource.FACTORY);
 
         final EventStore eventStore = EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
         eventStore.register((event, sequence, endOfBatch) -> {
@@ -207,65 +271,171 @@ class DataSourcePublisherTest {
             eventReceived.set(true);
         });
 
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore);
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testSubPublisher");
 
         eventStore.start();
         new Thread(dataSourcePublisher).start();
 
-        dataSourcePublisher.subscribe("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar", TestObject.class);
+        try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
+            client.subscribe(new URI("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), TestObject.class);
+        }
 
-        Awaitility.waitAtMost(Duration.ofSeconds(1)).until(eventReceived::get);
+        Awaitility.waitAtMost(Duration.ofSeconds(10)).until(eventReceived::get);
+
+        eventStore.stop();
+        dataSourcePublisher.stop();
     }
 
     @Test
-    void testGet() throws InterruptedException, ExecutionException, TimeoutException {
+    void testSubscribeListener() {
+        final AtomicBoolean eventReceived = new AtomicBoolean(false);
         final TestObject referenceObject = new TestObject("foo", 1.337);
         testObject.set(referenceObject);
 
-        DataSource.register(TestDataSource.FACTORY);
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, null, "testSubPublisher");
+
+        new Thread(dataSourcePublisher).start();
+
+        final TestContext ctx = new TestContext("FAIR.SELECTOR.C=7", "foobar");
+        final NotificationListener<TestObject, TestContext> listener = new NotificationListener<>() {
+            @Override
+            public void dataUpdate(final TestObject updatedObject, final TestContext contextObject) {
+                assertEquals(testObject.get(), updatedObject);
+                assertEquals(new TestContext("FAIR.SELECTOR.C=7", "foobar"), contextObject);
+                eventReceived.set(true);
+            }
+
+            @Override
+            public void updateException(final Throwable exception) {
+                fail("Unexpected exception notification", exception);
+            }
+        };
+        try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
+            client.subscribe(URI.create("test://foobar/testdev/prop"), TestObject.class, ctx, TestContext.class, listener);
+        }
+
+        Awaitility.waitAtMost(Duration.ofSeconds(1)).until(eventReceived::get);
+
+        dataSourcePublisher.stop();
+    }
+
+    @Test
+    void testSubscribeListenerException() {
+        final AtomicBoolean exceptionReceived = new AtomicBoolean(false);
+        testObject.set(null);
+
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, null, "testSubPublisher");
+
+        new Thread(dataSourcePublisher).start();
+
+        final TestContext ctx = new TestContext("FAIR.SELECTOR.C=7", "foobar");
+        final NotificationListener<TestObject, TestContext> listener = new NotificationListener<>() {
+            @Override
+            public void dataUpdate(final TestObject updatedObject, final TestContext contextObject) {
+                fail("received unexpected update while expecting exception: " + contextObject + " -> " + updatedObject);
+            }
+
+            @Override
+            public void updateException(final Throwable exception) {
+                assertEquals(TEST_ERROR_MSG, exception.getMessage());
+                exceptionReceived.set(true);
+            }
+        };
+        try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
+            client.subscribe(URI.create("test://foobar/testdev/prop"), TestObject.class, ctx, TestContext.class, listener);
+        }
+
+        Awaitility.waitAtMost(Duration.ofSeconds(1)).until(exceptionReceived::get);
+
+        dataSourcePublisher.stop();
+    }
+
+    @Test
+    void testGet() throws InterruptedException, ExecutionException, TimeoutException, URISyntaxException {
+        final TestObject referenceObject = new TestObject("foo", 1.337);
+        testObject.set(referenceObject);
 
         final EventStore eventStore = EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
 
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore);
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testGetPublisher");
 
         eventStore.start();
         new Thread(dataSourcePublisher).start();
 
-        final Future<TestObject> future = dataSourcePublisher.get("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar", TestObject.class);
+        final Future<TestObject> future;
+        try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
+            future = client.get(new URI("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), null, TestObject.class);
+        }
 
         final TestObject result = future.get(1000, TimeUnit.MILLISECONDS);
         assertEquals(referenceObject, result);
+
+        eventStore.stop();
+        dataSourcePublisher.stop();
     }
 
     @Test
-    void testGetTimeout() {
-        testObject.set(null); // makes the test event source not answer the get request
-
-        DataSource.register(TestDataSource.FACTORY);
+    void testGetException() {
+        testObject.set(null);
 
         final EventStore eventStore = EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
 
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore);
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testGetPublisher");
 
         eventStore.start();
         new Thread(dataSourcePublisher).start();
 
-        final Future<TestObject> future = dataSourcePublisher.get("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar", TestObject.class);
+        final Future<TestObject> future;
+        try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
+            future = client.get(URI.create("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), null, TestObject.class);
+        }
 
-        assertThrows(TimeoutException.class, () -> future.get(1, TimeUnit.MILLISECONDS));
+        final Exception e = assertThrows(Exception.class, () -> assertNull(future.get(1000, TimeUnit.MILLISECONDS)));
+        assertEquals("java.lang.Exception: " + TEST_ERROR_MSG, e.getMessage());
+
+        eventStore.stop();
+        dataSourcePublisher.stop();
     }
 
     @Test
-    void testFuture() throws InterruptedException, ExecutionException {
+    void testGetTimeout() throws URISyntaxException {
+        testObject.set(null); // makes the test event source not answer the get request
+
+        final EventStore eventStore = EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
+
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testSetPublisher");
+
+        eventStore.start();
+        dataSourcePublisher.start();
+
+        final Future<TestObject> future;
+        try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
+            future = client.get(new URI("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), null, TestObject.class);
+        }
+
+        assertThrows(TimeoutException.class, () -> LOGGER.atError().addArgument(future.get(10, TimeUnit.MILLISECONDS)).log("Should have gotten timeout but received: {}"));
+
+        eventStore.stop();
+        dataSourcePublisher.stop();
+    }
+
+    @Test
+    void testGettersAndSetters() {
+        try (final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, null, "testSetPublisher")) {
+            dataSourcePublisher.start();
+            assertNotNull(dataSourcePublisher.getContext());
+        }
+    }
+
+    @Test
+    void testFuture() throws InterruptedException, ExecutionException, URISyntaxException {
         final Float replyObject = (float) Math.PI;
 
         {
-            final DataSourcePublisher.ThePromisedFuture<Float> future = getTestFuture();
+            final ThePromisedFuture<Float, ?> future = getTestFuture();
 
             assertNotNull(future);
-            assertEquals("endPoint", future.getEndpoint());
-            assertEquals(requestFilter, future.getRequestFilter());
-            assertEquals(requestBody, future.getRequestBody());
+            assertEquals(new URI("test://server:1234/test?foo=bar"), future.getEndpoint());
             assertEquals(Float.class, future.getRequestedDomainObjType());
             assertEquals(DataSourceFilter.ReplyType.GET, future.getReplyType());
             assertEquals("TestClientID", future.getInternalRequestID());
@@ -277,7 +447,7 @@ class DataSourcePublisherTest {
 
         {
             // delayed reply
-            final DataSourcePublisher.ThePromisedFuture<Float> future = getTestFuture();
+            final ThePromisedFuture<Float, ?> future = getTestFuture();
             new Timer().schedule(new TimerTask() {
                 @Override
                 public void run() {
@@ -289,11 +459,15 @@ class DataSourcePublisherTest {
 
         {
             // cancelled reply
-            final DataSourcePublisher.ThePromisedFuture<Float> future = getTestFuture();
+            final ThePromisedFuture<Float, ?> future = getTestFuture();
             assertFalse(future.isCancelled());
             future.cancel(true);
             assertTrue(future.isCancelled());
             assertThrows(CancellationException.class, () -> future.get(1, TimeUnit.SECONDS));
         }
+    }
+
+    private ThePromisedFuture<Float, ?> getTestFuture() throws URISyntaxException {
+        return new ThePromisedFuture<>(new URI("test://server:1234/test?foo=bar"), Float.class, Integer.class, DataSourceFilter.ReplyType.GET, "TestClientID", null);
     }
 }

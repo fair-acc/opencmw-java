@@ -44,6 +44,12 @@
             <version>${version.okHttp3}</version>
             <scope>test</scope>
         </dependency>
+        <dependency> <!-- for testing the openCmw client against the broker -->
+            <groupId>io.opencmw</groupId>
+            <artifactId>server</artifactId>
+            <version>${revision}${sha1}${changelist}</version>
+            <scope>test</scope>
+        </dependency>
 
     </dependencies>
 

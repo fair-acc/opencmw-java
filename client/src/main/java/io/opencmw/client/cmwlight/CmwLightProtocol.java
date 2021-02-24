@@ -265,6 +265,9 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
             assertDescriptor(descriptor, FrameType.HEADER);
             if (reply.options != null && reply.options.containsKey(FieldName.SESSION_BODY_TAG.value())) {
                 final Object subMap = reply.options.get(FieldName.SESSION_BODY_TAG.value());
+                if (subMap == null) {
+                    return reply;
+                }
                 final String fieldName = FieldName.SESSION_BODY_TAG.value();
                 if (subMap instanceof Map) {
                     @SuppressWarnings("unchecked")

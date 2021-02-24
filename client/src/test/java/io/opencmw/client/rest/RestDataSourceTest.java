@@ -5,6 +5,8 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -12,10 +14,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
 import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.ZContext;
@@ -35,6 +34,7 @@ import okhttp3.sse.EventSource;
 import okhttp3.sse.EventSources;
 import zmq.ZError;
 
+@Timeout(20)
 class RestDataSourceTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(RestDataSourceTest.class);
     private static final String TEST_DATA = "Hello World!";
@@ -75,9 +75,8 @@ class RestDataSourceTest {
     @Test
     void basicRestDataSourceTests() {
         assertThrows(UnsupportedOperationException.class, () -> new RestDataSource(null, null));
-        assertThrows(UnsupportedOperationException.class, () -> new RestDataSource(null, ""));
-        assertThrows(IllegalArgumentException.class, () -> new RestDataSource(null, server.url("/sse").toString(), null, "clientName")); // NOSONAR
-        RestDataSource dataSource = new RestDataSource(null, server.url("/sse").toString());
+        assertThrows(IllegalArgumentException.class, () -> new RestDataSource(null, server.url("/sse").uri(), null, "clientName")); // NOSONAR
+        RestDataSource dataSource = new RestDataSource(null, server.url("/sse").uri());
         assertNotNull(dataSource);
         assertDoesNotThrow(dataSource::housekeeping);
     }
@@ -85,13 +84,13 @@ class RestDataSourceTest {
     @Test
     void testRestDataSource() {
         try (final ZContext ctx = new ZContext()) {
-            final RestDataSource dataSource = new RestDataSource(ctx, server.url("/sse").toString());
+            final RestDataSource dataSource = new RestDataSource(ctx, server.url("/sse").uri());
             assertNotNull(dataSource);
 
-            dataSource.subscribe("1", server.url("/sse").toString(), new byte[0]);
+            dataSource.subscribe("1", server.url("/sse").uri(), new byte[0]);
             receiveAndCheckData(dataSource, "io.opencmw.client.rest.RestDataSource#*", true);
 
-            // test asynchronuous get
+            // test asynchronous get
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(DEFAULT_WAIT_MILLIS));
             dataSource.enqueueRequest("testHashKey#1");
             final ZMsg returnMessage = receiveAndCheckData(dataSource, "testHashKey#1", true);
@@ -104,10 +103,10 @@ class RestDataSourceTest {
     @Test
     void testRestDataSourceTimeOut() {
         try (final ZContext ctx = new ZContext()) {
-            final RestDataSource dataSource = new RestDataSource(ctx, server.url("/testDelayed").toString(), Duration.ofMillis(10), "testClient");
+            final RestDataSource dataSource = new RestDataSource(ctx, server.url("/testDelayed").uri(), Duration.ofMillis(10), "testClient");
             assertNotNull(dataSource);
 
-            // test asynchronuous with time-out
+            // test asynchronous with time-out
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(DEFAULT_WAIT_MILLIS));
             dataSource.enqueueRequest("testHashKey#1");
             final ZMsg returnMessage = receiveAndCheckData(dataSource, "testHashKey#1", true);
@@ -120,7 +119,7 @@ class RestDataSourceTest {
     @Test
     void testRestDataSourceConnectionError() {
         try (final ZContext ctx = new ZContext()) {
-            final RestDataSource dataSource = new RestDataSource(ctx, server.url("/testError").toString());
+            final RestDataSource dataSource = new RestDataSource(ctx, server.url("/testError").uri());
             assertNotNull(dataSource);
 
             // three retries and a successful response
@@ -145,10 +144,10 @@ class RestDataSourceTest {
 
     @Test
     @Disabled("not to be used in CI/CD environment")
-    void testLsaRestDataSource() {
+    void testLsaRestDataSource() throws URISyntaxException {
         try (final ZContext ctx = new ZContext()) {
             final String endPoint = "<add your favourite REST server here>?msg=HalloRaphael;mytime=" + System.currentTimeMillis();
-            final RestDataSource dataSource = new RestDataSource(ctx, endPoint);
+            final RestDataSource dataSource = new RestDataSource(ctx, new URI(endPoint));
             assertNotNull(dataSource);
             dataSource.enqueueRequest("lsaHashKey#1");
             receiveAndCheckData(dataSource, "lsaHashKey#1", false);
@@ -195,7 +194,7 @@ class RestDataSourceTest {
                     throw new IllegalStateException("no data received");
                 }
                 final String text = msg.getFirst().toString();
-                assertTrue(text.matches(hashKey.replace("?", ".?").replace("*", ".*?")), "mesage " + text + " did not match hashKey template " + hashKey);
+                assertTrue(text.matches(hashKey.replace("?", ".?").replace("*", ".*?")), "message " + text + " did not match hashKey template " + hashKey);
             } catch (ZMQException e) {
                 final int errorCode = socket.errno();
                 LOGGER.atError().setCause(e).addArgument(errorCode).addArgument(ZError.toString(errorCode)).log("recvMsg error {} - {}");
@@ -210,7 +209,7 @@ class RestDataSourceTest {
     }
 
     private static class CustomDispatcher extends Dispatcher {
-        public BlockingQueue<MockResponse> enquedEvents = new LinkedBlockingQueue<>();
+        public final BlockingQueue<MockResponse> enquedEvents = new LinkedBlockingQueue<>();
         @Override
         public @NotNull MockResponse dispatch(@NotNull RecordedRequest request) {
             if (!enquedEvents.isEmpty()) {

@@ -298,7 +298,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                         final MdpMessage brokerMsg = receive(subSocket, true);
                         if (brokerMsg != null) {
                             dataReceived = true;
-                            liveness = HEARTBEAT_LIVENESS;
+                            liveness = heartBeatLiveness;
 
                             // handle subscription message
                             if (brokerMsg.data != null && brokerMsg.getServiceName().startsWith(INTERNAL_SERVICE_NAMES)) {

@@ -2,6 +2,8 @@ package io.opencmw.client.cmwlight;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Map;
@@ -10,80 +12,85 @@ import java.util.concurrent.locks.LockSupport;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.zeromq.*;
 
 import io.opencmw.client.Endpoint;
 
+@Timeout(20)
 class CmwLightDataSourceTest {
+    final static Logger LOGGER = LoggerFactory.getLogger(CmwLightDataSourceTest.class);
     @Test
-    void testCmwLightSubscription() throws CmwLightProtocol.RdaLightException {
+    void testCmwLightSubscription() throws CmwLightProtocol.RdaLightException, URISyntaxException {
         // setup zero mq socket to mock cmw server
-        ZContext context = new ZContext(1);
-        ZMQ.Socket socket = context.createSocket(SocketType.DEALER);
-        socket.bind("tcp://localhost:7777");
+        try (final ZContext context = new ZContext(1)) {
+            ZMQ.Socket socket = context.createSocket(SocketType.DEALER);
+            socket.bind("tcp://localhost:7777");
 
-        final CmwLightDataSource client = new CmwLightDataSource(context, "rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1", "testClientId");
+            final CmwLightDataSource client = new CmwLightDataSource(context, new URI("rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1"), "testClientId");
 
-        client.connect();
-        client.housekeeping();
+            client.connect();
+            client.housekeeping();
 
-        // check connection request was received
-        final CmwLightMessage connectMsg = CmwLightProtocol.parseMsg(ZMsg.recvMsg(socket));
-        assertEquals(CmwLightProtocol.MessageType.CLIENT_CONNECT, connectMsg.messageType);
-        assertEquals(CmwLightProtocol.VERSION, connectMsg.version);
-        client.housekeeping(); // allow the subscription to be sent out
+            // check connection request was received
+            final CmwLightMessage connectMsg = CmwLightProtocol.parseMsg(ZMsg.recvMsg(socket));
+            assertEquals(CmwLightProtocol.MessageType.CLIENT_CONNECT, connectMsg.messageType);
+            assertEquals(CmwLightProtocol.VERSION, connectMsg.version);
+            client.housekeeping(); // allow the subscription to be sent out
 
-        // send connection ack
-        CmwLightProtocol.sendMsg(socket, CmwLightMessage.connectAck("1.3.7"));
-        CmwLightProtocol.sendMsg(socket, CmwLightMessage.SERVER_HB);
-        client.getMessage(); // Make client receive ack and update connection status
-        client.housekeeping(); // allow the subscription to be sent out
-
-        // assert that the client has connected
-        Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
+            // send connection ack
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.connectAck("1.3.7"));
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.SERVER_HB);
             client.getMessage(); // Make client receive ack and update connection status
             client.housekeeping(); // allow the subscription to be sent out
-            return client.connectionState.get().equals(CmwLightDataSource.ConnectionState.CONNECTED);
-        });
 
-        // request subscription
-        final String reqId = "testId";
-        final String endpoint = "rda3://localhost:7777/testdevice/testprop?ctx=FAIR.SELECTOR.ALL&nFilter=int:1";
-        client.subscribe(reqId, endpoint, null);
-
-        final CmwLightMessage subMsg = getNextNonHeartbeatMsg(socket, client, false);
-        assertEquals(CmwLightProtocol.MessageType.CLIENT_REQ, subMsg.messageType);
-        assertEquals(CmwLightProtocol.RequestType.SUBSCRIBE, subMsg.requestType);
-        assertEquals(Map.of("nFilter", 1), subMsg.requestContext.filters);
-
-        // acknowledge subscription
-        final long sourceId = 1337L;
-        CmwLightProtocol.sendMsg(socket, CmwLightMessage.subscribeReply(subMsg.sessionId, subMsg.id, subMsg.deviceName, subMsg.propertyName, Map.of(CmwLightProtocol.FieldName.SOURCE_ID_TAG.value(), sourceId)));
-
-        // assert that the subscription was established
-        Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
-            client.getMessage(); // Make client receive ack and update connection status
-            client.housekeeping(); // allow the subscription to be sent out
-            return client.replyIdMap.containsKey(sourceId);
-        });
-
-        // send 10 updates
-        for (int i = 0; i < 10; i++) {
-            final String cycleName = "FAIR.SELECTOR.C=" + (i + 1);
-            CmwLightProtocol.sendMsg(socket, CmwLightMessage.notificationReply(subMsg.sessionId, sourceId, "", "", new ZFrame("data"), i,
-                                                     new CmwLightMessage.DataContext(cycleName, 123456789, 123456788, null), CmwLightProtocol.UpdateType.NORMAL));
-
-            // assert that the subscription update was received
+            // assert that the client has connected
             Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
-                final ZMsg reply = client.getMessage(); // Make client receive ack and update connection status
+                client.getMessage(); // Make client receive ack and update connection status
                 client.housekeeping(); // allow the subscription to be sent out
-
-                return reply.size() == 5 && reply.pollFirst().getString(Charset.defaultCharset()).equals("testId")
-                        && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals(new Endpoint(endpoint).getEndpointForContext(cycleName))
-                        && Objects.requireNonNull(reply.pollFirst()).getData().length == 0
-                        && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals("data")
-                        && Objects.requireNonNull(reply.pollFirst()).getData().length == 0;
+                return client.connectionState.get().equals(CmwLightDataSource.ConnectionState.CONNECTED);
             });
+
+            // request subscription
+            final String reqId = "testId";
+            final URI endpoint = new URI("rda3://localhost:7777/testdevice/testprop?ctx=FAIR.SELECTOR.ALL&nFilter=int:1");
+            client.subscribe(reqId, endpoint, null);
+
+            final CmwLightMessage subMsg = getNextNonHeartbeatMsg(socket, client, false);
+            assertEquals(CmwLightProtocol.MessageType.CLIENT_REQ, subMsg.messageType);
+            assertEquals(CmwLightProtocol.RequestType.SUBSCRIBE, subMsg.requestType);
+            assertEquals(Map.of("nFilter", 1), subMsg.requestContext.filters);
+
+            // acknowledge subscription
+            final long sourceId = 1337L;
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.subscribeReply(subMsg.sessionId, subMsg.id, subMsg.deviceName, subMsg.propertyName, Map.of(CmwLightProtocol.FieldName.SOURCE_ID_TAG.value(), sourceId)));
+
+            // assert that the subscription was established
+            Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
+                client.getMessage(); // Make client receive ack and update connection status
+                client.housekeeping(); // allow the subscription to be sent out
+                return client.replyIdMap.containsKey(sourceId);
+            });
+
+            // send 10 updates
+            for (int i = 0; i < 10; i++) {
+                final String cycleName = "FAIR.SELECTOR.C=" + (i + 1);
+                CmwLightProtocol.sendMsg(socket, CmwLightMessage.notificationReply(subMsg.sessionId, sourceId, "", "", new ZFrame("data"), i,
+                                                         new CmwLightMessage.DataContext(cycleName, 123456789, 123456788, null), CmwLightProtocol.UpdateType.NORMAL));
+
+                // assert that the subscription update was received
+                Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
+                    final ZMsg reply = client.getMessage(); // Make client receive ack and update connection status
+                    client.housekeeping(); // allow the subscription to be sent out
+
+                    return reply.size() == 4 && reply.pollFirst().getString(Charset.defaultCharset()).equals("testId")
+                            && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals(new Endpoint(endpoint.toString()).getEndpointForContext(cycleName))
+                            && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals("data")
+                            && Objects.requireNonNull(reply.pollFirst()).getData().length == 0;
+                });
+            }
         }
     }
 

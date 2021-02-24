@@ -1,4 +1,4 @@
-package io.opencmw.server;
+package io.opencmw.filter;
 
 import java.net.URI;
 import java.util.function.BiPredicate;
