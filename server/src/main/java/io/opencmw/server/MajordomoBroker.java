@@ -19,10 +19,12 @@ import java.net.SocketException;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
@@ -297,13 +299,19 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-     * Disconnect all workers, destroy context.
+     * Disconnect all workers, stop all services and destroy context.
      */
     protected void destroy() {
         Worker[] deleteList = workers.values().toArray(new Worker[0]);
         for (Worker worker : deleteList) {
             deleteWorker(worker, true);
         }
+        String[] serviceDeleteList = services.keySet().toArray(new String[0]);
+        for (String s : serviceDeleteList) {
+            removeService(s);
+        }
+        // allow all services and internal workers using the context to shut down, prevents context terminated exception
+        LockSupport.parkNanos(Duration.ofMillis(10).toNanos());
         ctx.destroy();
     }
 
