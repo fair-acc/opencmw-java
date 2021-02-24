@@ -26,6 +26,7 @@ import io.opencmw.EventStore;
 import io.opencmw.Filter;
 import io.opencmw.MimeType;
 import io.opencmw.client.DataSourcePublisher.NotificationListener;
+import io.opencmw.client.cmwlight.CmwLightProtocol;
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.server.MajordomoBroker;
@@ -37,6 +38,7 @@ import io.opencmw.server.MajordomoWorker;
 @Timeout(20)
 class OpenCmwDataSourceTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(OpenCmwDataSourceTest.class);
+    private static final String TEST_EXCEPTION_MSG = "test exception message";
     private EventStore eventStore;
     private DataSourcePublisher dataSourcePublisher;
     private int brokerPort;
@@ -193,6 +195,32 @@ class OpenCmwDataSourceTest {
     }
 
     @Test
+    void testGetRequestException() throws URISyntaxException, InterruptedException, ExecutionException, TimeoutException {
+        worker.setHandler((ctx, requestCtx, request, replyCtx, reply) -> {
+            throw new CmwLightProtocol.RdaLightException(TEST_EXCEPTION_MSG);
+        });
+
+        eventStore.start();
+        dataSourcePublisher.start();
+        LockSupport.parkNanos(Duration.ofMillis(200).toNanos());
+
+        // get request
+        final URI requestURI = new URI("mdp", "localhost:" + brokerPort, "/testWorker", "ctx=FAIR.SELECTOR.C=3&contentType=application/octet-stream", null);
+        LOGGER.atDebug().addArgument(requestURI).log("requesting GET from endpoint: {}");
+        final Future<TestObject> future;
+        try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
+            future = client.get(requestURI, null, TestObject.class); // uri_without_query oder serviceName + resolver, requestContext, type
+        }
+
+        // assert result
+        final Exception exception = assertThrows(Exception.class, () -> assertNull(future.get(1000, TimeUnit.MILLISECONDS)));
+        assertThat(exception.getMessage(), Matchers.containsString(TEST_EXCEPTION_MSG));
+
+        eventStore.stop();
+        dataSourcePublisher.stop();
+    }
+
+    @Test
     void testGetRequest() throws URISyntaxException, InterruptedException, ExecutionException, TimeoutException {
         final TestObject referenceObject = new TestObject("asdf", 42);
         worker.setHandler((ctx, requestCtx, request, replyCtx, reply) -> {
@@ -221,7 +249,6 @@ class OpenCmwDataSourceTest {
         eventStore.stop();
         dataSourcePublisher.stop();
     }
-
     @Test
     void testGetRequestWithContext() throws InterruptedException, ExecutionException, TimeoutException {
         final TestObject referenceObject = new TestObject("asdf", 42);

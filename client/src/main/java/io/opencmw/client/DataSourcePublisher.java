@@ -3,7 +3,6 @@ package io.opencmw.client;
 import static java.util.Objects.requireNonNull;
 
 import static io.opencmw.OpenCmwConstants.*;
-import static io.opencmw.client.DataSourceFilter.ReplyType.*;
 
 import java.io.Closeable;
 import java.lang.reflect.InvocationTargetException;
@@ -29,6 +28,7 @@ import io.opencmw.EventStore;
 import io.opencmw.Filter;
 import io.opencmw.QueryParameterParser;
 import io.opencmw.RingBufferEvent;
+import io.opencmw.client.DataSourceFilter.ReplyType;
 import io.opencmw.client.cmwlight.CmwLightDataSource;
 import io.opencmw.client.rest.RestDataSource;
 import io.opencmw.filter.EvtTypeFilter;
@@ -78,6 +78,7 @@ import io.opencmw.utils.SystemProperties;
  * @author Alexander Krimmm
  * @author rstein
  */
+@SuppressWarnings({ "PMD.GodClass", "PMD.ExcessiveImports", "PMD.TooManyFields" })
 public class DataSourcePublisher implements Runnable, Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisher.class);
     public static final int MIN_FRAMES_INTERNAL_MSG = 3;
@@ -167,14 +168,14 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
         public <R, C> Future<R> get(URI endpoint, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
             final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final URI endpointQuery = request(requestId, GET, endpoint, null, requestContext, rbacProvider);
-            return newRequestFuture(endpointQuery, requestedDomainObjType, GET, requestId);
+            final URI endpointQuery = request(requestId, ReplyType.GET, endpoint, null, requestContext, rbacProvider);
+            return newRequestFuture(endpointQuery, requestedDomainObjType, ReplyType.GET, requestId);
         }
 
         public <R, C> Future<R> set(final URI endpoint, final R requestBody, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
             final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final URI endpointQuery = request(requestId, SET, endpoint, requestBody, requestContext, rbacProvider);
-            return newRequestFuture(endpointQuery, requestedDomainObjType, SET, requestId);
+            final URI endpointQuery = request(requestId, ReplyType.SET, endpoint, requestBody, requestContext, rbacProvider);
+            return newRequestFuture(endpointQuery, requestedDomainObjType, ReplyType.SET, requestId);
         }
 
         public <T> String subscribe(final URI endpoint, final Class<T> requestedDomainObjType, final RbacProvider... rbacProvider) {
@@ -183,20 +184,20 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
         public <T, C> String subscribe(final URI endpoint, final Class<T> requestedDomainObjType, final C context, final Class<C> contextType, NotificationListener<T, C> listener, final RbacProvider... rbacProvider) {
             final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final URI endpointQuery = request(requestId, SUBSCRIBE, endpoint, null, context, rbacProvider);
+            final URI endpointQuery = request(requestId, ReplyType.SUBSCRIBE, endpoint, null, context, rbacProvider);
             return newSubscriptionFuture(endpointQuery, requestedDomainObjType, contextType, requestId, listener).internalRequestID;
         }
 
         public void unsubscribe(String requestId) {
             // signal socket for get with endpoint and request id
             final ZMsg msg = new ZMsg();
-            msg.add(new byte[] { UNSUBSCRIBE.getID() });
+            msg.add(new byte[] { ReplyType.UNSUBSCRIBE.getID() });
             msg.add(requestId);
             msg.add(requests.get(requestId).endpoint.toString());
             msg.send(controlSocket);
         }
 
-        private <R, C> URI request(final String requestId, final DataSourceFilter.ReplyType replyType, final URI endpoint, R requestBody, C requestContext, final RbacProvider... rbacProvider) {
+        private <R, C> URI request(final String requestId, final ReplyType replyType, final URI endpoint, R requestBody, C requestContext, final RbacProvider... rbacProvider) {
             URI endpointQuery = endpoint;
             if (requestContext != null) {
                 try {
@@ -282,7 +283,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             LOGGER.atDebug().log("ignoring invalid message");
             return true; // ignore invalid partial message
         }
-        final DataSourceFilter.ReplyType msgType = DataSourceFilter.ReplyType.valueOf(controlMsg.pollFirst().getData()[0]);
+        final ReplyType msgType = ReplyType.valueOf(controlMsg.pollFirst().getData()[0]);
         final String requestId = requireNonNull(controlMsg.pollFirst()).getString(Charset.defaultCharset());
         final String endpoint = requireNonNull(controlMsg.pollFirst()).getString(Charset.defaultCharset());
         final byte[] data = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
@@ -327,7 +328,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             rawDataEventStore.getRingBuffer().publishEvent((event, sequence) -> {
                 final String reqId = requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset());
                 final ThePromisedFuture<?, ?> returnFuture = requests.get(reqId);
-                if (returnFuture.getReplyType() != SUBSCRIBE) { // remove entries for one time replies
+                if (returnFuture.getReplyType() != ReplyType.SUBSCRIBE) { // remove entries for one time replies
                     assert returnFuture.getInternalRequestID().equals(reqId)
                         : "requestID mismatch";
                     requests.remove(reqId);
@@ -346,17 +347,18 @@ public class DataSourcePublisher implements Runnable, Closeable {
         return dataAvailable;
     }
 
+    @SuppressWarnings({ "PMD.UnusedFormalParameter" }) // method signature is mandated by functional interface
     private void internalEventHandler(final RingBufferEvent event, final long sequence, final boolean endOfBatch) {
         final DataSourceFilter dataSourceFilter = event.getFilter(DataSourceFilter.class);
         final ThePromisedFuture<?, ?> future = dataSourceFilter.future;
         final URI endpointURI = URI.create(dataSourceFilter.endpoint);
-        if (future.replyType == SUBSCRIBE || future.replyType == GET || future.replyType == SET) {
+        if (future.replyType == ReplyType.SUBSCRIBE || future.replyType == ReplyType.GET || future.replyType == ReplyType.SET) {
             // get data from socket
             final ZMsg cmwMsg = event.payload.get(ZMsg.class);
             final byte[] body = requireNonNull(cmwMsg.poll()).getData();
             String exc = requireNonNull(cmwMsg.poll()).getString(Charset.defaultCharset());
             Object domainObj = null;
-            final boolean notifyFuture = future.replyType == GET || future.replyType == SET;
+            final boolean notifyFuture = future.replyType == ReplyType.GET || future.replyType == ReplyType.SET;
             if (exc == null || exc.isBlank()) {
                 try {
                     if (body != null && body.length != 0) {
@@ -401,6 +403,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
         }
     }
 
+    @SuppressWarnings({ "PMD.UnusedFormalParameter" }) // method signature is mandated by functional interface
     private void publishToExternalStore(final RingBufferEvent publishEvent,
             final long seq,
             final Object obj,
@@ -441,7 +444,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
     protected <R> ThePromisedFuture<R, ?> newRequestFuture(final URI endpoint,
             final Class<R> requestedDomainObjType,
-            final DataSourceFilter.ReplyType replyType,
+            final ReplyType replyType,
             final String requestId) {
         final ThePromisedFuture<R, ?> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, null, replyType, requestId, null);
         final Object oldEntry = requests.put(requestId, requestFuture);
@@ -454,7 +457,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             final Class<C> contextType,
             final String requestId,
             final NotificationListener<R, C> listener) {
-        final ThePromisedFuture<R, C> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, contextType, SUBSCRIBE, requestId, listener);
+        final ThePromisedFuture<R, C> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, contextType, ReplyType.SUBSCRIBE, requestId, listener);
         final Object oldEntry = requests.put(requestId, requestFuture);
         assert oldEntry == null : "requestID '" + requestId + "' already present in requestFutureMap";
         return requestFuture;
@@ -464,14 +467,14 @@ public class DataSourcePublisher implements Runnable, Closeable {
         private final URI endpoint;
         private final Class<R> requestedDomainObjType;
         private final Class<C> contextType;
-        private final DataSourceFilter.ReplyType replyType;
+        private final ReplyType replyType;
         private final String internalRequestID;
         private final NotificationListener<R, C> listener;
 
         public ThePromisedFuture(final URI endpoint,
                 final Class<R> requestedDomainObjType,
                 final Class<C> contextType,
-                final DataSourceFilter.ReplyType replyType,
+                final ReplyType replyType,
                 final String internalRequestID,
                 final NotificationListener<R, C> listener) {
             super();
@@ -487,7 +490,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             return endpoint;
         }
 
-        public DataSourceFilter.ReplyType getReplyType() {
+        public ReplyType getReplyType() {
             return replyType;
         }
 

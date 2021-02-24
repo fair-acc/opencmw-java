@@ -1,5 +1,7 @@
 package io.opencmw.client;
 
+import java.util.Objects;
+
 import io.opencmw.Filter;
 import io.opencmw.serialiser.IoSerialiser;
 
@@ -8,7 +10,7 @@ public class DataSourceFilter implements Filter {
     public Class<? extends IoSerialiser> protocolType;
     public String endpoint = "";
     public DataSourcePublisher.ThePromisedFuture<?, ?> future;
-    public long arrivalTimestamp;
+    public long arrivalTimestamp = -1L;
 
     @Override
     public void clear() {
@@ -29,6 +31,23 @@ public class DataSourceFilter implements Filter {
             otherDSF.protocolType = protocolType;
             otherDSF.arrivalTimestamp = arrivalTimestamp;
         }
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final DataSourceFilter that = (DataSourceFilter) o;
+        return arrivalTimestamp == that.arrivalTimestamp && eventType == that.eventType && Objects.equals(protocolType, that.protocolType) && Objects.equals(endpoint, that.endpoint) && Objects.equals(future, that.future);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(eventType, protocolType, endpoint, future, arrivalTimestamp);
     }
 
     /**
