@@ -19,7 +19,7 @@ import org.zeromq.*;
 import org.zeromq.ZMQ.Socket;
 
 import io.opencmw.OpenCmwProtocol;
-import io.opencmw.filter.PathSubscriptionMatcher;
+import io.opencmw.filter.SubscriptionMatcher;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.BinarySerialiser;
 
@@ -57,7 +57,7 @@ public class OpenCmwDataSource extends DataSource {
     private final Socket socket;
     private final Map<String, URI> subscriptions = new HashMap<>(); // NOPMD: not accessed concurrently
     private final URI serverUri;
-    private final BiPredicate<URI, URI> subscriptionMatcher = new PathSubscriptionMatcher(); // <notify topic, subscribe topic>
+    private final BiPredicate<URI, URI> subscriptionMatcher = new SubscriptionMatcher(); // <notify topic, subscribe topic>
 
     /**
      * @param context zeroMQ context used for internal as well as external communication

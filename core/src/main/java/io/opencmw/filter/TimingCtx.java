@@ -13,6 +13,7 @@ import com.jsoniter.spi.JsoniterSpi;
 
 @SuppressWarnings({ "PMD.TooManyMethods" }) // - the nature of this class definition
 public class TimingCtx implements Filter {
+    public static final String KEY = "ctx";
     public static final String WILD_CARD = "ALL";
     public static final int WILD_CARD_VALUE = -1;
     public static final String SELECTOR_PREFIX = "FAIR.SELECTOR.";
@@ -33,10 +34,14 @@ public class TimingCtx implements Filter {
     protected int hashCode = 0; // NOPMD cached hash code
     static {
         // custom JsonIter decoder
-        JsoniterSpi.registerTypeDecoder(TimingCtx.class, iter -> TimingCtx.get(iter.readString()));
+        JsoniterSpi.registerTypeDecoder(TimingCtx.class, iter -> TimingCtx.getStatic(iter.readString()));
     }
     public TimingCtx() {
         clear(); // NOPMD -- called during initialisation
+    }
+
+    public TimingCtx(final String ctxName) {
+        this.setSelector(ctxName, 0);
     }
 
     @Override
@@ -85,6 +90,19 @@ public class TimingCtx implements Filter {
     }
 
     @Override
+    public String getKey() {
+        return KEY;
+    }
+
+    @Override
+    public String getValue() {
+        if (cid == -1 && sid == -1 && pid == -1 && gid == -1) {
+            return SELECTOR_PREFIX + WILD_CARD; // special case for 'FAIR.SELECTOR.ALL'
+        }
+        return SELECTOR_PREFIX + "C=" + cid + ":S=" + sid + ":P=" + pid + ":T=" + gid;
+    }
+
+    @Override
     public int hashCode() {
         if (hashCode != 0) {
             return hashCode;
@@ -98,8 +116,13 @@ public class TimingCtx implements Filter {
         return hashCode;
     }
 
-    public Predicate<TimingCtx> matches(final TimingCtx other) {
-        return t -> this.equals(other);
+    @Override
+    public boolean matches(final Filter other) {
+        if (!(other instanceof TimingCtx)) {
+            return false;
+        }
+        final TimingCtx t = ((TimingCtx) other);
+        return wildCardMatch(t.cid, cid) && wildCardMatch(t.sid, sid) && wildCardMatch(t.pid, pid) && wildCardMatch(t.gid, gid);
     }
 
     /**
@@ -156,10 +179,13 @@ public class TimingCtx implements Filter {
         }
     }
 
-    public static TimingCtx get(final String ctxString) {
-        final TimingCtx ctx = new TimingCtx();
-        ctx.setSelector(ctxString, 0);
-        return ctx;
+    @Override
+    public TimingCtx get(final String ctxString) {
+        return getStatic(ctxString);
+    }
+
+    public static TimingCtx getStatic(final String ctxString) {
+        return new TimingCtx(ctxString);
     }
 
     @Override
@@ -201,6 +227,6 @@ public class TimingCtx implements Filter {
     }
 
     protected static boolean wildCardMatch(final int a, final int b) {
-        return a == b || a == WILD_CARD_VALUE || b == WILD_CARD_VALUE;
+        return a == b || b == WILD_CARD_VALUE;
     }
 }

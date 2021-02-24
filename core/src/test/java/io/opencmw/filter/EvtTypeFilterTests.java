@@ -3,19 +3,29 @@ package io.opencmw.filter;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.ThrowingSupplier;
 
 class EvtTypeFilterTests {
     @Test
     void basicTests() {
-        assertDoesNotThrow(EvtTypeFilter::new);
+        assertDoesNotThrow((ThrowingSupplier<EvtTypeFilter>) EvtTypeFilter::new);
+        assertNull(new EvtTypeFilter().get(""));
 
         final EvtTypeFilter evtTypeFilter = new EvtTypeFilter();
         assertInitialised(evtTypeFilter);
-
+        assertNotNull(new EvtTypeFilter().get(evtTypeFilter.getValue()));
+        assertEquals(evtTypeFilter, new EvtTypeFilter().get(evtTypeFilter.getValue()));
+        assertEquals(evtTypeFilter, evtTypeFilter);
         evtTypeFilter.clear();
         assertInitialised(evtTypeFilter);
 
+        assertTrue(evtTypeFilter.matches(evtTypeFilter));
+        assertTrue(evtTypeFilter.matches(new EvtTypeFilter().get(evtTypeFilter.getValue())));
+        assertFalse(evtTypeFilter.matches(null));
         assertNotNull(evtTypeFilter.toString());
+
+        assertNotNull(new EvtTypeFilter().get("EvtTypeFilter:TIMING_EVENT:test"));
+        assertNull(new EvtTypeFilter().get("TypeFilter:TIMING_EVENT:test"));
     }
 
     @Test

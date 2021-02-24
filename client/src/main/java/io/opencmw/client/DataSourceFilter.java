@@ -6,11 +6,16 @@ import io.opencmw.Filter;
 import io.opencmw.serialiser.IoSerialiser;
 
 public class DataSourceFilter implements Filter {
+    public static final String KEY = "dataSrc";
     public ReplyType eventType = ReplyType.UNKNOWN;
     public Class<? extends IoSerialiser> protocolType;
     public String endpoint = "";
     public DataSourcePublisher.ThePromisedFuture<?, ?> future;
     public long arrivalTimestamp = -1L;
+
+    public DataSourceFilter() {
+        // public constructor
+    }
 
     @Override
     public void clear() {
@@ -43,6 +48,26 @@ public class DataSourceFilter implements Filter {
         }
         final DataSourceFilter that = (DataSourceFilter) o;
         return arrivalTimestamp == that.arrivalTimestamp && eventType == that.eventType && Objects.equals(protocolType, that.protocolType) && Objects.equals(endpoint, that.endpoint) && Objects.equals(future, that.future);
+    }
+
+    @Override
+    public String getKey() {
+        return KEY;
+    }
+
+    @Override
+    public String getValue() {
+        return "";
+    }
+
+    @Override
+    public Filter get(final String ctxString) {
+        return new DataSourceFilter();
+    }
+
+    @Override
+    public boolean matches(final Filter other) {
+        return equals(other);
     }
 
     @Override

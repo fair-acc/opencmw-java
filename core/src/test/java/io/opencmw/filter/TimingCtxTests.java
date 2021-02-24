@@ -3,11 +3,12 @@ package io.opencmw.filter;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.ThrowingSupplier;
 
 class TimingCtxTests {
     @Test
     void basicTests() {
-        assertDoesNotThrow(TimingCtx::new);
+        assertDoesNotThrow((ThrowingSupplier<TimingCtx>) TimingCtx::new);
 
         final long timeNowMicros = System.currentTimeMillis() * 1000;
         final TimingCtx ctx = new TimingCtx();
@@ -61,7 +62,8 @@ class TimingCtxTests {
 
     @Test
     void testHelper() {
-        assertTrue(TimingCtx.wildCardMatch(TimingCtx.WILD_CARD_VALUE, 2));
+        assertFalse(TimingCtx.wildCardMatch(TimingCtx.WILD_CARD_VALUE, 2));
+        assertTrue(TimingCtx.wildCardMatch(2, TimingCtx.WILD_CARD_VALUE));
         assertTrue(TimingCtx.wildCardMatch(TimingCtx.WILD_CARD_VALUE, -1));
         assertTrue(TimingCtx.wildCardMatch(1, TimingCtx.WILD_CARD_VALUE));
         assertTrue(TimingCtx.wildCardMatch(-1, TimingCtx.WILD_CARD_VALUE));
@@ -124,7 +126,12 @@ class TimingCtxTests {
         final TimingCtx ctx = new TimingCtx();
         ctx.setSelector("FAIR.SELECTOR.C=0:S=1:P=2:T=3", timeNowMicros);
 
-        assertTrue(ctx.matches(ctx).test(ctx));
+        assertEquals("ctx", ctx.getKey());
+        assertTrue(ctx.matches(ctx.get(ctx.getValue())));
+        assertFalse(ctx.matches(ctx.get("FAIR.SELECTOR.ALL")), "mismatch - not specific enough");
+
+        assertTrue(ctx.matches(ctx));
+        assertFalse(ctx.matches(new ContentTypeFilter())); // filter type mismatch
         assertTrue(TimingCtx.matches(0, timeNowMicros).test(ctx));
         assertTrue(TimingCtx.matches(0, 1, timeNowMicros).test(ctx));
         assertTrue(TimingCtx.matches(0, 1, 2, timeNowMicros).test(ctx));

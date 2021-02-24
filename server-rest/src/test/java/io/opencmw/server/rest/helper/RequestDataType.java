@@ -9,7 +9,7 @@ public class RequestDataType {
     @MetaInfo(description = " RequestDataType name to show up in the OpenAPI docs")
     public String name = "";
     @MetaInfo(description = "FAIR timing context selector, e.g. FAIR.SELECTOR.C=0, ALL, ...")
-    public TimingCtx ctx = TimingCtx.get("FAIR.SELECTOR.ALL");
+    public TimingCtx ctx = TimingCtx.getStatic("FAIR.SELECTOR.ALL");
     @MetaInfo(description = "custom filter")
     public String customFilter = "";
     @MetaInfo(description = "requested MIME content type, eg. 'application/binary', 'text/html','text/json', ..")

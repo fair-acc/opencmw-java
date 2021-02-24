@@ -195,7 +195,7 @@ class OpenCmwDataSourceTest {
     }
 
     @Test
-    void testGetRequestException() throws URISyntaxException, InterruptedException, ExecutionException, TimeoutException {
+    void testGetRequestException() throws URISyntaxException {
         worker.setHandler((ctx, requestCtx, request, replyCtx, reply) -> {
             throw new CmwLightProtocol.RdaLightException(TEST_EXCEPTION_MSG);
         });
@@ -395,6 +395,26 @@ class OpenCmwDataSourceTest {
                 return false;
             final TestContext that = (TestContext) o;
             return Objects.equals(ctx, that.ctx) && contentType == that.contentType;
+        }
+
+        @Override
+        public String getKey() {
+            return "testContext";
+        }
+
+        @Override
+        public String getValue() {
+            return "";
+        }
+
+        @Override
+        public Filter get(final String ctxString) {
+            return new TestContext();
+        }
+
+        @Override
+        public boolean matches(final Filter other) {
+            return equals(other);
         }
 
         @Override

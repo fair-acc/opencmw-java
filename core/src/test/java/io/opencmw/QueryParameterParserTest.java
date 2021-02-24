@@ -81,7 +81,7 @@ class QueryParameterParserTest {
         ctx.param1 = "Hello";
         ctx.param2 = 42;
         ctx.mimeType = MimeType.HTML;
-        ctx.ctx = TimingCtx.get("FAIR.SELECTOR.C=2");
+        ctx.ctx = TimingCtx.getStatic("FAIR.SELECTOR.C=2");
         ctx.specialClass = new Object();
 
         String result = QueryParameterParser.generateQueryParameter(ctx);
