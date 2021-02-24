@@ -144,6 +144,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
     @Override
     public void close() {
+        stop();
         context.destroy();
     }
 
@@ -244,7 +245,6 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
     public void stop() {
         running.set(false);
-        close();
     }
 
     @Override
