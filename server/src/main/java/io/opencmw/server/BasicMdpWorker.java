@@ -39,7 +39,7 @@ import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
 
-import io.opencmw.filter.PathSubscriptionMatcher;
+import io.opencmw.filter.SubscriptionMatcher;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.serialiser.utils.ClassUtils;
@@ -66,7 +66,7 @@ public class BasicMdpWorker extends Thread {
     private static final Logger LOGGER = LoggerFactory.getLogger(BasicMdpWorker.class);
     protected static final byte[] RBAC = {}; //TODO: implement RBAC between Majordomo and Worker
     protected static final AtomicInteger WORKER_COUNTER = new AtomicInteger();
-    protected BiPredicate<URI, URI> subscriptionMatcher = new PathSubscriptionMatcher(); // <notify topic, subscribe topic>
+    protected BiPredicate<URI, URI> subscriptionMatcher = new SubscriptionMatcher(); // <notify topic, subscribe topic>
 
     static {
         final String reason = "recursive definitions inside ZeroMQ";

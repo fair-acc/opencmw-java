@@ -36,7 +36,7 @@ public class HelloWorldService extends MajordomoWorker<TestContext, RequestDataT
             out.name = "Hello World! The local time is: " + sdf.format(System.currentTimeMillis());
             out.byteArray = in.name.getBytes(StandardCharsets.UTF_8);
             out.byteReturnType = 42;
-            out.timingCtx = TimingCtx.get("FAIR.SELECTOR.C=3");
+            out.timingCtx = TimingCtx.getStatic("FAIR.SELECTOR.C=3");
             out.timingCtx.bpcts = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
             if (rawCtx.req.command == OpenCmwProtocol.Command.SET_REQUEST) {
                 // poor man's local setting management

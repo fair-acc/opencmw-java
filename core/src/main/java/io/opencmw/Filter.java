@@ -20,6 +20,26 @@ public interface Filter {
     @Override
     boolean equals(Object other);
 
+    /**
+     * @return unique query key value that should be unique for the given application. This is being used for context matching.
+     */
+    String getKey();
+
+    /**
+     * @return string representation of actual filter state (should be less verbose than @see #toString()). This is being used for context matching.
+     */
+    String getValue();
+
+    /**
+     * @param ctxString the new string representation of the filter. Must match @see #getValue().
+     * @return filter that has been initialised with it's string representation. This is being used for context matching.
+     */
+    Filter get(final String ctxString);
+
+    boolean matches(final Filter other);
+
+    //boolean matches(final String valueOther);
+
     @Override
     int hashCode();
 

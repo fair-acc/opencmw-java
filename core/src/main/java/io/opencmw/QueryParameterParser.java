@@ -97,7 +97,7 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         // special known objects
         STRING_TO_CLASS_CONVERTER.put(Object.class, (str, obj, field) -> field.getField().set(obj, new Object()));
         STRING_TO_CLASS_CONVERTER.put(MimeType.class, (str, obj, field) -> field.getField().set(obj, MimeType.getEnum(str)));
-        STRING_TO_CLASS_CONVERTER.put(TimingCtx.class, (str, obj, field) -> field.getField().set(obj, TimingCtx.get(str)));
+        STRING_TO_CLASS_CONVERTER.put(TimingCtx.class, (str, obj, field) -> field.getField().set(obj, TimingCtx.getStatic(str)));
 
         CLASS_TO_STRING_CONVERTER.put(Object.class, objToString);
         CLASS_TO_STRING_CONVERTER.put(MimeType.class, (obj, field) -> {

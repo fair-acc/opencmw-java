@@ -111,7 +111,7 @@ class MajordomoWorkerTests {
 
             // processing data
             out.name = in.name + "-modified";
-            repCtx.ctx = TimingCtx.get("FAIR.SELECTOR.C=3");
+            repCtx.ctx = TimingCtx.getStatic("FAIR.SELECTOR.C=3");
             repCtx.ctx.bpcts = TimeUnit.MILLISECONDS.toMicros(System.currentTimeMillis());
 
             LOGGER.atInfo().addArgument(repCtx).log("received reqCtx  = {}");
@@ -312,7 +312,7 @@ class MajordomoWorkerTests {
 
     public static class TestContext {
         @MetaInfo(description = "FAIR timing context selector, e.g. FAIR.SELECTOR.C=0, ALL, ...")
-        public TimingCtx ctx = TimingCtx.get("FAIR.SELECTOR.ALL");
+        public TimingCtx ctx = TimingCtx.getStatic("FAIR.SELECTOR.ALL");
         @MetaInfo(unit = "a.u.", description = "random test parameter")
         public String testValue = "default value";
         @MetaInfo(description = "requested MIME content type, eg. 'application/binary', 'text/html','text/json', ..")

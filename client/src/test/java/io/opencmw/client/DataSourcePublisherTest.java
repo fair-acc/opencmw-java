@@ -40,7 +40,7 @@ import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.BinarySerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 
-@Timeout(20)
+@Timeout(30)
 class DataSourcePublisherTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisherTest.class);
     private static final AtomicReference<TestObject> testObject = new AtomicReference<>();
@@ -413,7 +413,7 @@ class DataSourcePublisherTest {
             future = client.get(new URI("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), null, TestObject.class);
         }
 
-        assertThrows(TimeoutException.class, () -> LOGGER.atError().addArgument(future.get(10, TimeUnit.MILLISECONDS)).log("Should have gotten timeout but received: {}"));
+        assertThrows(TimeoutException.class, () -> LOGGER.atError().addArgument(future.get(1, TimeUnit.MILLISECONDS)).log("Should have gotten timeout but received: {}"));
 
         eventStore.stop();
         dataSourcePublisher.stop();

@@ -8,7 +8,7 @@ import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.utils.SharedPointer;
 
-class RingBufferEventTests {
+public class RingBufferEventTests {
     @Test
     void basicTests() {
         assertDoesNotThrow(() -> new RingBufferEvent(TimingCtx.class));
@@ -130,6 +130,26 @@ class RingBufferEventTests {
         @Override
         public void copyTo(final Filter other) {
             // never called
+        }
+
+        @Override
+        public String getKey() {
+            return "bogusFilter";
+        }
+
+        @Override
+        public String getValue() {
+            return "";
+        }
+
+        @Override
+        public BogusFilter get(final String value) {
+            return new BogusFilter();
+        }
+
+        @Override
+        public boolean matches(final Filter other) {
+            return false;
         }
     }
 }

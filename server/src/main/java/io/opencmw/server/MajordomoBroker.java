@@ -36,7 +36,7 @@ import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
 import org.zeromq.util.ZData;
 
-import io.opencmw.filter.PathSubscriptionMatcher;
+import io.opencmw.filter.SubscriptionMatcher;
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.rbac.RbacToken;
@@ -90,7 +90,7 @@ public class MajordomoBroker extends Thread {
     /* default */ final Map<String, Service> services = new HashMap<>(); // known services Map<'service name', Service>
     protected final Map<String, Worker> workers = new HashMap<>(); // known workers Map<addressHex, Worker
     protected final Map<String, Client> clients = new HashMap<>();
-    protected BiPredicate<URI, URI> subscriptionMatcher = new PathSubscriptionMatcher(); // <notify topic, subscribe topic>
+    protected BiPredicate<URI, URI> subscriptionMatcher = new SubscriptionMatcher(); // <notify topic, subscribe topic>
     protected final Map<URI, AtomicInteger> activeSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
     protected final Map<URI, List<byte[]>> routerBasedSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
     private final AtomicBoolean run = new AtomicBoolean(false); // NOPMD - nomen est omen

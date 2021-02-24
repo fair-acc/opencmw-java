@@ -6,7 +6,7 @@ import io.opencmw.serialiser.annotations.MetaInfo;
 
 public class TestContext {
     @MetaInfo(description = "FAIR timing context selector, e.g. FAIR.SELECTOR.C=0, ALL, ...")
-    public TimingCtx ctx = TimingCtx.get("FAIR.SELECTOR.ALL");
+    public TimingCtx ctx = TimingCtx.getStatic("FAIR.SELECTOR.ALL");
     @MetaInfo(unit = "a.u.", description = "random test parameter")
     public String testFilter = "default value";
     @MetaInfo(description = "requested MIME content type, eg. 'application/binary', 'text/html','text/json', ..")
