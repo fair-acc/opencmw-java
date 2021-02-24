@@ -314,6 +314,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
     protected boolean handleDataSourceSockets() {
         boolean dataAvailable = false;
+
         for (DataSource entry : clientMap.values()) {
             final ZMsg reply = entry.getMessage();
             if (reply == null) {
@@ -325,9 +326,13 @@ public class DataSourcePublisher implements Runnable, Closeable {
             }
             // the received data consists of the following frames:
             // replyType(byte), reqId(string), endpoint(string), dataBody(byte[])
+            final String reqId = requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset());
+            final ThePromisedFuture<?, ?> returnFuture = requests.get(reqId);
+            if (returnFuture == null) {
+                LOGGER.atError().addArgument(reqId).log("no future available for reqId: {}");
+                continue;
+            }
             rawDataEventStore.getRingBuffer().publishEvent((event, sequence) -> {
-                final String reqId = requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset());
-                final ThePromisedFuture<?, ?> returnFuture = requests.get(reqId);
                 if (returnFuture.getReplyType() != ReplyType.SUBSCRIBE) { // remove entries for one time replies
                     assert returnFuture.getInternalRequestID().equals(reqId)
                         : "requestID mismatch";
