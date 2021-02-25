@@ -76,7 +76,7 @@ class MdpImplementationBenchmark {
         final MajordomoBroker broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());
         final List<MajordomoWorker<TestContext, TestObject, TestObject>> workers = new ArrayList<>(N_WORKERS);
         for (int i = 0; i < N_WORKERS; ++i) {
-            workers.add(new MajordomoWorker<>( broker.getContext(), "/testWorker", TestContext.class, TestObject.class, TestObject.class));
+            workers.add(new MajordomoWorker<>(broker.getContext(), "/testWorker", TestContext.class, TestObject.class, TestObject.class));
         }
         final AtomicInteger receiveCount = new AtomicInteger(0);
         eventStore.register((evt, seq, last) -> {
@@ -114,13 +114,13 @@ class MdpImplementationBenchmark {
 
             LOGGER.atInfo().addArgument(nExecutions).addArgument(PAYLOAD.length).log("run tests: n={}, payloadSize={}bytes");
             for (int i = 0; i < N_REPEAT; ++i) {
-                synchronousGet("synchronous get, future, full object deserialisation #"+ i +"     ", dataSourcePublisher, brokerPort);
+                synchronousGet("synchronous get, future, full object deserialisation #" + i + "     ", dataSourcePublisher, brokerPort);
             }
             for (int i = 0; i < N_REPEAT; ++i) {
                 synchronousGetRaw("synchronous get, eventStore, full object deserialisation #" + i + " ", dataSourcePublisher, brokerPort, receiveCount);
             }
             for (int i = 0; i < N_REPEAT; ++i) {
-                synchronousGetRaw("synchronous get, eventStore, raw message #" +i + "                 ", dataSourcePublisher, brokerPort, receiveCountRaw);
+                synchronousGetRaw("synchronous get, eventStore, raw message #" + i + "                 ", dataSourcePublisher, brokerPort, receiveCountRaw);
             }
             for (int i = 0; i < N_REPEAT; ++i) {
                 asyncGetRaw("asynchronous get, eventStore, full object deserialisation #" + i, dataSourcePublisher, brokerPort, receiveCount);
@@ -223,8 +223,10 @@ class MdpImplementationBenchmark {
 
         @Override
         public boolean equals(final Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
             final TestObject that = (TestObject) o;
             return seq == that.seq && Arrays.equals(payload, that.payload);
         }
