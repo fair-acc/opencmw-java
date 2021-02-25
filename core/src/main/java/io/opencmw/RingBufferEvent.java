@@ -20,7 +20,7 @@ import com.lmax.disruptor.EventHandler;
 
 @SuppressWarnings("PMD.TooManyMethods")
 public class RingBufferEvent implements FilterPredicate, Cloneable {
-    private final static Logger LOGGER = LoggerFactory.getLogger(RingBufferEvent.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(RingBufferEvent.class);
     /**
      * local UTC event arrival time-stamp [ms]
      */
@@ -75,19 +75,27 @@ public class RingBufferEvent implements FilterPredicate, Cloneable {
     public void copyTo(RingBufferEvent other) {
         other.arrivalTimeStamp = arrivalTimeStamp;
         other.parentSequenceNumber = parentSequenceNumber;
-        for (int i = 0; i < other.filters.length; i++) {
-            filters[i].copyTo(other.filters[i]);
+        for (Filter filter : filters) {
+            filter.copyTo(other.findFilter(filter.getClass()));
         }
         other.payload = payload == null ? null : payload.getCopy();
         other.throwables.clear();
         other.throwables.addAll(throwables);
     }
 
-    public <T extends Filter> T getFilter(final Class<T> filterType) {
+    public <T extends Filter> T findFilter(final Class<T> filterType) {
         for (Filter filter : filters) {
             if (filter.getClass().isAssignableFrom(filterType)) {
                 return filterType.cast(filter);
             }
+        }
+        return null;
+    }
+
+    public <T extends Filter> T getFilter(final Class<T> filterType) {
+        final T filter = findFilter(filterType);
+        if (filter != null) {
+            return filter;
         }
         final StringBuilder builder = new StringBuilder();
         builder.append("requested filter type '").append(filterType.getSimpleName()).append(" not part of ").append(RingBufferEvent.class.getSimpleName()).append(" definition: ");

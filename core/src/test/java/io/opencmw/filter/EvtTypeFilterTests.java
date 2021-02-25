@@ -2,6 +2,8 @@ package io.opencmw.filter;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.net.URI;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.ThrowingSupplier;
 
@@ -32,7 +34,7 @@ class EvtTypeFilterTests {
     void testEqualsAndHash() {
         final EvtTypeFilter evtTypeFilter1 = new EvtTypeFilter();
         evtTypeFilter1.evtType = EvtTypeFilter.DataType.DEVICE_DATA;
-        evtTypeFilter1.typeName = "DeviceName";
+        evtTypeFilter1.property = URI.create("DeviceName");
         // check identity
         assertEquals(evtTypeFilter1, evtTypeFilter1);
         assertEquals(evtTypeFilter1.hashCode(), evtTypeFilter1.hashCode());
@@ -43,11 +45,11 @@ class EvtTypeFilterTests {
 
         final EvtTypeFilter evtTypeFilter2 = new EvtTypeFilter();
         evtTypeFilter2.evtType = EvtTypeFilter.DataType.DEVICE_DATA;
-        evtTypeFilter2.typeName = "DeviceName";
+        evtTypeFilter2.property = URI.create("DeviceName");
         assertEquals(evtTypeFilter1, evtTypeFilter2);
         assertEquals(evtTypeFilter1.hashCode(), evtTypeFilter2.hashCode());
 
-        evtTypeFilter2.typeName = "DeviceName2";
+        evtTypeFilter2.property = URI.create("DeviceName2");
         assertNotEquals(evtTypeFilter1, evtTypeFilter2);
         evtTypeFilter2.evtType = EvtTypeFilter.DataType.PROCESSED_DATA;
 
@@ -63,24 +65,24 @@ class EvtTypeFilterTests {
         final EvtTypeFilter evtTypeFilter = new EvtTypeFilter();
 
         evtTypeFilter.evtType = EvtTypeFilter.DataType.TIMING_EVENT;
-        evtTypeFilter.typeName = "TimingEventName";
+        evtTypeFilter.property = URI.create("TimingEventName");
         assertTrue(EvtTypeFilter.isTimingData().test(evtTypeFilter));
         assertTrue(EvtTypeFilter.isTimingData("TimingEventName").test(evtTypeFilter));
 
         evtTypeFilter.evtType = EvtTypeFilter.DataType.DEVICE_DATA;
-        evtTypeFilter.typeName = "DeviceName";
+        evtTypeFilter.property = URI.create("DeviceName");
         assertTrue(EvtTypeFilter.isDeviceData().test(evtTypeFilter));
         assertTrue(EvtTypeFilter.isDeviceData("DeviceName").test(evtTypeFilter));
 
         evtTypeFilter.evtType = EvtTypeFilter.DataType.SETTING_SUPPLY_DATA;
-        evtTypeFilter.typeName = "SettingName";
+        evtTypeFilter.property = URI.create("SettingName");
         assertTrue(EvtTypeFilter.isSettingsData().test(evtTypeFilter));
         assertTrue(EvtTypeFilter.isSettingsData("SettingName").test(evtTypeFilter));
     }
 
     private static void assertInitialised(final EvtTypeFilter evtTypeFilter) {
-        assertNotNull(evtTypeFilter.typeName);
-        assertTrue(evtTypeFilter.typeName.isBlank());
+        assertNotNull(evtTypeFilter.property);
+        assertTrue(evtTypeFilter.property.toString().isBlank());
         assertEquals(EvtTypeFilter.DataType.UNKNOWN, evtTypeFilter.evtType);
         assertEquals(0, evtTypeFilter.hashCode);
     }

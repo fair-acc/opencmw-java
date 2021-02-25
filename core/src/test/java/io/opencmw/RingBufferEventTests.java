@@ -2,13 +2,15 @@ package io.opencmw;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.net.URI;
+
 import org.junit.jupiter.api.Test;
 
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.utils.SharedPointer;
 
-public class RingBufferEventTests {
+class RingBufferEventTests {
     @Test
     void basicTests() {
         assertDoesNotThrow(() -> new RingBufferEvent(TimingCtx.class));
@@ -55,13 +57,10 @@ public class RingBufferEventTests {
         final long timeNowMicros = System.currentTimeMillis() * 1000;
         evt.arrivalTimeStamp = timeNowMicros;
         evt.getFilter(EvtTypeFilter.class).evtType = EvtTypeFilter.DataType.DEVICE_DATA;
-        evt.getFilter(EvtTypeFilter.class).typeName = "MyDevice";
+        evt.getFilter(EvtTypeFilter.class).property = URI.create("MyDevice");
         evt.getFilter(TimingCtx.class).setSelector("FAIR.SELECTOR.C=3:S=2", timeNowMicros);
 
-        evt.matches(TimingCtx.class, ctx -> {
-            System.err.println("received ctx = " + ctx);
-            return true;
-        });
+        evt.matches(TimingCtx.class, ctx -> true);
 
         // fall-back filter: the whole RingBufferEvent, all Filters etc are accessible
         assertTrue(evt.matches(e -> e.arrivalTimeStamp == timeNowMicros));

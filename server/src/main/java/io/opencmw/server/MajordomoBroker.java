@@ -647,7 +647,7 @@ public class MajordomoBroker extends Thread {
     protected void sendDnsHeartbeats(boolean force) {
         // Send heartbeats to idle workers if it's time
         if (System.currentTimeMillis() >= dnsHeartbeatAt || force) {
-            final MdpMessage readyMsg = new MdpMessage(null, PROT_CLIENT, READY, brokerName.getBytes(UTF_8), "clientID".getBytes(UTF_8), URI.create(""), EMPTY_FRAME, "", RBAC);
+            final MdpMessage readyMsg = new MdpMessage(null, PROT_CLIENT, READY, brokerName.getBytes(UTF_8), "clientID".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
             for (String routerAddress : this.getRouterSockets()) {
                 readyMsg.topic = URI.create(routerAddress);
                 if (!dnsAddress.isBlank()) {

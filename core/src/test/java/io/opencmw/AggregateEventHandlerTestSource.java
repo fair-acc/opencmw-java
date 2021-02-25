@@ -1,10 +1,12 @@
 package io.opencmw;
 
+import java.net.URI;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
+import io.opencmw.OpenCmwProtocol.Command;
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.utils.SharedPointer;
@@ -75,9 +77,9 @@ public class AggregateEventHandlerTestSource implements Runnable {
                     event.payload = new SharedPointer<>();
                     event.payload.set(userPayload.payload);
                     ctx.setSelector("FAIR.SELECTOR.c=" + userPayload.chain + "", userPayload.bpcts);
-                    evtType.typeName = userPayload.device;
+                    evtType.property = URI.create(userPayload.device);
                     evtType.evtType = EvtTypeFilter.DataType.DEVICE_DATA;
-                    evtType.updateType = EvtTypeFilter.UpdateType.COMPLETE;
+                    evtType.updateType = Command.FINAL;
                 }, currentEvent);
             }
             repetitionCount++;
