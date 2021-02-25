@@ -4,16 +4,14 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 import static io.opencmw.OpenCmwProtocol.Command.W_NOTIFY;
 import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
+import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
 
-import java.net.URI;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
@@ -93,7 +91,7 @@ class BasicMdpWorkerTest {
         assertTrue(worker.runSocketHandlerLoop.get(), "run loop is running");
 
         // check basic notification
-        final OpenCmwProtocol.MdpMessage msg = new OpenCmwProtocol.MdpMessage(null, PROT_WORKER, W_NOTIFY, "testService".getBytes(UTF_8), EMPTY_FRAME, URI.create(""), EMPTY_FRAME, "", null);
+        final OpenCmwProtocol.MdpMessage msg = new OpenCmwProtocol.MdpMessage(null, PROT_WORKER, W_NOTIFY, "testService".getBytes(UTF_8), EMPTY_FRAME, EMPTY_URI, EMPTY_FRAME, "", null);
         assertFalse(worker.notify(msg)); // is filtered: no subscription -> false
         assertTrue(worker.notifyRaw(msg)); // is unfiltered: no subscription -> true
 

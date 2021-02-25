@@ -1,5 +1,6 @@
 package io.opencmw;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,6 +14,7 @@ import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.opencmw.OpenCmwProtocol.Command;
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.utils.Cache;
@@ -38,20 +40,19 @@ import com.lmax.disruptor.TimeoutHandler;
 @SuppressWarnings("PMD.LinguisticNaming") // fluent-style API with setter returning factory
 public class AggregateEventHandler implements SequenceReportingEventHandler<RingBufferEvent> {
     private static final Logger LOGGER = LoggerFactory.getLogger(AggregateEventHandler.class);
-    // private Map<Long, Object> aggregatedBpcts = new SoftHashMap<>(RETENTION_SIZE);
     protected final Map<Long, Object> aggregatedBpcts;
     private final RingBuffer<RingBufferEvent> ringBuffer;
     private final long timeOut;
     private final TimeUnit timeOutUnit;
     private final int numberOfEventsToAggregate;
-    private final List<String> deviceList;
+    private final List<URI> deviceList;
     private final List<Predicate<RingBufferEvent>> evtTypeFilter;
     private final InternalAggregationHandler[] aggregationHandler;
     private final List<InternalAggregationHandler> freeWorkers;
-    private final String aggregateName;
+    private final URI aggregateName;
     private Sequence seq;
 
-    private AggregateEventHandler(final RingBuffer<RingBufferEvent> ringBuffer, final String aggregateName, final long timeOut, final TimeUnit timeOutUnit, final int nWorkers, final int retentionSize, final List<String> deviceList, List<Predicate<RingBufferEvent>> evtTypeFilter) { // NOPMD NOSONAR -- number of arguments acceptable/ complexity handled by factory
+    private AggregateEventHandler(final RingBuffer<RingBufferEvent> ringBuffer, final URI aggregateName, final long timeOut, final TimeUnit timeOutUnit, final int nWorkers, final int retentionSize, final List<URI> deviceList, List<Predicate<RingBufferEvent>> evtTypeFilter) { // NOPMD NOSONAR -- number of arguments acceptable/ complexity handled by factory
         this.ringBuffer = ringBuffer;
         this.aggregateName = aggregateName;
         this.timeOut = timeOut;
@@ -80,7 +81,6 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
             return;
         }
 
-        // final boolean alreadyScheduled = Arrays.stream(workers).filter(w -> w.bpcts == eventBpcts).findFirst().isPresent();
         final boolean alreadyScheduled = aggregatedBpcts.containsKey(ctx.bpcts);
         if (alreadyScheduled) {
             return;
@@ -101,7 +101,7 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
                 final long diffMillis = currentTime - w.aggStart;
                 waitTimeNanos = Math.min(waitTimeNanos, TimeUnit.MILLISECONDS.toNanos(diffMillis));
                 if (w.bpcts != -1 && diffMillis < timeOutUnit.toMillis(timeOut)) {
-                    w.publishAndFreeWorker(EvtTypeFilter.UpdateType.PARTIAL); // timeout reached, publish partial result and free worker
+                    w.publishAndFreeWorker(Command.PARTIAL); // timeout reached, publish partial result and free worker
                     break;
                 }
             }
@@ -119,17 +119,17 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
     }
 
     public static class AggregateEventHandlerFactory {
-        private final List<String> deviceList = new NoDuplicatesList<>();
+        private final List<URI> deviceList = new NoDuplicatesList<>();
         private final List<Predicate<RingBufferEvent>> evtTypeFilter = new NoDuplicatesList<>();
         private RingBuffer<RingBufferEvent> ringBuffer;
         private int numberWorkers = 4; // number of workers defines the maximum number of aggregate events groups which can be overlapping
         private long timeOut = 400;
         private TimeUnit timeOutUnit = TimeUnit.MILLISECONDS;
         private int retentionSize = 12;
-        private String aggregateName;
+        private URI aggregateName;
 
         public AggregateEventHandler build() {
-            if (aggregateName == null || aggregateName.isBlank()) {
+            if (aggregateName == null || aggregateName.toString().isBlank()) {
                 throw new IllegalArgumentException("aggregateName must not be null or blank");
             }
             if (ringBuffer == null) {
@@ -139,16 +139,16 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
             return new AggregateEventHandler(ringBuffer, aggregateName, timeOut, timeOutUnit, numberWorkers, actualRetentionSize, deviceList, evtTypeFilter);
         }
 
-        public String getAggregateName() {
+        public URI getAggregateName() {
             return aggregateName;
         }
 
-        public AggregateEventHandlerFactory setAggregateName(final String aggregateName) {
+        public AggregateEventHandlerFactory setAggregateName(final URI aggregateName) {
             this.aggregateName = aggregateName;
             return this;
         }
 
-        public List<String> getDeviceList() {
+        public List<URI> getDeviceList() {
             return deviceList;
         }
 
@@ -157,7 +157,7 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
          * @param deviceList lists of devices, event names, etc. that shall be aggregated
          * @return itself (fluent design)
          */
-        public AggregateEventHandlerFactory setDeviceList(final List<String> deviceList) {
+        public AggregateEventHandlerFactory setDeviceList(final List<URI> deviceList) {
             this.deviceList.addAll(deviceList);
             return this;
         }
@@ -167,7 +167,7 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
          * @param devices single or lists of devices, event names, etc. that shall be aggregated
          * @return itself (fluent design)
          */
-        public AggregateEventHandlerFactory setDeviceList(final String... devices) {
+        public AggregateEventHandlerFactory setDeviceList(final URI... devices) {
             this.deviceList.addAll(Arrays.asList(devices));
             return this;
         }
@@ -271,7 +271,7 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
         @Override
         public void onEvent(final RingBufferEvent event, final long sequence, final boolean endOfBatch) {
             if (bpcts != -1 && event.arrivalTimeStamp > aggStart + timeOutUnit.toMillis(timeOut)) {
-                publishAndFreeWorker(EvtTypeFilter.UpdateType.PARTIAL);
+                publishAndFreeWorker(Command.PARTIAL);
                 return;
             }
             final TimingCtx ctx = event.getFilter(TimingCtx.class);
@@ -282,24 +282,24 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
             if (evtType == null) {
                 throw new IllegalArgumentException("cannot aggregate events without ring buffer containing EvtTypeFilter");
             }
-            if ((!deviceList.isEmpty() && !deviceList.contains(evtType.typeName)) || (!evtTypeFilter.isEmpty() && evtTypeFilter.stream().noneMatch(filter -> filter.test(event)))) {
+            if ((!deviceList.isEmpty() && !deviceList.contains(evtType.property)) || (!evtTypeFilter.isEmpty() && evtTypeFilter.stream().noneMatch(filter -> filter.test(event)))) {
                 return;
             }
 
             aggregatedEventsStash.add(event);
             if (aggregatedEventsStash.size() == numberOfEventsToAggregate) {
-                publishAndFreeWorker(EvtTypeFilter.UpdateType.COMPLETE);
+                publishAndFreeWorker(Command.FINAL);
             }
         }
 
         @Override
         public void onTimeout(final long sequence) {
             if (bpcts != -1 && System.currentTimeMillis() > aggStart + timeOut) {
-                publishAndFreeWorker(EvtTypeFilter.UpdateType.PARTIAL);
+                publishAndFreeWorker(Command.PARTIAL);
             }
         }
 
-        protected void publishAndFreeWorker(final EvtTypeFilter.UpdateType updateType) {
+        protected void publishAndFreeWorker(final Command updateType) {
             final long now = System.currentTimeMillis();
             ringBuffer.publishEvent(((event, sequence, arg0) -> {
                 final TimingCtx ctx = event.getFilter(TimingCtx.class);
@@ -314,17 +314,17 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
                 // write header/meta-type data
                 event.arrivalTimeStamp = now;
                 event.payload = new SharedPointer<>();
-                final Map<String, SharedPointer<?>> aggregatedItems = new HashMap<>(); // <String:deviceName,SharedPointer:dataObject>
+                final Map<URI, SharedPointer<?>> aggregatedItems = new HashMap<>(); // NOPMD <String:deviceName,SharedPointer:dataObject>
                 event.payload.set(aggregatedItems);
-                if (updateType == EvtTypeFilter.UpdateType.PARTIAL) {
+                if (updateType == Command.PARTIAL) {
                     LOGGER.atInfo().log("aggregation timed out for bpcts: " + bpcts);
                 }
 
                 if (aggregatedEventsStash.isEmpty()) {
                     // notify empty aggregate
                     event.parentSequenceNumber = sequence;
-                    evtType.typeName = aggregateName;
-                    evtType.updateType = EvtTypeFilter.UpdateType.EMPTY;
+                    evtType.property = aggregateName;
+                    evtType.updateType = Command.UNKNOWN;
                     evtType.evtType = EvtTypeFilter.DataType.AGGREGATE_DATA;
                     return;
                 }
@@ -334,10 +334,10 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
                 for (int i = 0; i < firstItem.filters.length; i++) {
                     firstItem.filters[i].copyTo(event.filters[i]);
                 }
-                if (updateType == EvtTypeFilter.UpdateType.PARTIAL) {
+                if (updateType == Command.PARTIAL) {
                     LOGGER.atInfo().log("aggregation timed out for 2:bpcts: " + event.getFilter(TimingCtx.class).bpcts);
                 }
-                evtType.typeName = aggregateName;
+                evtType.property = aggregateName;
                 evtType.updateType = updateType;
                 evtType.evtType = EvtTypeFilter.DataType.AGGREGATE_DATA;
                 event.parentSequenceNumber = sequence;
@@ -345,7 +345,7 @@ public class AggregateEventHandler implements SequenceReportingEventHandler<Ring
                 // add new events to payload
                 for (RingBufferEvent rbEvent : aggregatedEventsStash) {
                     final EvtTypeFilter type = rbEvent.getFilter(EvtTypeFilter.class);
-                    aggregatedItems.put(type.typeName, rbEvent.payload.getCopy());
+                    aggregatedItems.put(type.property, rbEvent.payload.getCopy());
                 }
             }),
                     aggregatedEventsStash);

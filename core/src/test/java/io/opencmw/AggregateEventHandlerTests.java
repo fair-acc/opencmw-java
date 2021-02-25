@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -25,6 +26,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.opencmw.OpenCmwProtocol.Command;
 import io.opencmw.filter.EvtTypeFilter;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.utils.SharedPointer;
@@ -46,7 +48,7 @@ import com.lmax.disruptor.util.DaemonThreadFactory;
  */
 class AggregateEventHandlerTests {
     private static final Logger LOGGER = LoggerFactory.getLogger(AggregateEventHandlerTests.class);
-    private static final String[] DEVICES = { "a", "b", "c" };
+    private static final URI[] DEVICES = { URI.create("a"), URI.create("b"), URI.create("c") };
     private static Stream<Arguments> workingEventSamplesProvider() { // NOPMD NOSONAR - false-positive PMD error (unused function), function is used via reflection
         return Stream.of(
                 arguments("ordinary", "a1 b1 c1 a2 b2 c2 a3 b3 c3", "a1 b1 c1; a2 b2 c2; a3 b3 c3", "", 1),
@@ -69,16 +71,16 @@ class AggregateEventHandlerTests {
         final AggregateEventHandler.AggregateEventHandlerFactory factory = AggregateEventHandler.getFactory();
         assertThrows(IllegalArgumentException.class, factory::build); // missing aggregate name
 
-        factory.setAggregateName("testAggregate");
-        assertEquals("testAggregate", factory.getAggregateName());
+        factory.setAggregateName(URI.create("testAggregate"));
+        assertEquals(URI.create("testAggregate"), factory.getAggregateName());
 
         assertTrue(factory.getDeviceList().isEmpty());
-        factory.setDeviceList("testDevice1", "testDevice2");
-        assertEquals(List.of("testDevice1", "testDevice2"), factory.getDeviceList());
+        factory.setDeviceList(URI.create("testDevice1"), URI.create("testDevice2"));
+        assertEquals(List.of(URI.create("testDevice1"), URI.create("testDevice2")), factory.getDeviceList());
         factory.getDeviceList().clear();
         assertTrue(factory.getDeviceList().isEmpty());
-        factory.setDeviceList(List.of("testDevice1", "testDevice2"));
-        assertEquals(List.of("testDevice1", "testDevice2"), factory.getDeviceList());
+        factory.setDeviceList(List.of(URI.create("testDevice1"), URI.create("testDevice2")));
+        assertEquals(List.of(URI.create("testDevice1"), URI.create("testDevice2")), factory.getDeviceList());
         factory.getDeviceList().clear();
 
         Predicate<RingBufferEvent> filter1 = rbEvt -> true;
@@ -148,7 +150,7 @@ class AggregateEventHandlerTests {
                 aggResults.add(payloads);
             }
 
-            if (evtType.evtType == EvtTypeFilter.DataType.AGGREGATE_DATA && evtType.updateType != EvtTypeFilter.UpdateType.COMPLETE) {
+            if (evtType.evtType == EvtTypeFilter.DataType.AGGREGATE_DATA && evtType.updateType != Command.FINAL) {
                 // time-out occured -- add failed aggregate event BPCTS to result vector
                 aggTimeouts.add(timingCtx.bpcts);
             }
@@ -156,7 +158,7 @@ class AggregateEventHandlerTests {
 
         // create event ring buffer and add de-multiplexing processors
         final Disruptor<RingBufferEvent> disruptor = new Disruptor<>(() -> new RingBufferEvent(TimingCtx.class, EvtTypeFilter.class), 256, DaemonThreadFactory.INSTANCE, ProducerType.MULTI, new TimeoutBlockingWaitStrategy(200, TimeUnit.MILLISECONDS));
-        final AggregateEventHandler aggProc = AggregateEventHandler.getFactory().setRingBuffer(disruptor.getRingBuffer()).setAggregateName("testAggregate").setDeviceList(DEVICES).build();
+        final AggregateEventHandler aggProc = AggregateEventHandler.getFactory().setRingBuffer(disruptor.getRingBuffer()).setAggregateName(URI.create("testAggregate")).setDeviceList(DEVICES).build();
         final EventHandlerGroup<RingBufferEvent> endBarrier = disruptor.handleEventsWith(testHandler).handleEventsWith(aggProc).then(aggProc.getAggregationHander());
         RingBuffer<RingBufferEvent> rb = disruptor.start();
 
