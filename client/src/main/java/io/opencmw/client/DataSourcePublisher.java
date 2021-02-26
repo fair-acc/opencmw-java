@@ -3,10 +3,7 @@ package io.opencmw.client;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
-import static io.opencmw.OpenCmwConstants.HEARTBEAT;
-import static io.opencmw.OpenCmwConstants.HEARTBEAT_DEFAULT;
-import static io.opencmw.OpenCmwConstants.N_IO_THREADS;
-import static io.opencmw.OpenCmwConstants.N_IO_THREADS_DEFAULT;
+import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
 
@@ -44,6 +41,7 @@ import io.opencmw.RingBufferEvent;
 import io.opencmw.client.cmwlight.CmwLightDataSource;
 import io.opencmw.client.rest.RestDataSource;
 import io.opencmw.filter.EvtTypeFilter;
+import io.opencmw.filter.FilterRegistry;
 import io.opencmw.rbac.RbacProvider;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoClassSerialiser;
@@ -221,6 +219,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
         }
 
         private <R, C> URI request(final String requestId, final Command replyType, final URI endpoint, R requestBody, C requestContext, final RbacProvider... rbacProvider) {
+            FilterRegistry.checkClassForNewFilters(requestContext);
             URI endpointQuery = endpoint;
             if (requestContext != null) {
                 try {
@@ -487,6 +486,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             final Class<R> requestedDomainObjType,
             final Command replyType,
             final String requestId) {
+        FilterRegistry.checkClassForNewFilters(requestedDomainObjType);
         final ThePromisedFuture<R, ?> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, null, replyType, requestId, null);
         final Object oldEntry = requests.put(requestId, requestFuture);
         assert oldEntry == null : "requestID '" + requestId + "' already present in requestFutureMap";
@@ -498,6 +498,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             final Class<C> contextType,
             final String requestId,
             final NotificationListener<R, C> listener) {
+        FilterRegistry.checkClassForNewFilters(requestedDomainObjType);
         final ThePromisedFuture<R, C> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, contextType, Command.SUBSCRIBE, requestId, listener);
         final Object oldEntry = requests.put(requestId, requestFuture);
         assert oldEntry == null : "requestID '" + requestId + "' already present in requestFutureMap";

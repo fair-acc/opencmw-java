@@ -17,6 +17,7 @@ import io.opencmw.OpenCmwProtocol;
 import io.opencmw.OpenCmwProtocol.MdpMessage;
 import io.opencmw.QueryParameterParser;
 import io.opencmw.domain.BinaryData;
+import io.opencmw.filter.FilterRegistry;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.serialiser.IoBuffer;
 import io.opencmw.serialiser.IoClassSerialiser;
@@ -83,6 +84,9 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
         serialiser.setMatchedIoSerialiser(BinarySerialiser.class);
         notifySerialiser.setMatchedIoSerialiser(BinarySerialiser.class);
 
+        FilterRegistry.checkClassForNewFilters(contextClassType);
+        FilterRegistry.checkClassForNewFilters(inputClassType);
+        FilterRegistry.checkClassForNewFilters(outputClassType);
         try {
             // check if velocity is available
             Class.forName("org.apache.velocity.app.VelocityEngine");

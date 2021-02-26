@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
+import io.opencmw.filter.FilterRegistry;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.serialiser.FieldDescription;
 import io.opencmw.serialiser.spi.ClassFieldDescription;
@@ -174,6 +175,7 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         final ClassFieldDescription fieldDescription = ClassUtils.getFieldDescription(obj.getClass());
         final StringBuilder builder = new StringBuilder();
         final List<FieldDescription> children = fieldDescription.getChildren();
+        final Map<Class<? extends Filter>, String> filterKeyMap = FilterRegistry.getClassFilterKeyMap();
         for (int index = 0; index < children.size(); index++) {
             ClassFieldDescription field = (ClassFieldDescription) children.get(index);
             final BiFunction<Object, ClassFieldDescription, String> mapFunction = CLASS_TO_STRING_CONVERTER.get(field.getType());
@@ -183,7 +185,9 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
             } else {
                 str = mapFunction.apply(obj, field);
             }
-            builder.append(field.getFieldName()).append('=').append(str == null ? "" : URLEncoder.encode(str, UTF_8));
+            @SuppressWarnings("SuspiciousMethodCalls") // default shall be used in case of type-mismatch and/or class key being absent
+            final String keyValue = filterKeyMap.getOrDefault(field.getType(), field.getFieldName());
+            builder.append(keyValue).append('=').append(str == null ? "" : URLEncoder.encode(str, UTF_8));
             if (index != children.size() - 1) {
                 builder.append('&');
             }
@@ -224,9 +228,12 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         constructor.setAccessible(true); // NOSONAR NOPMD
         final T obj = constructor.newInstance();
         final Map<String, List<String>> queryMap = getMap(queryString);
+        final Map<Class<? extends Filter>, String> filterKeyMap = FilterRegistry.getClassFilterKeyMap();
         for (FieldDescription f : fieldDescription.getChildren()) {
             ClassFieldDescription field = (ClassFieldDescription) f;
-            final List<String> values = queryMap.get(field.getFieldName());
+            @SuppressWarnings("SuspiciousMethodCalls") // default shall be used in case of type-mismatch and/or class key being absent
+            final String keyValue = filterKeyMap.getOrDefault(field.getType(), field.getFieldName());
+            final List<String> values = queryMap.get(keyValue);
             final TriConsumer mapFunction = STRING_TO_CLASS_CONVERTER.get(field.getType());
             if (mapFunction == null || values == null || values.isEmpty()) {
                 // skip field
