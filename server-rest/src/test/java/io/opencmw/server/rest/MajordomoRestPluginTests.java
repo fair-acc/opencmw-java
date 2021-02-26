@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -86,6 +87,7 @@ class MajordomoRestPluginTests {
 
     @ParameterizedTest
     @ValueSource(strings = { "http://localhost:8080", "https://localhost:8443" })
+    @Timeout(value = 2)
     void testDns(final String address) throws IOException {
         final Request request = new Request.Builder().url(address + "/mmi.dns?noMenu").addHeader("accept", MimeType.HTML.getMediaType()).get().build();
         final Response response = okHttp.newCall(request).execute();
@@ -98,6 +100,7 @@ class MajordomoRestPluginTests {
 
     @ParameterizedTest
     @EnumSource(value = MimeType.class, names = { "HTML", "BINARY", "JSON", "CMWLIGHT", "TEXT", "UNKNOWN" })
+    @Timeout(value = 2)
     void testGet(final MimeType contentType) throws IOException {
         final Request request = new Request.Builder().url("http://localhost:8080/helloWorld?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
         final Response response = okHttp.newCall(request).execute();
@@ -120,6 +123,7 @@ class MajordomoRestPluginTests {
 
     @ParameterizedTest
     @EnumSource(value = MimeType.class, names = { "HTML", "BINARY", "JSON", "CMWLIGHT", "TEXT", "UNKNOWN" })
+    @Timeout(value = 2)
     void testGetException(final MimeType contentType) throws IOException {
         final Request request = new Request.Builder().url("http://localhost:8080/mmi.openapi?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
         final Response response = okHttp.newCall(request).execute();
@@ -144,6 +148,7 @@ class MajordomoRestPluginTests {
 
     @ParameterizedTest
     @EnumSource(value = MimeType.class, names = { "HTML", "JSON" })
+    @Timeout(value = 2)
     void testSet(final MimeType contentType) throws IOException {
         final Request setRequest = new Request.Builder() //
                                            .url("http://localhost:8080/helloWorld?noMenu")
@@ -174,6 +179,7 @@ class MajordomoRestPluginTests {
     }
 
     @Test
+    @Timeout(value = 2)
     void testSSE() {
         AtomicInteger eventCounter = new AtomicInteger();
         Request request = new Request.Builder().url("http://localhost:8080/" + ImageService.PROPERTY_NAME).build();

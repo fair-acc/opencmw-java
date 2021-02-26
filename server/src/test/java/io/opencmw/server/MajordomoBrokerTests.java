@@ -69,21 +69,18 @@ class MajordomoBrokerTests {
         final String brokerAddress = broker.bind("mdp://*:" + Utils.findOpenPort());
         assertFalse(broker.isRunning(), "broker not running");
         broker.start();
-        assertTrue(broker.isRunning(), "broker running");
+        // wait for broker to startup
+        await().alias("wait for broker running").atMost(1, TimeUnit.SECONDS).until(broker::isRunning);
         // test interfaces
         assertNotNull(broker.getContext());
         assertNotNull(broker.getInternalRouterSocket());
         assertNotNull(broker.getServices());
-        assertEquals(4, broker.getServices().size());
+        await().alias("wait for services to be initialised").atMost(1, TimeUnit.SECONDS).until(() -> broker.getServices().size(), equalTo(4));
         assertDoesNotThrow(() -> broker.addInternalService(new BasicMdpWorker(broker.getContext(), "demoService")));
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100)); // wait until services are started
-        assertEquals(5, broker.getServices().size());
+        await().alias("wait for services to be initialised - new service").atMost(1, TimeUnit.SECONDS).until(() -> broker.getServices().size(), equalTo(5));
         assertDoesNotThrow(() -> broker.removeService("demoService"));
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100)); // wait until services are stopped
-        assertEquals(5, broker.getServices().size());
-
         // wait until all services are initialised
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
+        await().alias("wait for services to be initialised - removed service").atMost(1, TimeUnit.SECONDS).until(() -> broker.getServices().size(), equalTo(4));
 
         final ZMQ.Socket clientSocket = broker.getContext().createSocket(SocketType.DEALER);
         clientSocket.setIdentity("demoClient".getBytes(UTF_8));
@@ -130,12 +127,11 @@ class MajordomoBrokerTests {
 
         // add external (albeit inproc) Majordomo worker to the broker
         BasicMdpWorker exceptionService = new BasicMdpWorker(broker.getContext(), "inproc.exception", BasicRbacRole.ADMIN);
-        exceptionService.registerHandler(input -> { throw new IllegalAccessError("this is always thrown"); }); //  always throw an exception
+        exceptionService.registerHandler(input -> { throw new IllegalAccessError("this is always thrown - you may ignore this in the unit-tests"); }); //  always throw an exception
         exceptionService.start();
 
         // wait until all services are initialised
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
-        assertEquals(7, broker.getServices().size());
+        await().alias("wait for services to be initialised").atMost(1, TimeUnit.SECONDS).until(() -> broker.getServices().size(), equalTo(7));
 
         // using simple synchronous client
         MajordomoTestClientSync clientSession = new MajordomoTestClientSync(brokerAddress, "customClientName");
@@ -380,8 +376,7 @@ class MajordomoBrokerTests {
 
         await().alias("wait for reply messages").atMost(2, TimeUnit.SECONDS).until(counter::get, equalTo(10));
         run.set(false);
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
-        assertFalse(subcriptionThread.isAlive(), "subscription thread shut-down");
+        await().alias("wait for subscription thread shut-down").atMost(1, TimeUnit.SECONDS).until(subcriptionThread::isAlive, equalTo(false));
         assertEquals(10, counter.get(), "received expected number of replies");
         assertEquals(10, subCounter.get(), "received expected number of subscription replies");
 

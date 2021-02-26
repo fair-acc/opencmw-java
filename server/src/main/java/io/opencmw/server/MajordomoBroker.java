@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
@@ -94,6 +95,7 @@ public class MajordomoBroker extends Thread {
     protected final Map<URI, AtomicInteger> activeSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
     protected final Map<URI, List<byte[]>> routerBasedSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
     private final AtomicBoolean run = new AtomicBoolean(false); // NOPMD - nomen est omen
+    private final AtomicBoolean running = new AtomicBoolean(false); // NOPMD - nomen est omen
     protected final Deque<Worker> waiting = new ArrayDeque<>(); // idle workers
     /* default */ final Map<String, DnsServiceItem> dnsCache = new HashMap<>(); // <server name, DnsServiceItem>
     protected final int heartBeatLiveness = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable
@@ -209,13 +211,13 @@ public class MajordomoBroker extends Thread {
     }
 
     public boolean isRunning() {
-        return run.get();
+        return running.get();
     }
 
     public void removeService(final String serviceName) {
         final Service ret = services.remove(serviceName);
         ret.mdpWorker.forEach(BasicMdpWorker::stopWorker);
-        ret.waiting.forEach(worker -> new MdpMessage(worker.address, PROT_WORKER, DISCONNECT, worker.service.nameBytes, EMPTY_FRAME, URI.create(worker.service.name), EMPTY_FRAME, "", RBAC).send(worker.socket));
+        ret.waiting.forEach(worker -> new MdpMessage(worker.address, PROT_WORKER, DISCONNECT, worker.service.nameBytes, EMPTY_FRAME, URI.create(worker.service.name), BROKER_SHUTDOWN, "", RBAC).send(worker.socket));
     }
 
     /**
@@ -223,6 +225,10 @@ public class MajordomoBroker extends Thread {
      */
     @Override
     public void run() {
+        run.set(true);
+        running.set(true);
+        services.forEach((serviceName, service) -> service.internalWorkers.forEach(Thread::start));
+        sendDnsHeartbeats(true); // initial register of default routes
         try (ZMQ.Poller items = ctx.createPoller(4)) { // 4 -> four sockets defined below
             items.register(routerSocket, ZMQ.Poller.POLLIN);
             items.register(dnsSocket, ZMQ.Poller.POLLIN);
@@ -258,15 +264,15 @@ public class MajordomoBroker extends Thread {
                 }
             }
         }
-        destroy(); // interrupted
-    }
-
-    @Override
-    public synchronized void start() { // NOPMD - need to be synchronised on class level due to super definition
-        run.set(true);
-        services.forEach((serviceName, service) -> service.internalWorkers.forEach(Thread::start));
-        super.start();
-        sendDnsHeartbeats(true); // initial register of default routes
+        Worker[] deleteList = workers.values().toArray(new Worker[0]);
+        for (Worker worker : deleteList) {
+            deleteWorker(worker, true);
+        }
+        //        final List<String> serviceList = new ArrayList<>(services.keySet());
+        //        serviceList.forEach(this::removeService);
+        // waith for workers to shut-down
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
+        running.set(false);
     }
 
     /**
@@ -274,6 +280,14 @@ public class MajordomoBroker extends Thread {
      */
     public void stopBroker() {
         run.set(false);
+        if (running.get()) {
+            try {
+                this.join(heartBeatInterval);
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
+            }
+        }
+        destroy(); // interrupted
     }
 
     /**
@@ -284,11 +298,9 @@ public class MajordomoBroker extends Thread {
      */
     protected void deleteWorker(Worker worker, boolean disconnect) {
         assert (worker != null);
-        if (disconnect) {
-            new MdpMessage(worker.address, PROT_WORKER, DISCONNECT,
-                    worker.serviceName, EMPTY_FRAME,
-                    URI.create(new String(worker.serviceName, UTF_8)), EMPTY_FRAME, "", RBAC)
-                    .send(worker.socket);
+        if (disconnect && !ctx.isClosed()) {
+            final MdpMessage disconnectMsg = new MdpMessage(worker.address, PROT_WORKER, DISCONNECT, worker.serviceName, EMPTY_FRAME, URI.create(new String(worker.serviceName, UTF_8)), BROKER_SHUTDOWN, "", RBAC);
+            disconnectMsg.send(worker.socket);
         }
         if (worker.service != null) {
             worker.service.waiting.remove(worker);
@@ -300,10 +312,6 @@ public class MajordomoBroker extends Thread {
      * Disconnect all workers, destroy context.
      */
     protected void destroy() {
-        Worker[] deleteList = workers.values().toArray(new Worker[0]);
-        for (Worker worker : deleteList) {
-            deleteWorker(worker, true);
-        }
         ctx.destroy();
     }
 
@@ -491,7 +499,7 @@ public class MajordomoBroker extends Thread {
             }
             break;
         case DISCONNECT:
-            deleteWorker(worker, false);
+            //deleteWorker(worker, false);
             break;
         case PARTIAL:
         case FINAL:
@@ -633,7 +641,7 @@ public class MajordomoBroker extends Thread {
         assert (addressHex != null);
         return workers.computeIfAbsent(addressHex, identity -> {
             if (LOGGER.isInfoEnabled()) {
-                LOGGER.atInfo().addArgument(addressHex).log("registering new worker: '{}'");
+                LOGGER.atInfo().addArgument(addressHex).addArgument(ZData.toString(serviceName)).log("registering new worker: '{}' - '{}'");
             }
             return new Worker(socket, address, addressHex, serviceName);
         });
@@ -795,6 +803,11 @@ public class MajordomoBroker extends Thread {
         private boolean requestsPending() {
             return requests.entrySet().stream().anyMatch(
                     map -> !map.getValue().isEmpty());
+        }
+
+        @Override
+        public String toString() {
+            return "Service{name='" + name + '\'' + '}';
         }
     }
 

@@ -1,5 +1,7 @@
 package io.opencmw;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import static org.zeromq.ZMQ.Socket;
 
 import static io.opencmw.OpenCmwProtocol.Command.*;
@@ -8,7 +10,6 @@ import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -43,11 +44,12 @@ import io.opencmw.utils.AnsiDefs;
 public final class OpenCmwProtocol { // NOPMD - nomen est omen
     public static final String COMMAND_MUST_NOT_BE_NULL = "command must not be null";
     public static final byte[] EMPTY_FRAME = {};
+    public static final byte[] BROKER_SHUTDOWN = "broker shutdown".getBytes(UTF_8);
     public static final URI EMPTY_URI = URI.create("");
-    private static final byte[] PROTOCOL_NAME_CLIENT = "MDPC03".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] PROTOCOL_NAME_CLIENT_HTTP = "MDPH03".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] PROTOCOL_NAME_WORKER = "MDPW03".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] PROTOCOL_NAME_UNKNOWN = "UNKNOWN_PROTOCOL".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] PROTOCOL_NAME_CLIENT = "MDPC03".getBytes(UTF_8);
+    private static final byte[] PROTOCOL_NAME_CLIENT_HTTP = "MDPH03".getBytes(UTF_8);
+    private static final byte[] PROTOCOL_NAME_WORKER = "MDPW03".getBytes(UTF_8);
+    private static final byte[] PROTOCOL_NAME_UNKNOWN = "UNKNOWN_PROTOCOL".getBytes(UTF_8);
     private static final int MAX_PRINT_LENGTH = 200; // unique client id, see ROUTER socket docs for info
     private static final int FRAME0_SOURCE_ID = 0; // unique client id, see ROUTER socket docs for info
     private static final int FRAME1_PROTOCOL_ID = 1; // 'MDPC0<x>' or 'MDPW0<x>'
@@ -75,7 +77,7 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
         private final String protocolName;
         MdpSubProtocol(final byte[] value) {
             this.data = value;
-            protocolName = new String(data, StandardCharsets.UTF_8);
+            protocolName = new String(data, UTF_8);
         }
 
         public byte[] getData() {
@@ -193,7 +195,7 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
          * @param rbacToken OpenCMW frame 8 (optional): RBAC token
          */
         public MdpMessage(final byte[] senderID, @NotNull final MdpSubProtocol protocol, @NotNull final Command command,
-                @NotNull final byte[] serviceID, @NotNull final byte[] clientRequestID, @NotNull final URI topic,
+                final byte[] serviceID, final byte[] clientRequestID, @NotNull final URI topic,
                 final byte[] data, @NotNull final String errors, final byte[] rbacToken) {
             this.senderID = senderID == null ? EMPTY_FRAME : senderID;
             this.protocol = protocol;
@@ -426,7 +428,7 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
                 return null;
             }
 
-            final String topicString = new String(topicBytes, StandardCharsets.UTF_8);
+            final String topicString = new String(topicBytes, UTF_8);
             final URI topic;
             try {
                 topic = new URI(topicString);
@@ -441,7 +443,7 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
             final byte[] data = rawFrames.get(FRAME6_DATA);
             // OpenCMW frame 7: error stack -- UTF-8 string
             final byte[] errorBytes = rawFrames.get(FRAME7_ERROR);
-            final String errors = errorBytes == null || errorBytes.length == 0 ? "" : new String(errorBytes, StandardCharsets.UTF_8);
+            final String errors = errorBytes == null || errorBytes.length == 0 ? "" : new String(errorBytes, UTF_8);
             if (data == null && errors.isBlank()) {
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.atWarn().addArgument(dataToString(rawFrames)).log("data is null and errors is blank - {}");

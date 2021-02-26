@@ -7,7 +7,8 @@ import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
-import static io.opencmw.server.MajordomoBroker.*;
+import static io.opencmw.server.MajordomoBroker.SUFFIX_ROUTER;
+import static io.opencmw.server.MajordomoBroker.SUFFIX_SUBSCRIBE;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
 
@@ -17,6 +18,7 @@ import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -82,7 +84,8 @@ public class BasicMdpWorker extends Thread {
     protected final String serviceName;
     protected final byte[] serviceBytes;
 
-    protected final AtomicBoolean runSocketHandlerLoop = new AtomicBoolean(true);
+    protected final AtomicBoolean shallRun = new AtomicBoolean(false);
+    protected final AtomicBoolean running = new AtomicBoolean(false);
     protected final SortedSet<RbacRole> rbacRoles; // NOSONAR NOPMD
     protected final ZMQ.Socket notifySocket; // Socket to listener -- needed for thread-decoupling
     protected final ZMQ.Socket notifyListenerSocket; // Socket to notifier -- needed for thread-decoupling
@@ -190,11 +193,13 @@ public class BasicMdpWorker extends Thread {
    */
     @Override
     public void run() {
+        shallRun.set(true);
         reconnectToBroker();
         // Poll socket for a reply, with timeout and/or until the process is stopped or interrupted
         // N.B. poll(..) returns '-1' when thread is interrupted
         final MdpMessage heartbeatMsg = new MdpMessage(null, PROT_WORKER, W_HEARTBEAT, serviceBytes, EMPTY_FRAME, EMPTY_URI, EMPTY_FRAME, "", RBAC);
-        while (runSocketHandlerLoop.get() && !Thread.currentThread().isInterrupted() && poller.poll(heartBeatInterval) != -1) {
+        running.set(true);
+        while (shallRun.get() && !Thread.currentThread().isInterrupted() && poller.poll(heartBeatInterval) != -1) {
             boolean dataReceived = true;
             while (dataReceived) {
                 // handle message from or to broker
@@ -219,31 +224,33 @@ public class BasicMdpWorker extends Thread {
             }
 
             // Send HEARTBEAT if it's time
-            if (System.currentTimeMillis() > heartbeatAt) {
+            if (System.currentTimeMillis() > heartbeatAt && !ctx.isClosed()) {
                 heartbeatMsg.send(workerSocket);
                 heartbeatAt = System.currentTimeMillis() + heartBeatInterval;
             }
         }
-        if (Thread.currentThread().isInterrupted()) {
-            LOGGER.atWarn().addArgument(uniqueID).log("worker '{}' interrupt received, killing worker");
-        }
-        if (isExternal) {
-            ctx.destroy();
-        }
+        running.set(false);
+        shallRun.set(false);
+        LOGGER.atInfo().addArgument(getName()).log("'{}' shut-down");
     }
 
     public void setReconnectDelay(final int reconnect, @NotNull final TimeUnit timeUnit) {
         this.reconnect = timeUnit.toMillis(reconnect);
     }
 
-    @Override
-    public synchronized void start() { // NOPMD 'synchronized' comes from JDK class definition
-        runSocketHandlerLoop.set(true);
-        super.start();
-    }
-
     public void stopWorker() {
-        runSocketHandlerLoop.set(false);
+        if (!running.get() || !shallRun.get()) {
+            return;
+        }
+        shallRun.set(false);
+        try {
+            join(heartBeatInterval);
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
+        }
+        if (isExternal && !ctx.isClosed()) {
+            ctx.destroy();
+        }
     }
 
     protected List<MdpMessage> handleRequestsFromBroker(final MdpMessage request) {
@@ -264,7 +271,11 @@ public class BasicMdpWorker extends Thread {
             // Do nothing for heartbeats
             return Collections.emptyList();
         case DISCONNECT:
-            // TODO: check whether to reconnect or to disconnect permanently
+            if (Arrays.equals(BROKER_SHUTDOWN, request.data)) {
+                shallRun.set(false);
+                LOGGER.atInfo().addArgument(getName()).log("broker requested to shut-down '{}'");
+                return Collections.emptyList();
+            }
             reconnectToBroker();
             return Collections.emptyList();
         case READY:
@@ -338,6 +349,9 @@ public class BasicMdpWorker extends Thread {
    * Connect or reconnect to broker
    */
     protected void reconnectToBroker() {
+        if (ctx == null || ctx.isClosed()) {
+            return;
+        }
         if (workerSocket != null) {
             workerSocket.close();
         }
