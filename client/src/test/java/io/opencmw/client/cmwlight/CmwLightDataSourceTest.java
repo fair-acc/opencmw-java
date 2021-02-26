@@ -17,8 +17,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.*;
 
-import io.opencmw.client.Endpoint;
-
 @Timeout(20)
 class CmwLightDataSourceTest {
     final static Logger LOGGER = LoggerFactory.getLogger(CmwLightDataSourceTest.class);
@@ -86,7 +84,7 @@ class CmwLightDataSourceTest {
                     client.housekeeping(); // allow the subscription to be sent out
 
                     return reply.size() == 4 && reply.pollFirst().getString(Charset.defaultCharset()).equals("testId")
-                            && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals(new Endpoint(endpoint.toString()).getEndpointForContext(cycleName))
+                            && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals(new CmwLightDataSource.ParsedEndpoint(endpoint, cycleName).toURI().toString())
                             && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals("data")
                             && Objects.requireNonNull(reply.pollFirst()).getData().length == 0;
                 });
@@ -120,5 +118,20 @@ class CmwLightDataSourceTest {
             LockSupport.parkNanos(100000);
             i++;
         }
+    }
+
+    @Test
+    void testParsedEndpoint() throws URISyntaxException, CmwLightProtocol.RdaLightException {
+        final Map<String, Object> filterMap = Map.of("filterA", 3, "filterB", true, "filterC", "foo=bar", "filterD", 1234567890987654321L, "filterE", 1.5, "filterF", -3.5f);
+        final String testQuery = "ctx=Test.Context.C=5&filterA=int:3&filterB=bool:true&filterC=foo=bar&filterD=long:1234567890987654321&filterE=double:1.5&filterF=float:-3.5";
+        final URI testUri = new URI("rda3", "server:1337", "/deviceA/MyProperty", testQuery, null);
+        final CmwLightDataSource.ParsedEndpoint expected = new CmwLightDataSource.ParsedEndpoint("server:1337", "deviceA", "MyProperty", "Test.Context.C=5", filterMap);
+        final CmwLightDataSource.ParsedEndpoint parsed = new CmwLightDataSource.ParsedEndpoint(testUri);
+        assertEquals(expected, parsed);
+        assertEquals(expected.hashCode(), parsed.hashCode());
+        assertEquals(testUri, parsed.toURI());
+
+        assertEquals(new CmwLightDataSource.ParsedEndpoint("server:1337", "deviceA", "MyProperty", "Test.Context.C=5:P=3", filterMap),
+                new CmwLightDataSource.ParsedEndpoint(testUri, "Test.Context.C=5:P=3"));
     }
 }
