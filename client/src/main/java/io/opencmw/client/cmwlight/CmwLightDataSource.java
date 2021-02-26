@@ -7,17 +7,15 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
+import io.opencmw.QueryParameterParser;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
@@ -28,7 +26,6 @@ import org.zeromq.ZMQException;
 import org.zeromq.ZMsg;
 
 import io.opencmw.client.DataSource;
-import io.opencmw.client.Endpoint;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
 import io.opencmw.utils.SystemProperties;
@@ -158,9 +155,8 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         case REPLY:
             Request requestForReply = pendingRequests.remove(reply.id);
             try {
-                return createInternalMsg(requestForReply.requestId,
-                        new URI(new Endpoint(requestForReply.endpoint.toString()).getEndpointForContext(reply.dataContext.cycleName)), reply.bodyData, null);
-            } catch (URISyntaxException e) {
+                return createInternalMsg(requestForReply.requestId, new ParsedEndpoint(requestForReply.endpoint, reply.dataContext.cycleName).toURI(), reply.bodyData, null);
+            } catch (URISyntaxException | CmwLightProtocol.RdaLightException e) {
                 LOGGER.atWarn().addArgument(requestForReply.endpoint).addArgument(reply.dataContext.cycleName).log("Adding reply context to URI results in illegal url {} + {}");
                 return new ZMsg();
             }
@@ -190,8 +186,8 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             }
             final URI endpointForNotificationContext;
             try {
-                endpointForNotificationContext = new URI(new Endpoint(subscriptionForNotification.endpoint.toString()).getEndpointForContext(reply.dataContext.cycleName));
-            } catch (URISyntaxException e) {
+                endpointForNotificationContext = new ParsedEndpoint(subscriptionForNotification.endpoint, reply.dataContext.cycleName).toURI();
+            } catch (URISyntaxException | CmwLightProtocol.RdaLightException e) {
                 LOGGER.atWarn().setCause(e).log("Error generating reply context URI");
                 return new ZMsg();
             }
@@ -250,11 +246,15 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
     @Override
     public void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken) {
-        final Endpoint ep = new Endpoint(endpoint.toString());
-        final Subscription sub = new Subscription(endpoint, ep.getDevice(), ep.getProperty(), ep.getSelector(), ep.getFilters());
-        sub.idString = reqId;
-        subscriptions.put(sub.id, sub);
-        subscriptionsByReqId.put(reqId, sub);
+        try {
+            final ParsedEndpoint ep = new ParsedEndpoint(endpoint);
+            final Subscription sub = new Subscription(endpoint, ep.device, ep.property, ep.ctx , ep.filters);
+            sub.idString = reqId;
+            subscriptions.put(sub.id, sub);
+            subscriptionsByReqId.put(reqId, sub);
+        } catch (CmwLightProtocol.RdaLightException e) {
+            LOGGER.atError().setCause(e).addArgument(endpoint).log("Illegal Endpoint: {}");
+        }
     }
 
     @Override
@@ -389,24 +389,20 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     }
 
     private void sendRequest(final Request request) {
-        // Filters and data are already serialised but the protocol saves them deserialised :/
-        // final ZFrame data = request.data == null ? new ZFrame(new byte[0]) : new ZFrame(request.data);
-        // final ZFrame filters = request.filters == null ? new ZFrame(new byte[0]) : new ZFrame(request.filters);
-        final Endpoint requestEndpoint = new Endpoint(request.endpoint.toString());
-
         try {
+            final ParsedEndpoint endpoint = new ParsedEndpoint(request.endpoint);
             switch (request.requestType) {
             case GET:
                 CmwLightProtocol.sendMsg(socket, CmwLightMessage.getRequest(
-                                                         sessionId, request.id, requestEndpoint.getDevice(), requestEndpoint.getProperty(),
-                                                         new CmwLightMessage.RequestContext(requestEndpoint.getSelector(), requestEndpoint.getFilters(), null)));
+                                                         sessionId, request.id, endpoint.device, endpoint.property,
+                                                         new CmwLightMessage.RequestContext(endpoint.ctx, endpoint.filters, null)));
                 break;
             case SET:
                 Objects.requireNonNull(request.data, "Data for set cannot be null");
                 CmwLightProtocol.sendMsg(socket, CmwLightMessage.setRequest(
-                                                         sessionId, request.id, requestEndpoint.getDevice(), requestEndpoint.getProperty(),
+                                                         sessionId, request.id, endpoint.device, endpoint.property,
                                                          new ZFrame(request.data),
-                                                         new CmwLightMessage.RequestContext(requestEndpoint.getSelector(), requestEndpoint.getFilters(), null)));
+                                                         new CmwLightMessage.RequestContext(endpoint.ctx, endpoint.filters, null)));
                 break;
             default:
                 throw new CmwLightProtocol.RdaLightException("Message of unknown type");
@@ -539,5 +535,106 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         SUBSCRIBED,
         CANCELED,
         UNSUBSCRIBE_SENT
+    }
+
+    public static class ParsedEndpoint {
+        public static final String DEFAULT_SELECTOR = "";
+        public static final String FILTER_TYPE_LONG = "long:";
+        public static final String FILTER_TYPE_INT = "int:";
+        public static final String FILTER_TYPE_BOOL = "bool:";
+        public static final String FILTER_TYPE_DOUBLE = "double:";
+        public static final String FILTER_TYPE_FLOAT = "float:";
+
+        public final Map<String, Object> filters;
+        public final String ctx;
+        public final String device;
+        public final String property;
+        public final String address;
+
+        public ParsedEndpoint(final URI endpoint) throws CmwLightProtocol.RdaLightException {
+            this(endpoint, null);
+        }
+
+        public ParsedEndpoint(final URI endpoint, final String ctx) throws CmwLightProtocol.RdaLightException {
+            address = endpoint.getAuthority();
+            final Map<String,String> parsedQuery = QueryParameterParser.getFlatMap(endpoint.getQuery());
+            if (ctx != null) {
+                this.ctx = ctx;
+                parsedQuery.remove("ctx");
+            } else if (parsedQuery.containsKey("ctx")) {
+                this.ctx = parsedQuery.remove("ctx");
+            } else {
+                this.ctx = DEFAULT_SELECTOR;
+            }
+            filters = parsedQuery.entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry<String, String>::getKey, e -> {
+                        String val = e.getValue();
+                        if (val.startsWith(FILTER_TYPE_INT)) {
+                            return Integer.valueOf(val.substring(FILTER_TYPE_INT.length()));
+                        } else if (val.startsWith(FILTER_TYPE_LONG)) {
+                            return Long.valueOf(val.substring(FILTER_TYPE_LONG.length()));
+                        } else if (val.startsWith(FILTER_TYPE_BOOL)) {
+                            return Boolean.valueOf(val.substring(FILTER_TYPE_BOOL.length()));
+                        } else if (val.startsWith(FILTER_TYPE_DOUBLE)){
+                            return Double.valueOf(val.substring(FILTER_TYPE_DOUBLE.length()));
+                        } else if (val.startsWith(FILTER_TYPE_FLOAT)) {
+                            return Float.valueOf(val.substring(FILTER_TYPE_FLOAT.length()));
+                        } else {
+                            return val;
+                        }
+                    }));
+            final String[] deviceProperty = StringUtils.stripStart(endpoint.getPath(), "/").split("/", 2);
+            if (deviceProperty.length != 2) {
+                throw new CmwLightProtocol.RdaLightException("URI path does not contain device/property: " + endpoint.getPath());
+            }
+            device = deviceProperty[0];
+            property = deviceProperty[1];
+        }
+
+        public ParsedEndpoint(final String address, final String device, final String property, final String ctx, final Map<String,Object> filters){
+            this.address = address;
+            this.device = device;
+            this.property = property;
+            this.ctx = ctx;
+            this.filters = filters;
+        }
+
+        public URI toURI() throws URISyntaxException {
+            final String filterString = filters.entrySet().stream() //
+                                            .map(e -> {
+                                                String val;
+                                                if (e.getValue() instanceof String) {
+                                                    val = (String) e.getValue();
+                                                } else if (e.getValue() instanceof Integer) {
+                                                    val = FILTER_TYPE_INT + e.getValue();
+                                                } else if (e.getValue() instanceof Long) {
+                                                    val = FILTER_TYPE_LONG + e.getValue();
+                                                } else if (e.getValue() instanceof Boolean) {
+                                                    val = FILTER_TYPE_BOOL + e.getValue();
+                                                } else if (e.getValue() instanceof Double) {
+                                                    val = FILTER_TYPE_DOUBLE + e.getValue();
+                                                } else if (e.getValue() instanceof Float) {
+                                                    val = FILTER_TYPE_FLOAT + e.getValue();
+                                                } else {
+                                                    throw new UnsupportedOperationException("Data type not supported in endpoint filters");
+                                                }
+                                                return e.getKey() + '=' + val;
+                                            }) //
+                                            .collect(Collectors.joining("&"));
+            return new URI(RDA_3_PROTOCOL, address, '/' + device + '/' + property, "ctx=" + ctx + '&' + filterString, null);
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final ParsedEndpoint that = (ParsedEndpoint) o;
+            return filters.equals(that.filters) && ctx.equals(that.ctx) && device.equals(that.device) && property.equals(that.property) && address.equals(that.address);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(filters, ctx, device, property, address);
+        }
     }
 }
