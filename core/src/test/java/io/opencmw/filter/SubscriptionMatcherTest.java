@@ -200,7 +200,7 @@ class SubscriptionMatcherTest {
         }
     }
 
-    private static class BogusFilter implements Filter { // NOPMD default access
+    /* default */ static class BogusFilter implements Filter { // NOPMD default access
         private BogusFilter() {
             // cannot instantiate this publicly
         }
