@@ -88,7 +88,7 @@ class BasicMdpWorkerTest {
         run.set(false);
         stop.set(false);
 
-        assertTrue(worker.runSocketHandlerLoop.get(), "run loop is running");
+        assertTrue(worker.shallRun.get(), "run loop is running");
 
         // check basic notification
         final OpenCmwProtocol.MdpMessage msg = new OpenCmwProtocol.MdpMessage(null, PROT_WORKER, W_NOTIFY, "testService".getBytes(UTF_8), EMPTY_FRAME, EMPTY_URI, EMPTY_FRAME, "", null);

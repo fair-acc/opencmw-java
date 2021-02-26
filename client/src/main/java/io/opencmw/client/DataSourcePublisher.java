@@ -100,7 +100,9 @@ public class DataSourcePublisher implements Runnable, Closeable {
     private final String inprocCtrl = "inproc://dsPublisher#" + INSTANCE_COUNT.incrementAndGet();
     private final Map<String, ThePromisedFuture<?, ?>> requests = new ConcurrentHashMap<>(); // <requestId, future for the get request>
     private final Map<String, DataSource> clientMap = new ConcurrentHashMap<>(); // scheme://authority -> DataSource
+    private final AtomicBoolean shallRun = new AtomicBoolean(false);
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private Thread thread;
     private final AtomicInteger internalReqIdGenerator = new AtomicInteger(0);
     protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
     private final EventStore rawDataEventStore;
@@ -156,6 +158,15 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
     @Override
     public void close() {
+        shallRun.set(false);
+        if (thread != null) {
+            thread.interrupt();
+            try {
+                thread.join(heartbeatInterval);
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(thread.getName() + " did not shut down in " + heartbeatInterval + " ms", e);
+            }
+        }
         context.destroy();
     }
 
@@ -252,39 +263,57 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     public void start() {
-        new Thread(null, this, "DataSourceProducerThread-" + clientId, 0).start(); // NOPMD - not a webapp
+        final String threadName = "DataSourceProducerThread-" + clientId;
+        if (thread != null) {
+            throw new IllegalStateException(threadName + " already running");
+        }
+        thread = new Thread(null, this, threadName, 0); // NOPMD - not a webapp
+        thread.setDaemon(true);
+        thread.start();
     }
 
     public void stop() {
-        running.set(false);
+        shallRun.set(false);
+        if (thread != null) {
+            try {
+                thread.join(heartbeatInterval);
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(thread.getName() + " did not shut down in " + heartbeatInterval + " ms", e);
+            }
+            if (running.get()) {
+                thread.interrupt();
+            }
+        }
         close();
     }
 
     @Override
     public void run() {
-        if (running.getAndSet(true)) {
+        if (shallRun.getAndSet(true)) {
             return; // is already running
         }
+        running.set(true);
         // start the ring buffer and its processors
         rawDataEventStore.start();
         // event loop polling all data sources and performing regular housekeeping jobs
         long nextHousekeeping = System.currentTimeMillis(); // immediately perform first housekeeping
         long timeOut = 0L;
-        while (!Thread.interrupted() && running.get() && (timeOut <= 0 || -1 != poller.poll(timeOut))) {
+        while (!Thread.interrupted() && shallRun.get() && (timeOut <= 0 || -1 != poller.poll(timeOut))) {
             boolean dataAvailable = true;
-            while (dataAvailable && System.currentTimeMillis() < nextHousekeeping && running.get()) {
+            while (dataAvailable && System.currentTimeMillis() < nextHousekeeping && shallRun.get()) {
                 dataAvailable = handleDataSourceSockets(); // get data from clients
                 dataAvailable |= handleControlSocket(); // check specifically for control socket
             }
             nextHousekeeping = clientMap.values().stream().mapToLong(DataSource::housekeeping).min().orElse(System.currentTimeMillis() + heartbeatInterval);
             timeOut = nextHousekeeping - System.currentTimeMillis();
         }
-        if (running.get()) {
+        if (shallRun.get()) {
             LOGGER.atError().addArgument(clientMap.values()).log("poller returned negative value - abort run() - clients = {}");
         } else {
             LOGGER.atDebug().log("Shutting down DataSourcePublisher");
         }
         rawDataEventStore.stop();
+        running.set(false);
     }
 
     protected boolean handleControlSocket() {

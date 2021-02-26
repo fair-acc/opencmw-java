@@ -175,6 +175,9 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
 
     @Override
     public synchronized void start() { // NOPMD 'synchronized' comes from JDK class definition
+        // send subscription request for new service added notifications
+        super.start();
+
         final Thread dispatcher = new Thread(getDispatcherTask());
         dispatcher.setDaemon(true);
         dispatcher.setName(MajordomoRestPlugin.class.getSimpleName() + "Dispatcher");
@@ -184,9 +187,6 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         serviceListener.setDaemon(true);
         serviceListener.setName(MajordomoRestPlugin.class.getSimpleName() + "Subscriptions");
         serviceListener.start();
-
-        // send subscription request for new service added notifications
-        super.start();
 
         // perform initial get request
         String services = "(uninitialised)";
@@ -261,8 +261,9 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
 
     protected Runnable getDispatcherTask() {
         return () -> {
+            shallRun.set(true);
             final Queue<MdpMessage> notifyCopy = new ArrayDeque<>();
-            while (runSocketHandlerLoop.get() && !Thread.interrupted()) {
+            while (shallRun.get() && !Thread.interrupted()) {
                 synchronized (requestQueue) {
                     try {
                         requestQueue.wait();
@@ -287,9 +288,10 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
 
     protected Runnable getServiceSubscriptionTask() { // NOSONAR NOPMD - complexity is acceptable
         return () -> {
+            shallRun.set(true);
             try (ZMQ.Poller subPoller = ctx.createPoller(1)) {
                 subPoller.register(subSocket, ZMQ.Poller.POLLIN);
-                while (runSocketHandlerLoop.get() && !Thread.interrupted() && subPoller.poll(TimeUnit.MILLISECONDS.toMillis(100)) != -1) {
+                while (shallRun.get() && !Thread.interrupted() && subPoller.poll(TimeUnit.MILLISECONDS.toMillis(100)) != -1) {
                     // handle message from or to broker
                     boolean dataReceived = true;
                     while (dataReceived) {
@@ -401,7 +403,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         return openApi;
     }
 
-    private CustomFuture<MdpMessage> dispatchRequest(final MdpMessage requestMsg, boolean expectReply) {
+    private CustomFuture<MdpMessage> dispatchRequest(final MdpMessage requestMsg, final boolean expectReply) {
         final String requestID = MajordomoRestPlugin.class.getSimpleName() + "#" + REQUEST_COUNTER.getAndIncrement();
         requestMsg.clientRequestID = requestID.getBytes(UTF_8);
 

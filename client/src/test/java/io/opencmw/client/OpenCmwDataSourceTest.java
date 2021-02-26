@@ -70,7 +70,6 @@ class OpenCmwDataSourceTest {
 
     @AfterEach
     void shutdownBroker() {
-        worker.stopWorker();
         broker.stopBroker();
     }
 
@@ -216,7 +215,7 @@ class OpenCmwDataSourceTest {
         final Exception exception = assertThrows(Exception.class, () -> assertNull(future.get(1000, TimeUnit.MILLISECONDS)));
         assertThat(exception.getMessage(), Matchers.containsString(TEST_EXCEPTION_MSG));
 
-        eventStore.stop();
+        //eventStore.stop();
         dataSourcePublisher.stop();
     }
 
