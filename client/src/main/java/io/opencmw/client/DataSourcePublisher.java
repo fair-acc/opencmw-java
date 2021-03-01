@@ -189,14 +189,18 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
         public <R, C> Future<R> get(URI endpoint, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
             final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final URI endpointQuery = request(requestId, Command.GET_REQUEST, endpoint, null, requestContext, rbacProvider);
-            return newRequestFuture(endpointQuery, requestedDomainObjType, Command.GET_REQUEST, requestId);
+            final URI endpointQuery = getEndpointQuery(endpoint, requestContext);
+            final ThePromisedFuture<R, ?> rThePromisedFuture = newRequestFuture(endpointQuery, requestedDomainObjType, Command.GET_REQUEST, requestId);
+            request(requestId, Command.GET_REQUEST, endpointQuery, null, requestContext, rbacProvider);
+            return rThePromisedFuture;
         }
 
         public <R, C> Future<R> set(final URI endpoint, final R requestBody, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
             final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final URI endpointQuery = request(requestId, Command.SET_REQUEST, endpoint, requestBody, requestContext, rbacProvider);
-            return newRequestFuture(endpointQuery, requestedDomainObjType, Command.SET_REQUEST, requestId);
+            final URI endpointQuery = getEndpointQuery(endpoint, requestContext);
+            final ThePromisedFuture<R, ?> rThePromisedFuture = newRequestFuture(endpointQuery, requestedDomainObjType, Command.SET_REQUEST, requestId);
+            request(requestId, Command.SET_REQUEST, endpointQuery, requestBody, requestContext, rbacProvider);
+            return rThePromisedFuture;
         }
 
         public <T> String subscribe(final URI endpoint, final Class<T> requestedDomainObjType, final RbacProvider... rbacProvider) {
@@ -205,8 +209,10 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
         public <T, C> String subscribe(final URI endpoint, final Class<T> requestedDomainObjType, final C context, final Class<C> contextType, NotificationListener<T, C> listener, final RbacProvider... rbacProvider) {
             final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final URI endpointQuery = request(requestId, Command.SUBSCRIBE, endpoint, null, context, rbacProvider);
-            return newSubscriptionFuture(endpointQuery, requestedDomainObjType, contextType, requestId, listener).internalRequestID;
+            final URI endpointQuery = getEndpointQuery(endpoint, context);
+            final String reqId = newSubscriptionFuture(endpointQuery, requestedDomainObjType, contextType, requestId, listener).internalRequestID;
+            request(requestId, Command.SUBSCRIBE, endpointQuery, null, context, rbacProvider);
+            return reqId;
         }
 
         public void unsubscribe(String requestId) {
@@ -218,8 +224,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             msg.send(controlSocket);
         }
 
-        private <R, C> URI request(final String requestId, final Command replyType, final URI endpoint, R requestBody, C requestContext, final RbacProvider... rbacProvider) {
-            FilterRegistry.checkClassForNewFilters(requestContext);
+        private <C> URI getEndpointQuery(URI endpoint, C requestContext) {
             URI endpointQuery = endpoint;
             if (requestContext != null) {
                 try {
@@ -228,11 +233,16 @@ public class DataSourcePublisher implements Runnable, Closeable {
                     throw new IllegalArgumentException("Invalid URL syntax for endpoint", e);
                 }
             }
+            return endpointQuery;
+        }
+
+        private <R, C> void request(final String requestId, final Command replyType, final URI endpoint, R requestBody, C requestContext, final RbacProvider... rbacProvider) {
+            FilterRegistry.checkClassForNewFilters(requestContext);
             // signal socket for get with endpoint and request id
             final ZMsg msg = new ZMsg();
             msg.add(replyType.getData());
             msg.add(requestId);
-            msg.add(endpointQuery.toString());
+            msg.add(endpoint.toString());
             if (requestBody == null) {
                 msg.add(EMPTY_FRAME);
             } else {
@@ -251,8 +261,6 @@ public class DataSourcePublisher implements Runnable, Closeable {
                 msg.add(EMPTY_FRAME);
             }
             msg.send(controlSocket);
-
-            return endpointQuery;
         }
 
         @Override
