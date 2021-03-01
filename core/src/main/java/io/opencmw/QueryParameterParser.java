@@ -216,7 +216,7 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
 
         return Arrays.stream(StringUtils.split(queryParam, "&;"))
                 .map(QueryParameterParser::splitQueryParameter)
-                .collect(Collectors.toMap(SimpleImmutableEntry::getKey, e -> e.getValue() ==  null ? "" : e.getValue(), (a, b) -> b));
+                .collect(Collectors.toMap(SimpleImmutableEntry::getKey, e -> e.getValue() == null ? "" : e.getValue(), (a, b) -> b));
     }
 
     public static @NotNull MimeType getMimeType(final String queryString) {

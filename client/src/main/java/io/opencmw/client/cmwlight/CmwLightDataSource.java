@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import io.opencmw.QueryParameterParser;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +24,7 @@ import org.zeromq.ZMQ;
 import org.zeromq.ZMQException;
 import org.zeromq.ZMsg;
 
+import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
@@ -248,7 +248,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     public void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken) {
         try {
             final ParsedEndpoint ep = new ParsedEndpoint(endpoint);
-            final Subscription sub = new Subscription(endpoint, ep.device, ep.property, ep.ctx , ep.filters);
+            final Subscription sub = new Subscription(endpoint, ep.device, ep.property, ep.ctx, ep.filters);
             sub.idString = reqId;
             subscriptions.put(sub.id, sub);
             subscriptionsByReqId.put(reqId, sub);
@@ -557,7 +557,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
         public ParsedEndpoint(final URI endpoint, final String ctx) throws CmwLightProtocol.RdaLightException {
             address = endpoint.getAuthority();
-            final Map<String,String> parsedQuery = QueryParameterParser.getFlatMap(endpoint.getQuery());
+            final Map<String, String> parsedQuery = QueryParameterParser.getFlatMap(endpoint.getQuery());
             if (ctx != null) {
                 this.ctx = ctx;
                 parsedQuery.remove("ctx");
@@ -566,23 +566,22 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             } else {
                 this.ctx = DEFAULT_SELECTOR;
             }
-            filters = parsedQuery.entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry<String, String>::getKey, e -> {
-                        String val = e.getValue();
-                        if (val.startsWith(FILTER_TYPE_INT)) {
-                            return Integer.valueOf(val.substring(FILTER_TYPE_INT.length()));
-                        } else if (val.startsWith(FILTER_TYPE_LONG)) {
-                            return Long.valueOf(val.substring(FILTER_TYPE_LONG.length()));
-                        } else if (val.startsWith(FILTER_TYPE_BOOL)) {
-                            return Boolean.valueOf(val.substring(FILTER_TYPE_BOOL.length()));
-                        } else if (val.startsWith(FILTER_TYPE_DOUBLE)){
-                            return Double.valueOf(val.substring(FILTER_TYPE_DOUBLE.length()));
-                        } else if (val.startsWith(FILTER_TYPE_FLOAT)) {
-                            return Float.valueOf(val.substring(FILTER_TYPE_FLOAT.length()));
-                        } else {
-                            return val;
-                        }
-                    }));
+            filters = parsedQuery.entrySet().stream().collect(Collectors.toMap(Map.Entry<String, String>::getKey, e -> {
+                String val = e.getValue();
+                if (val.startsWith(FILTER_TYPE_INT)) {
+                    return Integer.valueOf(val.substring(FILTER_TYPE_INT.length()));
+                } else if (val.startsWith(FILTER_TYPE_LONG)) {
+                    return Long.valueOf(val.substring(FILTER_TYPE_LONG.length()));
+                } else if (val.startsWith(FILTER_TYPE_BOOL)) {
+                    return Boolean.valueOf(val.substring(FILTER_TYPE_BOOL.length()));
+                } else if (val.startsWith(FILTER_TYPE_DOUBLE)) {
+                    return Double.valueOf(val.substring(FILTER_TYPE_DOUBLE.length()));
+                } else if (val.startsWith(FILTER_TYPE_FLOAT)) {
+                    return Float.valueOf(val.substring(FILTER_TYPE_FLOAT.length()));
+                } else {
+                    return val;
+                }
+            }));
             final String[] deviceProperty = StringUtils.stripStart(endpoint.getPath(), "/").split("/", 2);
             if (deviceProperty.length != 2) {
                 throw new CmwLightProtocol.RdaLightException("URI path does not contain device/property: " + endpoint.getPath());
@@ -591,7 +590,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             property = deviceProperty[1];
         }
 
-        public ParsedEndpoint(final String address, final String device, final String property, final String ctx, final Map<String,Object> filters){
+        public ParsedEndpoint(final String address, final String device, final String property, final String ctx, final Map<String, Object> filters) {
             this.address = address;
             this.device = device;
             this.property = property;
@@ -601,33 +600,35 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
         public URI toURI() throws URISyntaxException {
             final String filterString = filters.entrySet().stream() //
-                                            .map(e -> {
-                                                String val;
-                                                if (e.getValue() instanceof String) {
-                                                    val = (String) e.getValue();
-                                                } else if (e.getValue() instanceof Integer) {
-                                                    val = FILTER_TYPE_INT + e.getValue();
-                                                } else if (e.getValue() instanceof Long) {
-                                                    val = FILTER_TYPE_LONG + e.getValue();
-                                                } else if (e.getValue() instanceof Boolean) {
-                                                    val = FILTER_TYPE_BOOL + e.getValue();
-                                                } else if (e.getValue() instanceof Double) {
-                                                    val = FILTER_TYPE_DOUBLE + e.getValue();
-                                                } else if (e.getValue() instanceof Float) {
-                                                    val = FILTER_TYPE_FLOAT + e.getValue();
-                                                } else {
-                                                    throw new UnsupportedOperationException("Data type not supported in endpoint filters");
-                                                }
-                                                return e.getKey() + '=' + val;
-                                            }) //
-                                            .collect(Collectors.joining("&"));
+                                                .map(e -> {
+                                                    String val;
+                                                    if (e.getValue() instanceof String) {
+                                                        val = (String) e.getValue();
+                                                    } else if (e.getValue() instanceof Integer) {
+                                                        val = FILTER_TYPE_INT + e.getValue();
+                                                    } else if (e.getValue() instanceof Long) {
+                                                        val = FILTER_TYPE_LONG + e.getValue();
+                                                    } else if (e.getValue() instanceof Boolean) {
+                                                        val = FILTER_TYPE_BOOL + e.getValue();
+                                                    } else if (e.getValue() instanceof Double) {
+                                                        val = FILTER_TYPE_DOUBLE + e.getValue();
+                                                    } else if (e.getValue() instanceof Float) {
+                                                        val = FILTER_TYPE_FLOAT + e.getValue();
+                                                    } else {
+                                                        throw new UnsupportedOperationException("Data type not supported in endpoint filters");
+                                                    }
+                                                    return e.getKey() + '=' + val;
+                                                }) //
+                                                .collect(Collectors.joining("&"));
             return new URI(RDA_3_PROTOCOL, address, '/' + device + '/' + property, "ctx=" + ctx + '&' + filterString, null);
         }
 
         @Override
         public boolean equals(final Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
             final ParsedEndpoint that = (ParsedEndpoint) o;
             return filters.equals(that.filters) && ctx.equals(that.ctx) && device.equals(that.device) && property.equals(that.property) && address.equals(that.address);
         }
