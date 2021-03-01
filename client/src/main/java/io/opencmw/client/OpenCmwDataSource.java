@@ -193,7 +193,7 @@ public class OpenCmwDataSource extends DataSource {
 
     @Override
     public void unsubscribe(final String reqId) {
-        final URI subscriptionEndpoint = subscriptions.get(reqId);
+        final URI subscriptionEndpoint = subscriptions.remove(reqId);
         final byte[] serviceId = subscriptionEndpoint.getPath().substring(1).getBytes(StandardCharsets.UTF_8);
         if (socket.getSocketType() == SocketType.DEALER) { // mdp
             final boolean sent = new OpenCmwProtocol.MdpMessage(clientId.getBytes(StandardCharsets.UTF_8),
