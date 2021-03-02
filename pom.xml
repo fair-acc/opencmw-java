@@ -38,7 +38,7 @@
         <version.fastutil>8.5.2</version.fastutil>
         <version.javassist>3.27.0-GA</version.javassist>
         <version.okHttp3>4.9.1</version.okHttp3>
-        <version.commons-lang3>3.11</version.commons-lang3>
+        <version.commons-lang3>3.12.0</version.commons-lang3>
         <version.jupiter>5.7.1</version.jupiter>
         <version.awaitility>4.0.3</version.awaitility>
         <version.JMemoryBuddy>0.5.0</version.JMemoryBuddy>
