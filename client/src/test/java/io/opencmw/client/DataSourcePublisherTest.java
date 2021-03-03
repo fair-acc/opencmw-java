@@ -6,7 +6,12 @@ import java.net.ProtocolException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -246,8 +251,7 @@ class DataSourcePublisherTest {
         @Override
         public String
         toString() {
-            return "TestObject{"
-                    + "foo='" + foo + '\'' + ", bar=" + bar + '}';
+            return "TestObject{foo='" + foo + '\'' + ", bar=" + bar + '}';
         }
     }
 
@@ -446,6 +450,7 @@ class DataSourcePublisherTest {
             future.setReply(replyObject);
             assertEquals(replyObject, future.get());
             assertFalse(future.cancel(true));
+            assertNotNull(future.toString());
         }
 
         {
@@ -470,7 +475,20 @@ class DataSourcePublisherTest {
         }
     }
 
-    private ThePromisedFuture<Float, ?> getTestFuture() throws URISyntaxException {
+    @Test
+    void testHelperFunctions() throws URISyntaxException {
+        assertEquals("device", DataSourcePublisher.getDeviceName(URI.create("mdp:/device/property/sub-property")));
+        assertEquals("device", DataSourcePublisher.getDeviceName(URI.create("mdp://authrority/device/property/sub-property")));
+        assertEquals("device", DataSourcePublisher.getDeviceName(URI.create("mdp://authrority//device/property/sub-property")));
+        assertEquals("authrority", URI.create("mdp://authrority//device/property/sub-property").getAuthority());
+        assertEquals("property/sub-property", DataSourcePublisher.getPropertyName(URI.create("mdp:/device/property/sub-property")));
+        assertEquals("property/sub-property", DataSourcePublisher.getPropertyName(URI.create("mdp:/device/property/sub-property")));
+
+        final DataSourcePublisher.InternalDomainObject obj = new DataSourcePublisher.InternalDomainObject(new ZMsg(), getTestFuture());
+        assertNotNull(obj.toString());
+    }
+
+    private static ThePromisedFuture<Float, ?> getTestFuture() throws URISyntaxException {
         return new ThePromisedFuture<>(new URI("test://server:1234/test?foo=bar"), Float.class, Integer.class, Command.GET_REQUEST, "TestClientID", null);
     }
 }

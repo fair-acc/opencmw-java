@@ -25,6 +25,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
@@ -90,19 +91,18 @@ import io.opencmw.utils.SystemProperties;
  */
 @SuppressWarnings({ "PMD.GodClass", "PMD.ExcessiveImports", "PMD.TooManyFields" })
 public class DataSourcePublisher implements Runnable, Closeable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisher.class);
     public static final int MIN_FRAMES_INTERNAL_MSG = 3;
+    private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisher.class);
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
     private static final ZFrame EMPTY_FRAME = new ZFrame(EMPTY_BYTE_ARRAY);
     private static final AtomicInteger INSTANCE_COUNT = new AtomicInteger();
+    protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
     private final String inprocCtrl = "inproc://dsPublisher#" + INSTANCE_COUNT.incrementAndGet();
     private final Map<String, ThePromisedFuture<?, ?>> requests = new ConcurrentHashMap<>(); // <requestId, future for the get request>
     private final Map<String, DataSource> clientMap = new ConcurrentHashMap<>(); // scheme://authority -> DataSource
     private final AtomicBoolean shallRun = new AtomicBoolean(false);
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private Thread thread;
     private final AtomicInteger internalReqIdGenerator = new AtomicInteger(0);
-    protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
     private final EventStore rawDataEventStore;
     private final ZContext context = new ZContext(SystemProperties.getValueIgnoreCase(N_IO_THREADS, N_IO_THREADS_DEFAULT));
     private final ZMQ.Poller poller;
@@ -112,6 +112,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     private final String clientId;
     private final RbacProvider rbacProvider;
     private final ExecutorService executor; // NOPMD - threads are ok, not a webapp
+    private Thread thread;
     private EventStore publicationTarget;
 
     static { // register default data sources
@@ -166,107 +167,6 @@ public class DataSourcePublisher implements Runnable, Closeable {
             }
         }
         context.destroy();
-    }
-
-    public class Client implements Closeable {
-        private final ZMQ.Socket controlSocket;
-        private IoBuffer byteBuffer;
-        private IoClassSerialiser ioClassSerialiser;
-
-        private Client() { // accessed via outer class method
-            controlSocket = context.createSocket(SocketType.DEALER);
-            controlSocket.connect(inprocCtrl);
-        }
-
-        private IoClassSerialiser getSerialiser() {
-            if (ioClassSerialiser == null) {
-                byteBuffer = new FastByteBuffer(1024, true, null);
-                ioClassSerialiser = new IoClassSerialiser(byteBuffer);
-            }
-            byteBuffer.reset();
-            return ioClassSerialiser;
-        }
-
-        public <R, C> Future<R> get(URI endpoint, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
-            final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final URI endpointQuery = getEndpointQuery(endpoint, requestContext);
-            final ThePromisedFuture<R, ?> rThePromisedFuture = newRequestFuture(endpointQuery, requestedDomainObjType, Command.GET_REQUEST, requestId);
-            request(requestId, Command.GET_REQUEST, endpointQuery, null, requestContext, rbacProvider);
-            return rThePromisedFuture;
-        }
-
-        public <R, C> Future<R> set(final URI endpoint, final R requestBody, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
-            final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final URI endpointQuery = getEndpointQuery(endpoint, requestContext);
-            final ThePromisedFuture<R, ?> rThePromisedFuture = newRequestFuture(endpointQuery, requestedDomainObjType, Command.SET_REQUEST, requestId);
-            request(requestId, Command.SET_REQUEST, endpointQuery, requestBody, requestContext, rbacProvider);
-            return rThePromisedFuture;
-        }
-
-        public <T> String subscribe(final URI endpoint, final Class<T> requestedDomainObjType, final RbacProvider... rbacProvider) {
-            return subscribe(endpoint, requestedDomainObjType, null, null, null, rbacProvider);
-        }
-
-        public <T, C> String subscribe(final URI endpoint, final Class<T> requestedDomainObjType, final C context, final Class<C> contextType, NotificationListener<T, C> listener, final RbacProvider... rbacProvider) {
-            final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
-            final URI endpointQuery = getEndpointQuery(endpoint, context);
-            final String reqId = newSubscriptionFuture(endpointQuery, requestedDomainObjType, contextType, requestId, listener).internalRequestID;
-            request(requestId, Command.SUBSCRIBE, endpointQuery, null, context, rbacProvider);
-            return reqId;
-        }
-
-        public void unsubscribe(String requestId) {
-            // signal socket for get with endpoint and request id
-            final ZMsg msg = new ZMsg();
-            msg.add(Command.UNSUBSCRIBE.getData());
-            msg.add(requestId);
-            msg.add(requests.get(requestId).endpoint.toString());
-            msg.send(controlSocket);
-        }
-
-        private <C> URI getEndpointQuery(URI endpoint, C requestContext) {
-            URI endpointQuery = endpoint;
-            if (requestContext != null) {
-                try {
-                    endpointQuery = QueryParameterParser.appendQueryParameter(endpoint, QueryParameterParser.generateQueryParameter(requestContext));
-                } catch (URISyntaxException e) {
-                    throw new IllegalArgumentException("Invalid URL syntax for endpoint", e);
-                }
-            }
-            return endpointQuery;
-        }
-
-        private <R, C> void request(final String requestId, final Command replyType, final URI endpoint, R requestBody, C requestContext, final RbacProvider... rbacProvider) {
-            FilterRegistry.checkClassForNewFilters(requestContext);
-            // signal socket for get with endpoint and request id
-            final ZMsg msg = new ZMsg();
-            msg.add(replyType.getData());
-            msg.add(requestId);
-            msg.add(endpoint.toString());
-            if (requestBody == null) {
-                msg.add(EMPTY_FRAME);
-            } else {
-                final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
-                final IoClassSerialiser serialiser = getSerialiser(); // lazily initialize IoClassSerialiser
-                serialiser.setMatchedIoSerialiser(matchingSerialiser); // needs to be converted in DataSource impl
-                serialiser.serialiseObject(requestBody);
-                msg.add(Arrays.copyOfRange(byteBuffer.elements(), 0, byteBuffer.position()));
-            }
-            // RBAC
-            if (rbacProvider.length > 0 || DataSourcePublisher.this.rbacProvider != null) {
-                // final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : DataSourcePublisher.this.rbacProvider // NOPMD - future use
-                // rbac.sign(msg); // todo: sign message and add rbac token and signature
-                LOGGER.atWarn().log("RbacProvider not yet implemented");
-            } else {
-                msg.add(EMPTY_FRAME);
-            }
-            msg.send(controlSocket);
-        }
-
-        @Override
-        public void close() {
-            controlSocket.close();
-        }
     }
 
     public void start() {
@@ -328,37 +228,33 @@ public class DataSourcePublisher implements Runnable, Closeable {
         if (controlMsg == null) {
             return false; // no more data available on control socket
         }
-        if (controlMsg.size() < MIN_FRAMES_INTERNAL_MSG) { // msgType, requestId and endpoint have to be always present
-            LOGGER.atDebug().log("ignoring invalid message");
-            return true; // ignore invalid partial message
-        }
+        // msgType, requestId and endpoint have to be always present
+        assert controlMsg.size() >= MIN_FRAMES_INTERNAL_MSG : "ignoring invalid message - message size: " + controlMsg.size();
+
         final Command msgType = Command.getCommand(controlMsg.pollFirst().getData());
         final String requestId = requireNonNull(controlMsg.pollFirst()).getString(UTF_8);
-        final String endpoint = requireNonNull(controlMsg.pollFirst()).getString(UTF_8);
+        final URI endpoint = URI.create(requireNonNull(controlMsg.pollFirst()).getString(UTF_8));
         final byte[] data = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
         final byte[] rbacToken = controlMsg.isEmpty() ? EMPTY_BYTE_ARRAY : controlMsg.pollFirst().getData();
 
-        final URI ep = URI.create(endpoint);
-        final DataSource client = getClient(ep); // get client for endpoint
+        final DataSource client = getClient(endpoint); // get client for endpoint
         switch (msgType) {
         case SUBSCRIBE: // subscribe: 0b, requestId, addr/dev/prop?sel&filters
-            client.subscribe(requestId, ep, rbacToken);
-            break;
+            client.subscribe(requestId, endpoint, rbacToken);
+            return true;
         case GET_REQUEST: // 1b, reqId, endpoint
-            client.get(requestId, ep, data, rbacToken);
-            break;
+            client.get(requestId, endpoint, data, rbacToken);
+            return true;
         case SET_REQUEST: // 2b, reqId, endpoint, data
-            client.set(requestId, ep, data, rbacToken);
-            break;
+            client.set(requestId, endpoint, data, rbacToken);
+            return true;
         case UNSUBSCRIBE: // 3b, reqId, endpoint
             client.unsubscribe(requestId);
             requests.remove(requestId);
-            break;
-        case UNKNOWN:
+            return true;
         default:
-            throw new UnsupportedOperationException("Illegal operation type");
         }
-        return true;
+        throw new UnsupportedOperationException("Illegal operation type");
     }
 
     protected boolean handleDataSourceSockets() {
@@ -373,10 +269,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             // replyType(byte), reqId(string), endpoint(string), dataBody(byte[])
             final String reqId = requireNonNull(reply.pollFirst()).getString(UTF_8);
             final ThePromisedFuture<?, ?> returnFuture = requests.get(reqId);
-            if (returnFuture == null) {
-                LOGGER.atError().addArgument(reqId).log("no future available for reqId: {}");
-                continue;
-            }
+            assert returnFuture != null : "no future available for reqId:" + reqId;
             rawDataEventStore.getRingBuffer().publishEvent((event, sequence) -> {
                 if (returnFuture.getReplyType() != Command.SUBSCRIBE) { // remove entries for one time replies
                     assert returnFuture.getInternalRequestID().equals(reqId)
@@ -395,6 +288,29 @@ public class DataSourcePublisher implements Runnable, Closeable {
             });
         }
         return dataAvailable;
+    }
+
+    protected <R> ThePromisedFuture<R, ?> newRequestFuture(final URI endpoint,
+            final Class<R> requestedDomainObjType,
+            final Command replyType,
+            final String requestId) {
+        FilterRegistry.checkClassForNewFilters(requestedDomainObjType);
+        final ThePromisedFuture<R, ?> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, null, replyType, requestId, null);
+        final Object oldEntry = requests.put(requestId, requestFuture);
+        assert oldEntry == null : "requestID '" + requestId + "' already present in requestFutureMap";
+        return requestFuture;
+    }
+
+    protected <R, C> ThePromisedFuture<R, C> newSubscriptionFuture(final URI endpoint,
+            final Class<R> requestedDomainObjType,
+            final Class<C> contextType,
+            final String requestId,
+            final NotificationListener<R, C> listener) {
+        FilterRegistry.checkClassForNewFilters(requestedDomainObjType);
+        final ThePromisedFuture<R, C> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, contextType, Command.SUBSCRIBE, requestId, listener);
+        final Object oldEntry = requests.put(requestId, requestFuture);
+        assert oldEntry == null : "requestID '" + requestId + "' already present in requestFutureMap";
+        return requestFuture;
     }
 
     @SuppressWarnings({ "PMD.UnusedFormalParameter" }) // method signature is mandated by functional interface
@@ -487,34 +403,126 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     private DataSource getClient(final URI endpoint) {
-        return clientMap.computeIfAbsent(endpoint.getScheme() + "://" + endpoint.getAuthority(), requestedEndPoint -> {
+        return clientMap.computeIfAbsent(endpoint.getScheme() + "://" + getDeviceName(endpoint), requestedEndPoint -> {
             final DataSource dataSource = DataSource.getFactory(URI.create(requestedEndPoint)).newInstance(context, endpoint, Duration.ofMillis(100), Long.toString(internalReqIdGenerator.incrementAndGet()));
             poller.register(dataSource.getSocket(), ZMQ.Poller.POLLIN);
             return dataSource;
         });
     }
 
-    protected <R> ThePromisedFuture<R, ?> newRequestFuture(final URI endpoint,
-            final Class<R> requestedDomainObjType,
-            final Command replyType,
-            final String requestId) {
-        FilterRegistry.checkClassForNewFilters(requestedDomainObjType);
-        final ThePromisedFuture<R, ?> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, null, replyType, requestId, null);
-        final Object oldEntry = requests.put(requestId, requestFuture);
-        assert oldEntry == null : "requestID '" + requestId + "' already present in requestFutureMap";
-        return requestFuture;
+    public static String getDeviceName(final URI endpoint) {
+        return StringUtils.stripStart(endpoint.getPath(), "/").split("/", 2)[0];
     }
 
-    protected <R, C> ThePromisedFuture<R, C> newSubscriptionFuture(final URI endpoint,
-            final Class<R> requestedDomainObjType,
-            final Class<C> contextType,
-            final String requestId,
-            final NotificationListener<R, C> listener) {
-        FilterRegistry.checkClassForNewFilters(requestedDomainObjType);
-        final ThePromisedFuture<R, C> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, contextType, Command.SUBSCRIBE, requestId, listener);
-        final Object oldEntry = requests.put(requestId, requestFuture);
-        assert oldEntry == null : "requestID '" + requestId + "' already present in requestFutureMap";
-        return requestFuture;
+    public static String getPropertyName(final URI endpoint) {
+        return StringUtils.stripStart(endpoint.getPath(), "/").split("/", 2)[1];
+    }
+
+    // TODO: alternative listener api similar to mdp worker: mdp-like(single lambda, domain objects + access to raw data + exception or update)
+    public interface NotificationListener<R, C> {
+        void dataUpdate(final R updatedObject, final C contextObject);
+        void updateException(final Throwable exception);
+    }
+
+    public class Client implements Closeable {
+        private final ZMQ.Socket controlSocket;
+        private IoBuffer byteBuffer;
+        private IoClassSerialiser ioClassSerialiser;
+
+        private Client() { // accessed via outer class method
+            controlSocket = context.createSocket(SocketType.DEALER);
+            controlSocket.connect(inprocCtrl);
+        }
+
+        public <R, C> Future<R> get(URI endpoint, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
+            final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
+            final URI endpointQuery = getEndpointQuery(endpoint, requestContext);
+            final ThePromisedFuture<R, ?> rThePromisedFuture = newRequestFuture(endpointQuery, requestedDomainObjType, Command.GET_REQUEST, requestId);
+            request(requestId, Command.GET_REQUEST, endpointQuery, null, requestContext, rbacProvider);
+            return rThePromisedFuture;
+        }
+
+        public <R, C> Future<R> set(final URI endpoint, final R requestBody, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
+            final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
+            final URI endpointQuery = getEndpointQuery(endpoint, requestContext);
+            final ThePromisedFuture<R, ?> rThePromisedFuture = newRequestFuture(endpointQuery, requestedDomainObjType, Command.SET_REQUEST, requestId);
+            request(requestId, Command.SET_REQUEST, endpointQuery, requestBody, requestContext, rbacProvider);
+            return rThePromisedFuture;
+        }
+
+        public <T> String subscribe(final URI endpoint, final Class<T> requestedDomainObjType, final RbacProvider... rbacProvider) {
+            return subscribe(endpoint, requestedDomainObjType, null, null, null, rbacProvider);
+        }
+
+        public <T, C> String subscribe(final URI endpoint, final Class<T> requestedDomainObjType, final C context, final Class<C> contextType, NotificationListener<T, C> listener, final RbacProvider... rbacProvider) {
+            final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
+            final URI endpointQuery = getEndpointQuery(endpoint, context);
+            final String reqId = newSubscriptionFuture(endpointQuery, requestedDomainObjType, contextType, requestId, listener).internalRequestID;
+            request(requestId, Command.SUBSCRIBE, endpointQuery, null, context, rbacProvider);
+            return reqId;
+        }
+
+        public void unsubscribe(String requestId) {
+            // signal socket for get with endpoint and request id
+            final ZMsg msg = new ZMsg();
+            msg.add(Command.UNSUBSCRIBE.getData());
+            msg.add(requestId);
+            msg.add(requests.get(requestId).endpoint.toString());
+            msg.send(controlSocket);
+        }
+
+        @Override
+        public void close() {
+            controlSocket.close();
+        }
+
+        private IoClassSerialiser getSerialiser() {
+            if (ioClassSerialiser == null) {
+                byteBuffer = new FastByteBuffer(1024, true, null);
+                ioClassSerialiser = new IoClassSerialiser(byteBuffer);
+            }
+            byteBuffer.reset();
+            return ioClassSerialiser;
+        }
+
+        private <C> URI getEndpointQuery(URI endpoint, C requestContext) {
+            URI endpointQuery = endpoint;
+            if (requestContext != null) {
+                try {
+                    endpointQuery = QueryParameterParser.appendQueryParameter(endpoint, QueryParameterParser.generateQueryParameter(requestContext));
+                } catch (URISyntaxException e) {
+                    throw new IllegalArgumentException("Invalid URL syntax for endpoint", e);
+                }
+            }
+            return endpointQuery;
+        }
+
+        private <R, C> void request(final String requestId, final Command replyType, final URI endpoint, R requestBody, C requestContext, final RbacProvider... rbacProvider) {
+            FilterRegistry.checkClassForNewFilters(requestContext);
+            // signal socket for get with endpoint and request id
+            final ZMsg msg = new ZMsg();
+            msg.add(replyType.getData());
+            msg.add(requestId);
+            msg.add(endpoint.toString());
+            if (requestBody == null) {
+                msg.add(EMPTY_FRAME);
+            } else {
+                final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
+                final IoClassSerialiser serialiser = getSerialiser(); // lazily initialize IoClassSerialiser
+                serialiser.setMatchedIoSerialiser(matchingSerialiser); // needs to be converted in DataSource impl
+                serialiser.serialiseObject(requestBody);
+                msg.add(Arrays.copyOfRange(byteBuffer.elements(), 0, byteBuffer.position()));
+            }
+            // RBAC
+            if (rbacProvider.length > 0 || DataSourcePublisher.this.rbacProvider != null) {
+                // final RbacProvider rbac = rbacProvider.length > 0 ? rbacProvider[0] : DataSourcePublisher.this.rbacProvider // NOPMD - future use
+                // rbac.sign(msg); // todo: sign message and add rbac token and signature
+                LOGGER.atWarn().log("RbacProvider not yet implemented");
+            } else {
+                msg.add(EMPTY_FRAME);
+            }
+            msg.send(controlSocket);
+        }
     }
 
     protected static class ThePromisedFuture<R, C> extends CustomFuture<R> { // NOPMD - no need for setters/getters here
@@ -552,11 +560,6 @@ public class DataSourcePublisher implements Runnable, Closeable {
             return requestedDomainObjType;
         }
 
-        @SuppressWarnings("unchecked")
-        protected void castAndSetReply(final Object newValue) {
-            this.setReply((R) newValue);
-        }
-
         public String getInternalRequestID() {
             return internalRequestID;
         }
@@ -569,19 +572,18 @@ public class DataSourcePublisher implements Runnable, Closeable {
                 listener.dataUpdate((R) obj, (C) contextObject); // NOPMD NOSONAR - cast is checked before implicitly
             }
         }
+
+        @SuppressWarnings("unchecked")
+        protected void castAndSetReply(final Object newValue) {
+            this.setReply((R) newValue);
+        }
     }
 
-    // TODO: alternative listener api similar to mdp worker: mdp-like(single lambda, domain objects + access to raw data + exception or update)
-    public interface NotificationListener<R, C> {
-        void dataUpdate(final R updatedObject, final C contextObject);
-        void updateException(final Throwable exception);
-    }
-
-    public static class InternalDomainObject {
+    public static class InternalDomainObject { //TODO: unclean design -- should not export this to external clients
         public final ZMsg data;
         public final ThePromisedFuture<?, ?> future;
 
-        private InternalDomainObject(final ZMsg data, final ThePromisedFuture<?, ?> future) {
+        protected InternalDomainObject(final ZMsg data, final ThePromisedFuture<?, ?> future) {
             this.data = requireNonNull(data, "null data");
             this.future = requireNonNull(future, "null future");
         }
