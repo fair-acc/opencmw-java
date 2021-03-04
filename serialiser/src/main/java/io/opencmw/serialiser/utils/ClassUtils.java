@@ -7,6 +7,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
+import java.net.URI;
 import java.nio.CharBuffer;
 import java.util.Collection;
 import java.util.HashMap;
@@ -64,6 +65,7 @@ public final class ClassUtils { //NOPMD nomen est omen
         DO_NOT_PARSE_MAP.put(Class.class, "private java implementation");
         DO_NOT_PARSE_MAP.put(Thread.class, "recursive definitions"); // NOPMD - not an issue/not a use within a J2EE context
         DO_NOT_PARSE_MAP.put(AtomicBoolean.class, "does not like to be parsed");
+        DO_NOT_PARSE_MAP.put(URI.class, "does not like to be parsed");
     }
     private ClassUtils() {
         // utility class

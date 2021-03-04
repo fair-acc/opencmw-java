@@ -80,7 +80,7 @@ public class BasicMdpWorker extends Thread {
     // ---------------------------------------------------------------------
     protected final String uniqueID;
     protected final ZContext ctx;
-    protected final String brokerAddress;
+    protected final URI brokerAddress;
     protected final String serviceName;
     protected final byte[] serviceBytes;
 
@@ -101,22 +101,22 @@ public class BasicMdpWorker extends Thread {
     protected RequestHandler requestHandler;
     protected ZMQ.Poller poller;
 
-    public BasicMdpWorker(String brokerAddress, String serviceName, final RbacRole<?>... rbacRoles) {
+    public BasicMdpWorker(URI brokerAddress, String serviceName, final RbacRole<?>... rbacRoles) {
         this(null, brokerAddress, serviceName, rbacRoles);
     }
 
     public BasicMdpWorker(ZContext ctx, String serviceName, final RbacRole<?>... rbacRoles) {
-        this(ctx, "inproc://broker", serviceName, rbacRoles);
+        this(ctx, URI.create("inproc://broker"), serviceName, rbacRoles);
     }
 
-    protected BasicMdpWorker(ZContext ctx, String brokerAddress, String serviceName, final RbacRole<?>... rbacRoles) {
+    protected BasicMdpWorker(ZContext ctx, URI brokerAddress, String serviceName, final RbacRole<?>... rbacRoles) {
         super();
         assert (brokerAddress != null);
         assert (serviceName != null);
-        this.brokerAddress = StringUtils.stripEnd(brokerAddress, "/");
+        this.brokerAddress = stripPathTrailingSlash(brokerAddress);
         this.serviceName = StringUtils.stripStart(serviceName, "/");
         this.serviceBytes = this.serviceName.getBytes(UTF_8);
-        this.isExternal = !brokerAddress.toLowerCase(Locale.UK).contains("inproc://");
+        this.isExternal = !brokerAddress.getScheme().toLowerCase(Locale.UK).contains("inproc");
 
         // initialise RBAC role-based priority queues
         this.rbacRoles = Collections.unmodifiableSortedSet(new TreeSet<>(Set.of(rbacRoles)));
@@ -355,7 +355,7 @@ public class BasicMdpWorker extends Thread {
         if (workerSocket != null) {
             workerSocket.close();
         }
-        final String translatedBrokerAddress = brokerAddress.replace(SCHEME_MDP, SCHEME_TCP).replace(SCHEME_MDS, SCHEME_TCP);
+        final URI translatedBrokerAddress = replaceScheme(brokerAddress, SCHEME_TCP);
         workerSocket = ctx.createSocket(SocketType.DEALER);
         assert workerSocket != null : "worker socket is null";
         workerSocket.setHWM(0);

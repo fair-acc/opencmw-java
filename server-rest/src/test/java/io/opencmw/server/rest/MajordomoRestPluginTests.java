@@ -8,13 +8,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.net.ssl.*;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
@@ -49,17 +53,17 @@ class MajordomoRestPluginTests {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPluginTests.class);
     private MajordomoBroker primaryBroker;
     private MajordomoRestPlugin restPlugin;
-    private String brokerRouterAddress;
+    private URI brokerRouterAddress;
     private MajordomoBroker secondaryBroker;
-    private String secondaryBrokerRouterAddress;
+    private URI secondaryBrokerRouterAddress;
     private OkHttpClient okHttp;
 
     @BeforeAll
     void init() throws IOException {
         okHttp = getUnsafeOkHttpClient(); // N.B. ignore SSL certificates
-        primaryBroker = new MajordomoBroker("PrimaryBroker", "", BasicRbacRole.values());
-        brokerRouterAddress = primaryBroker.bind("mdp://localhost:" + Utils.findOpenPort());
-        primaryBroker.bind("mds://localhost:" + Utils.findOpenPort());
+        primaryBroker = new MajordomoBroker("PrimaryBroker", null, BasicRbacRole.values());
+        brokerRouterAddress = primaryBroker.bind(URI.create("mdp://localhost:" + Utils.findOpenPort()));
+        primaryBroker.bind(URI.create("mds://localhost:" + Utils.findOpenPort()));
         restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "*:8080", BasicRbacRole.ADMIN);
         primaryBroker.start();
         restPlugin.start();
@@ -75,7 +79,7 @@ class MajordomoRestPluginTests {
 
         // second broker to test DNS functionalities
         secondaryBroker = new MajordomoBroker("SecondaryTestBroker", brokerRouterAddress, BasicRbacRole.values());
-        secondaryBrokerRouterAddress = secondaryBroker.bind("tcp://*:" + Utils.findOpenPort());
+        secondaryBrokerRouterAddress = secondaryBroker.bind(URI.create("tcp://*:" + Utils.findOpenPort()));
         secondaryBroker.start();
     }
 
@@ -93,8 +97,8 @@ class MajordomoRestPluginTests {
         final Response response = okHttp.newCall(request).execute();
         final String body = Objects.requireNonNull(response.body()).string();
 
-        assertThat(body, containsString(brokerRouterAddress));
-        assertThat(body, containsString(secondaryBrokerRouterAddress));
+        assertThat(body, containsString(brokerRouterAddress.toString()));
+        assertThat(body, containsString(secondaryBrokerRouterAddress.toString()));
         assertThat(body, containsString("http://localhost:8080"));
     }
 

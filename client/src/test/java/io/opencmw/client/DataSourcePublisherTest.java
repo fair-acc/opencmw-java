@@ -2,6 +2,9 @@ package io.opencmw.client;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import static io.opencmw.OpenCmwConstants.getDeviceName;
+import static io.opencmw.OpenCmwConstants.getPropertyName;
+
 import java.net.ProtocolException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -477,12 +480,12 @@ class DataSourcePublisherTest {
 
     @Test
     void testHelperFunctions() throws URISyntaxException {
-        assertEquals("device", DataSourcePublisher.getDeviceName(URI.create("mdp:/device/property/sub-property")));
-        assertEquals("device", DataSourcePublisher.getDeviceName(URI.create("mdp://authrority/device/property/sub-property")));
-        assertEquals("device", DataSourcePublisher.getDeviceName(URI.create("mdp://authrority//device/property/sub-property")));
+        assertEquals("device", getDeviceName(URI.create("mdp:/device/property/sub-property")));
+        assertEquals("device", getDeviceName(URI.create("mdp://authrority/device/property/sub-property")));
+        assertEquals("device", getDeviceName(URI.create("mdp://authrority//device/property/sub-property")));
         assertEquals("authrority", URI.create("mdp://authrority//device/property/sub-property").getAuthority());
-        assertEquals("property/sub-property", DataSourcePublisher.getPropertyName(URI.create("mdp:/device/property/sub-property")));
-        assertEquals("property/sub-property", DataSourcePublisher.getPropertyName(URI.create("mdp:/device/property/sub-property")));
+        assertEquals("property/sub-property", getPropertyName(URI.create("mdp:/device/property/sub-property")));
+        assertEquals("property/sub-property", getPropertyName(URI.create("mdp:/device/property/sub-property")));
 
         final DataSourcePublisher.InternalDomainObject obj = new DataSourcePublisher.InternalDomainObject(new ZMsg(), getTestFuture());
         assertNotNull(obj.toString());

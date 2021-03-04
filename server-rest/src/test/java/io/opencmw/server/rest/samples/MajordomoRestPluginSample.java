@@ -1,6 +1,7 @@
 package io.opencmw.server.rest.samples;
 
 import java.io.IOException;
+import java.net.URI;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,9 +20,9 @@ public class MajordomoRestPluginSample {
     public static MajordomoRestPlugin restPlugin;
 
     public static void launchBroker() throws IOException {
-        primaryBroker = new MajordomoBroker("PrimaryBroker", "", BasicRbacRole.values());
-        final String brokerRouterAddress = primaryBroker.bind("tcp://*:" + Utils.findOpenPort());
-        primaryBroker.bind("mds://*:" + Utils.findOpenPort());
+        primaryBroker = new MajordomoBroker("PrimaryBroker", null, BasicRbacRole.values());
+        final URI brokerRouterAddress = primaryBroker.bind(URI.create("tcp://*:" + Utils.findOpenPort()));
+        primaryBroker.bind(URI.create("mds://*:" + Utils.findOpenPort()));
         restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "*:8080", BasicRbacRole.ADMIN);
         primaryBroker.start();
         restPlugin.start();
@@ -29,7 +30,7 @@ public class MajordomoRestPluginSample {
 
         // second broker to test DNS functionalities
         MajordomoBroker secondaryBroker = new MajordomoBroker("SecondaryTestBroker", brokerRouterAddress, BasicRbacRole.values());
-        secondaryBroker.bind("tcp://*:" + Utils.findOpenPort());
+        secondaryBroker.bind(URI.create("tcp://*:" + Utils.findOpenPort()));
         secondaryBroker.start();
     }
 

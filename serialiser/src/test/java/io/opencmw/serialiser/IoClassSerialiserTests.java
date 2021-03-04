@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.parallel.ResourceAccessMode.READ_WRITE;
 
 import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -195,6 +196,7 @@ class IoClassSerialiserTests {
         sourceClass.multiArrayBoolean = MultiArrayBoolean.wrap(new boolean[] { true, false, false, true, true, false }, new int[] { 2, 3 });
         sourceClass.multiArrayByte = MultiArrayByte.wrap(new byte[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
         sourceClass.multiArrayString = MultiArrayObject.wrap(new String[] { "aa", "ba", "ab", "bb", "ac", "bc" }, new int[] { 2, 3 }); // NOPMD NOSONAR -- String type is known
+        sourceClass.uriAddress = URI.create("http://host/path");
 
         TestClass destinationClass = new TestClass();
         destinationClass.nullIntegerList = new ArrayList<>();
@@ -292,6 +294,8 @@ class IoClassSerialiserTests {
         assertEquals(sourceClass.multiArrayString, destinationClass.multiArrayString);
         assertArrayEquals(sourceClass.multiArrayString.getDimensions(), destinationClass.multiArrayString.getDimensions());
         assertArrayEquals(sourceClass.multiArrayString.elements(), destinationClass.multiArrayString.elements());
+
+        assertEquals(sourceClass.uriAddress, destinationClass.uriAddress);
     }
 
     static class CustomClass {
@@ -395,5 +399,6 @@ class IoClassSerialiserTests {
         public MultiArrayChar multiArrayChar;
         public MultiArrayBoolean multiArrayBoolean;
         public MultiArrayObject<String> multiArrayString;
+        public URI uriAddress;
     }
 }

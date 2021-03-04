@@ -59,13 +59,13 @@ class MdpImplementationBenchmark {
     public static final long TIMEOUT_NANOS = 100_000_000; // timeout for single requests
     public static final int N_TESTS = 7; // number of different tests
     public static final String[] DESCRIPTIONS = new String[] {
-        "get,  sync, future,     domainObj",
-        "get,  sync, eventStore, domainObj",
-        "get,  sync, eventStore, ZMsg     ",
-        "get, async, eventStore, domainObj",
-        "get, async, eventStore, ZMsg     ",
-        "sub,  sync, eventStore, domainObj",
-        "sub,  sync, eventStore, ZMsg     "
+        "get,  sync, future,     domain-object ",
+        "get,  sync, eventStore, domain-object ",
+        "get,  sync, eventStore, raw-byte[]    ",
+        "get, async, eventStore, domain-object ",
+        "get, async, eventStore, raw-byte[]    ",
+        "sub,  sync, eventStore, domain-object ",
+        "sub,  sync, eventStore, raw-byte[]    "
         //"subscribe,  sync, eventStore, domainObj"
     };
     public static final String DOUBLE_FORMAT = "%9.2f";
@@ -79,7 +79,7 @@ class MdpImplementationBenchmark {
 
         LOGGER.atInfo().log("setting up test broker and event store");
         final EventStore eventStore = EventStore.getFactory().setFilterConfig(TestContext.class, EvtTypeFilter.class).build();
-        final MajordomoBroker broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());
+        final MajordomoBroker broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
         final List<MajordomoWorker<TestContext, TestObject, TestObject>> workers = new ArrayList<>(N_WORKERS);
         for (int i = 0; i < N_WORKERS; ++i) {
             workers.add(new MajordomoWorker<>(broker.getContext(), "/testWorker", TestContext.class, TestObject.class, TestObject.class));
@@ -95,17 +95,15 @@ class MdpImplementationBenchmark {
         try (final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testOpenCmwPublisher")) {
             final AtomicInteger receiveCountRaw = new AtomicInteger(0);
             dataSourcePublisher.getRawDataEventStore().register((evt, seq, last) -> {
-                if (evt.payload != null && evt.payload.get(DataSourcePublisher.InternalDomainObject.class) != null) {
+                if (evt.throwables.isEmpty()) {
                     receiveCountRaw.incrementAndGet();
                 } else {
-                    LOGGER.atError().addArgument(evt.throwables).log("Error(s) received: {}");
+                    LOGGER.atError().addArgument(evt.throwables).log("error(s) received: {}");
                 }
             });
-            final int brokerPort = Utils.findOpenPort();
-            final int brokerPortMds = Utils.findOpenPort();
-            final String brokerAddress = broker.bind("mdp://*:" + brokerPort);
-            final String brokerPubAddress = broker.bind("mds://*:" + brokerPortMds);
-            LOGGER.atDebug().addArgument(brokerAddress).addArgument(brokerPubAddress).log("started broker on {} and {}");
+            final URI brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
+            final URI brokerAddressPub = broker.bind(URI.create("mds://*:" + Utils.findOpenPort()));
+            LOGGER.atInfo().addArgument(brokerAddress).addArgument(brokerAddressPub).log("started broker on {} and {}");
 
             workers.forEach(worker -> worker.setHandler((ctx, requestCtx, request, replyCtx, reply) -> {
                 replyCtx.ctx = "FAIR.SELECTOR.C=3:P=5";
@@ -119,26 +117,28 @@ class MdpImplementationBenchmark {
             LockSupport.parkNanos(Duration.ofMillis(200).toNanos());
 
             LOGGER.atInfo().addArgument(N_EXEC).addArgument(PAYLOAD.length).addArgument(N_WORKERS).log("run tests: n={}, payloadSize={}bytes, nWorkers={}");
-            for (int i = 0; i < N_REPEAT; ++i) {
-                measurements[0][i] = synchronousGet(DESCRIPTIONS[0], dataSourcePublisher, brokerPort);
-            }
-            for (int i = 0; i < N_REPEAT; ++i) {
-                measurements[1][i] = synchronousGetRaw(DESCRIPTIONS[1], dataSourcePublisher, brokerPort, receiveCount);
-            }
-            for (int i = 0; i < N_REPEAT; ++i) {
-                measurements[2][i] = synchronousGetRaw(DESCRIPTIONS[2], dataSourcePublisher, brokerPort, receiveCountRaw);
-            }
-            for (int i = 0; i < N_REPEAT; ++i) {
-                measurements[3][i] = asyncGetRaw(DESCRIPTIONS[3], dataSourcePublisher, brokerPort, receiveCount);
-            }
-            for (int i = 0; i < N_REPEAT; ++i) {
-                measurements[4][i] = asyncGetRaw(DESCRIPTIONS[4], dataSourcePublisher, brokerPort, receiveCountRaw);
-            }
-            for (int i = 0; i < N_REPEAT; ++i) {
-                measurements[5][i] = synchronousSubscribeEventStore(DESCRIPTIONS[5], dataSourcePublisher, workers.get(0), brokerPortMds, receiveCount);
-            }
-            for (int i = 0; i < N_REPEAT; ++i) {
-                measurements[6][i] = synchronousSubscribeEventStore(DESCRIPTIONS[6], dataSourcePublisher, workers.get(0), brokerPortMds, receiveCountRaw);
+            for (int j = 0; j < 1; j++) {
+                for (int i = 0; i < N_REPEAT; ++i) {
+                    measurements[0][i] = synchronousGet(DESCRIPTIONS[0], dataSourcePublisher, brokerAddress);
+                }
+                for (int i = 0; i < N_REPEAT; ++i) {
+                    measurements[1][i] = synchronousGetRaw(DESCRIPTIONS[1], dataSourcePublisher, brokerAddress, receiveCount);
+                }
+                for (int i = 0; i < N_REPEAT; ++i) {
+                    measurements[2][i] = synchronousGetRaw(DESCRIPTIONS[2], dataSourcePublisher, brokerAddress, receiveCountRaw);
+                }
+                for (int i = 0; i < N_REPEAT; ++i) {
+                    measurements[3][i] = asyncGetRaw(DESCRIPTIONS[3], dataSourcePublisher, brokerAddress, receiveCount);
+                }
+                for (int i = 0; i < N_REPEAT; ++i) {
+                    measurements[4][i] = asyncGetRaw(DESCRIPTIONS[4], dataSourcePublisher, brokerAddress, receiveCountRaw);
+                }
+                for (int i = 0; i < N_REPEAT; ++i) {
+                    measurements[5][i] = synchronousSubscribeEventStore(DESCRIPTIONS[5], dataSourcePublisher, workers.get(0), brokerAddressPub, receiveCount);
+                }
+                for (int i = 0; i < N_REPEAT; ++i) {
+                    measurements[6][i] = synchronousSubscribeEventStore(DESCRIPTIONS[6], dataSourcePublisher, workers.get(0), brokerAddressPub, receiveCountRaw);
+                }
             }
             // for (int i = 0; i < N_REPEAT; ++i) {
             //     measurements[7][i] = synchronousSubscribeListener(descriptions[7], dataSourcePublisher, workers.get(0), brokerPortMds);
@@ -169,11 +169,11 @@ class MdpImplementationBenchmark {
         }
     }
 
-    private static double synchronousGet(final String description, final DataSourcePublisher dataSourcePublisher, final int brokerPort) {
-        final URI requestUri = URI.create("mdp://localhost:" + brokerPort + "/testWorker");
+    private static double synchronousGet(final String description, final DataSourcePublisher dataSourcePublisher, final URI brokerAddress) {
+        final URI requestUri = URI.create(brokerAddress + "/testWorker");
         final TestContext requestContext = new TestContext("testContext");
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            return measure(description, N_EXEC, () -> {
+            return measure(description, () -> {
                 try {
                     client.get(requestUri, requestContext, TestObject.class).get(1000, TimeUnit.MILLISECONDS);
                 } catch (TimeoutException e) {
@@ -185,55 +185,57 @@ class MdpImplementationBenchmark {
         }
     }
 
-    private static double synchronousGetRaw(final String description, final DataSourcePublisher dataSourcePublisher, final int brokerPort, final AtomicInteger receiveCount) {
-        final URI requestUri = URI.create("mdp://localhost:" + brokerPort + "/testWorker");
+    private static double synchronousGetRaw(final String description, final DataSourcePublisher dataSourcePublisher, final URI brokerAddress, final AtomicInteger receiveCount) {
+        final URI requestUri = URI.create(brokerAddress + "/testWorker");
         final TestContext requestContext = new TestContext("testContext");
         final AtomicInteger lastCount = new AtomicInteger(receiveCount.get());
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            return measure(description, N_EXEC, () -> {
+            return measure(description, () -> {
                 client.get(requestUri, requestContext, TestObject.class);
                 while (lastCount.get() == receiveCount.get()) {
                     // do nothing
+                    LockSupport.parkNanos(1);
                 }
                 lastCount.set(receiveCount.get());
             });
         }
     }
 
-    private static double asyncGetRaw(final String description, final DataSourcePublisher dataSourcePublisher, final int brokerPort, final AtomicInteger receiveCount) {
-        final URI requestUri = URI.create("mdp://localhost:" + brokerPort + "/testWorker");
+    private static double asyncGetRaw(final String description, final DataSourcePublisher dataSourcePublisher, final URI brokerAddress, final AtomicInteger receiveCount) {
+        final URI requestUri = URI.create(brokerAddress + "/testWorker");
         final TestContext requestContext = new TestContext("testContext");
         final AtomicInteger lastCount = new AtomicInteger(receiveCount.get());
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            return measureAsync(description, N_EXEC,
+            return measureAsync(description,
                     () -> client.get(requestUri, requestContext, TestObject.class), () -> {
                         while (lastCount.get() + N_EXEC > receiveCount.get()) {
                             // do nothing
+                            LockSupport.parkNanos(1);
                         }
                     });
         }
     }
 
-    private static double synchronousSubscribeEventStore(final String description, final DataSourcePublisher dataSourcePublisher, final MajordomoWorker<TestContext, TestObject, TestObject> worker, final int brokerPortMds, final AtomicInteger receivedCount) {
-        final URI requestUri = URI.create("mds://localhost:" + brokerPortMds + "/testWorker");
+    private static double synchronousSubscribeEventStore(final String description, final DataSourcePublisher dataSourcePublisher, final MajordomoWorker<TestContext, TestObject, TestObject> worker, final URI brokerAddressPub, final AtomicInteger receivedCount) {
+        final URI requestUri = URI.create(brokerAddressPub + "/testWorker");
         final TestContext requestContext = new TestContext("testContext");
         final TestObject testObject = new TestObject();
         final TestContext testContext = new TestContext("testContext");
         final AtomicBoolean received = new AtomicBoolean(false);
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
             final String reqId = client.subscribe(requestUri, TestObject.class, requestContext, TestContext.class, null);
-            LOGGER.atInfo().addArgument(reqId).log("Subscribed with reqId: '{}'");
             LockSupport.parkNanos(Duration.ofMillis(SLEEP_DURATION).toNanos());
             worker.notify(testContext, testObject); // first notification after subscribe is swallowed
             LockSupport.parkNanos(Duration.ofMillis(SLEEP_DURATION).toNanos());
             final AtomicInteger sentCount = new AtomicInteger(receivedCount.get());
             // do nothing
-            final double result = measure(description, N_EXEC, () -> {
+            final double result = measure(description, () -> {
                 worker.notify(testContext, testObject);
                 sentCount.incrementAndGet();
                 final long timeout = System.nanoTime() + TIMEOUT_NANOS;
                 while (receivedCount.get() < sentCount.get() && timeout > System.nanoTime()) {
                     // do nothing
+                    LockSupport.parkNanos(1);
                 }
                 if (receivedCount.get() < sentCount.get()) {
                     receivedCount.incrementAndGet();
@@ -269,7 +271,7 @@ class MdpImplementationBenchmark {
             worker.notify(testContext, testObject); // first notification after subscribe is swallowed
             LockSupport.parkNanos(Duration.ofMillis(SLEEP_DURATION).toNanos());
             // do nothing
-            final double result = measure(description, N_EXEC, () -> {
+            final double result = measure(description, () -> {
                 worker.notify(testContext, testObject);
                 final long timeout = System.nanoTime() + TIMEOUT_NANOS;
                 while (!received.compareAndSet(true, false)) {
@@ -286,32 +288,32 @@ class MdpImplementationBenchmark {
         }
     }
 
-    private static double measure(final String topic, final int nExec, final Runnable... runnable) {
+    private static double measure(final String topic, final Runnable... runnable) {
         final long start = System.nanoTime();
 
         for (Runnable run : runnable) {
-            for (int i = 0; i < nExec; i++) {
+            for (int i = 0; i < MdpImplementationBenchmark.N_EXEC; i++) {
                 run.run();
             }
         }
 
         final long stop = System.nanoTime();
-        final double result = (1_000_000_000L * nExec) / (double) (stop - start);
-        LOGGER.atInfo().addArgument(String.format("%-40s:  %10d calls/second", topic, (1_000_000_000L * nExec) / (stop - start))).log("{}");
+        final double result = (1_000_000_000L * MdpImplementationBenchmark.N_EXEC) / (double) (stop - start);
+        LOGGER.atInfo().addArgument(String.format("%-40s:  %10d calls/second", topic, (1_000_000_000L * MdpImplementationBenchmark.N_EXEC) / (stop - start))).log("{}");
         return result;
     }
 
-    private static double measureAsync(final String topic, final int nExec, final Runnable runnable, final Runnable completed) {
+    private static double measureAsync(final String topic, final Runnable runnable, final Runnable completed) {
         final long start = System.nanoTime();
 
-        for (int i = 0; i < nExec; i++) {
+        for (int i = 0; i < MdpImplementationBenchmark.N_EXEC; i++) {
             runnable.run();
         }
         completed.run();
 
         final long stop = System.nanoTime();
-        final double result = (1_000_000_000L * nExec) / (double) (stop - start);
-        LOGGER.atInfo().addArgument(String.format("%-40s:  %10d calls/second", topic, (1_000_000_000L * nExec) / (stop - start))).log("{}");
+        final double result = (1_000_000_000L * MdpImplementationBenchmark.N_EXEC) / (double) (stop - start);
+        LOGGER.atInfo().addArgument(String.format("%-40s:  %10d calls/second", topic, (1_000_000_000L * MdpImplementationBenchmark.N_EXEC) / (stop - start))).log("{}");
         return result;
     }
 

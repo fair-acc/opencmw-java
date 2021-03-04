@@ -1,5 +1,6 @@
 package io.opencmw.serialiser;
 
+import java.net.URI;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -50,7 +51,7 @@ public enum DataType {
     FLOAT(6, "float", "float", 4, Cat.SINGLE_VALUE, float.class, Float.class),
     DOUBLE(7, "double", "double", 8, Cat.SINGLE_VALUE, double.class, Double.class),
     CHAR(8, "char", "char", 2, Cat.SINGLE_VALUE, char.class, Character.class),
-    STRING(9, "string", "java.lang.String", 1, Cat.ARRAY, String.class, String.class),
+    STRING(9, "string", "java.lang.String", 1, Cat.ARRAY, String.class, URI.class),
 
     // array of primitive types
     BOOL_ARRAY(101, "bool_array", "[Z", 1, Cat.ARRAY, boolean[].class, Boolean[].class, MultiArrayBoolean.class),

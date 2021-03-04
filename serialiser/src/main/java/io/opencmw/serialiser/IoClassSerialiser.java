@@ -3,6 +3,7 @@ package io.opencmw.serialiser;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Type;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -82,6 +83,12 @@ public class IoClassSerialiser {
         FieldBoxedValueHelper.register(this);
         FieldBoxedValueArrayHelper.register(this);
         FieldCollectionsHelper.register(this);
+
+        addClassDefinition(new FieldSerialiser<>( //
+                (io, obj, field) -> field.getField().set(obj, URI.create(io.getString())), // reader
+                (io, obj, field) -> { throw new UnsupportedOperationException("return function not supported for URI"); }, // return
+                (io, obj, field) -> io.put(field, field.getField().get(obj).toString()), // writer
+                URI.class));
 
         // Enum serialiser mapper to IoBuffer
         addClassDefinition(new FieldSerialiser<>( //

@@ -3,6 +3,7 @@ package io.opencmw.server;
 import static io.opencmw.OpenCmwProtocol.MdpMessage;
 
 import java.lang.management.ManagementFactory;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +27,10 @@ public class MajordomoTestClientSubscription<T> extends Thread {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoTestClientSubscription.class);
     private static final AtomicInteger CLIENT_V1_INSTANCE = new AtomicInteger();
     private static final AtomicBoolean run = new AtomicBoolean(false);
+    public final List<MdpMessage> mdpMessages = Collections.synchronizedList(new ArrayList<>());
+    public final List<T> domainMessages = Collections.synchronizedList(new ArrayList<>());
+    public final Class<T> classType;
+    public final long timeout = 100; // [ms] for testing purposes, production should choose something along the heartbeat period
     private final IoBuffer ioBuffer = new FastByteBuffer(4000, true, null);
     private final IoClassSerialiser serialiser = new IoClassSerialiser(ioBuffer);
     private final String uniqueID;
@@ -33,14 +38,10 @@ public class MajordomoTestClientSubscription<T> extends Thread {
     private final String broker;
     private final ZContext ctx;
     private ZMQ.Socket clientSocket;
-    public List<MdpMessage> mdpMessages = Collections.synchronizedList(new ArrayList<>());
-    public List<T> domainMessages = Collections.synchronizedList(new ArrayList<>());
-    public final Class<T> classType;
-    public long timeout = 100; // [ms] for testing purposes, production should choose something along the heartbeat period
 
     @SafeVarargs
-    public MajordomoTestClientSubscription(final @NotNull String broker, final @NotNull String clientName, final @NotNull Class<T>... classType) {
-        this.broker = broker;
+    public MajordomoTestClientSubscription(final @NotNull URI broker, final @NotNull String clientName, final @NotNull Class<T>... classType) {
+        this.broker = broker.toString().replace("mds://", "tcp://");
         this.classType = classType.length > 0 ? classType[0] : null;
         ctx = new ZContext();
         uniqueID = clientName + "PID=" + ManagementFactory.getRuntimeMXBean().getName() + "-InstanceID=" + CLIENT_V1_INSTANCE.getAndIncrement();
@@ -91,21 +92,6 @@ public class MajordomoTestClientSubscription<T> extends Thread {
         }
     }
 
-    private void handleReceivedMessage(final MdpMessage msg) {
-        // add msg to generic queue
-        mdpMessages.add(0, msg);
-        // add message to specific queue
-        if (classType == null) {
-            return;
-        }
-        if (!msg.errors.isBlank()) {
-            throw new IllegalStateException("cannot deserialise message: " + msg);
-        }
-        serialiser.setDataBuffer(FastByteBuffer.wrap(msg.data));
-        final T domainObject = serialiser.deserialiseObject(classType);
-        domainMessages.add(0, domainObject);
-    }
-
     public void clear() {
         mdpMessages.clear();
         domainMessages.clear();
@@ -121,5 +107,20 @@ public class MajordomoTestClientSubscription<T> extends Thread {
 
     public void unsubscribe(final @NotNull String topic) {
         clientSocket.unsubscribe(topic);
+    }
+
+    private void handleReceivedMessage(final MdpMessage msg) {
+        // add msg to generic queue
+        mdpMessages.add(0, msg);
+        // add message to specific queue
+        if (classType == null) {
+            return;
+        }
+        if (!msg.errors.isBlank()) {
+            throw new IllegalStateException("cannot deserialise message: " + msg);
+        }
+        serialiser.setDataBuffer(FastByteBuffer.wrap(msg.data));
+        final T domainObject = serialiser.deserialiseObject(classType);
+        domainMessages.add(0, domainObject);
     }
 }

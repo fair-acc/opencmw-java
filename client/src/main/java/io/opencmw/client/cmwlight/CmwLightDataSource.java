@@ -31,7 +31,6 @@ import org.zeromq.ZMsg;
 
 import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
-import io.opencmw.client.DataSourcePublisher;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
 import io.opencmw.utils.SystemProperties;
@@ -43,7 +42,7 @@ import io.opencmw.utils.SystemProperties;
  *
  * @author Alexander Krimm
  */
-@SuppressWarnings({ "PMD.UseConcurrentHashMap" }) // - only accessed from main thread
+@SuppressWarnings({ "PMD.UseConcurrentHashMap", "PMD.ExcessiveImports" }) // - only accessed from main thread
 public class CmwLightDataSource extends DataSource { // NOPMD - class should probably be smaller
     public static final String RDA_3_PROTOCOL = "rda3";
     public static final Factory FACTORY = new Factory() {
@@ -185,7 +184,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         URI resolveAddress = hostAddress;
         if (resolveAddress.getAuthority() == null || resolveAddress.getPort() == -1 && directoryLightClient != null) {
             try {
-                DirectoryLightClient.Device device = directoryLightClient.getDeviceInfo(Collections.singletonList(DataSourcePublisher.getDeviceName(resolveAddress))).get(0);
+                DirectoryLightClient.Device device = directoryLightClient.getDeviceInfo(Collections.singletonList(getDeviceName(resolveAddress))).get(0);
                 LOGGER.atTrace().addArgument(resolveAddress).addArgument(device).log("resolved address for device {}: {}");
                 final URI specificHost = URI.create(device.servers.stream().findFirst().orElseThrow().get("Address:"));
                 resolveAddress = new URI(resolveAddress.getScheme(), null, specificHost.getHost(), specificHost.getPort(), resolveAddress.getPath(), resolveAddress.getQuery(), null);
@@ -480,7 +479,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                                                      CmwLightProtocol.UpdateType.IMMEDIATE_UPDATE));
             sub.subscriptionState = SubscriptionState.UNSUBSCRIBE_SENT;
         } catch (CmwLightProtocol.RdaLightException e) {
-            throw new IllegalStateException("failed to unsubscribe from: '" + sub.property + "'");
+            throw new IllegalStateException("failed to unsubscribe from: '" + sub.property + "'", e);
         }
     }
 
@@ -575,8 +574,8 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
         public ParsedEndpoint(final URI endpoint, final String ctx) throws CmwLightProtocol.RdaLightException {
             authority = Objects.requireNonNullElse(endpoint.getAuthority(), "").contains(":") ? endpoint.getAuthority() : null;
-            device = DataSourcePublisher.getDeviceName(endpoint);
-            property = DataSourcePublisher.getPropertyName(endpoint);
+            device = getDeviceName(endpoint);
+            property = getPropertyName(endpoint);
             if (property == null || property.isBlank() || property.contains("/")) {
                 throw new CmwLightProtocol.RdaLightException("URI not compatible with rda3://<host>:<port>/<device>/<property> path scheme: " + endpoint + " detected property: " + property);
             }

@@ -25,7 +25,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
@@ -408,14 +407,6 @@ public class DataSourcePublisher implements Runnable, Closeable {
             poller.register(dataSource.getSocket(), ZMQ.Poller.POLLIN);
             return dataSource;
         });
-    }
-
-    public static String getDeviceName(final URI endpoint) {
-        return StringUtils.stripStart(endpoint.getPath(), "/").split("/", 2)[0];
-    }
-
-    public static String getPropertyName(final URI endpoint) {
-        return StringUtils.stripStart(endpoint.getPath(), "/").split("/", 2)[1];
     }
 
     // TODO: alternative listener api similar to mdp worker: mdp-like(single lambda, domain objects + access to raw data + exception or update)
