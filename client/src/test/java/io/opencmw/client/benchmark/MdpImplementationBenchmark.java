@@ -61,7 +61,7 @@ class MdpImplementationBenchmark {
     private static final Logger LOGGER = LoggerFactory.getLogger(MdpImplementationBenchmark.class);
     public static final ExecutorService executorService = Executors.newFixedThreadPool(10);
     public static final int N_REPEAT = 5; // how often to repeat each measurement (fist run is usually slower)
-    public static final int N_WARMUP = 1; // how many iterations to execute before taking measurments
+    public static final int N_WARMUP = 1; // how many iterations to execute before taking measurements
     public static final int N_EXEC = 10_000; // number of individual requests to issue for one measurement
     public static final int N_WORKERS = 1; // number of MDP workers
     public static final byte[] PAYLOAD = new byte[100]; // Payload added to the data object
@@ -102,7 +102,7 @@ class MdpImplementationBenchmark {
                 LOGGER.atError().addArgument(evt.throwables).log("Error(s) received: {}");
             }
         });
-        try (final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, executorService, "testOpenCmwPublisher")) {
+        try (final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore, null, executorService, "testOpenCmwPublisher")) {
             final AtomicInteger receiveCountRaw = new AtomicInteger(0);
             dataSourcePublisher.getRawDataEventStore().register((evt, seq, last) -> {
                 if (evt.throwables.isEmpty()) {
@@ -275,7 +275,7 @@ class MdpImplementationBenchmark {
 
                 @Override
                 public void updateException(final Throwable exception) {
-                    throw new IllegalStateException("Error received by notification hanlder", exception);
+                    throw new IllegalStateException("error received by notification handler", exception);
                 }
             });
             LockSupport.parkNanos(Duration.ofMillis(SLEEP_DURATION).toNanos());

@@ -45,8 +45,11 @@ public final class OpenCmwConstants {
     public static final long SUBSCRIPTION_TIMEOUT_DEFAULT = 1000L;
     public static final String N_IO_THREADS = "OpenCMW.nIoThreads";
     public static final int N_IO_THREADS_DEFAULT = 1; //
+    public static final String HIGH_WATER_MARK = "OpenCMW.hwm";
+    public static final int HIGH_WATER_MARK_DEFAULT = 0; //
     public static final String CLIENT_TIMEOUT = "OpenCMW.clientTimeOut"; // [s]
     public static final long CLIENT_TIMEOUT_DEFAULT = 0L; // [s]
+    public static final String ADDRESS_GIVEN = "address given: ";
 
     private OpenCmwConstants() {
         // this is a utility class
@@ -59,7 +62,7 @@ public final class OpenCmwConstants {
         try {
             return new URI(schemeReplacement, address.getAuthority(), address.getPath(), address.getQuery(), null);
         } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("address given: " + address, e);
+            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
         }
     }
 
@@ -72,7 +75,7 @@ public final class OpenCmwConstants {
             final int port = splitAuthority.length >= 2 ? Integer.parseInt(splitAuthority[1]) : address.getPort();
             return new URI(address.getScheme(), null, hostName, port, address.getPath(), address.getQuery(), null);
         } catch (URISyntaxException | NumberFormatException e) {
-            throw new IllegalArgumentException("address given: " + address, e);
+            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
         }
     }
 
@@ -80,7 +83,7 @@ public final class OpenCmwConstants {
         try {
             return new URI(address.getScheme(), address.getAuthority(), StringUtils.stripEnd(address.getPath(), "/"), address.getQuery(), null);
         } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("address given: " + address, e);
+            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
         }
     }
 

@@ -275,7 +275,7 @@ class DataSourcePublisherTest {
             eventReceived.set(true);
         });
 
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testSubPublisher");
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore, null, null, "testSubPublisher");
 
         eventStore.start();
         new Thread(dataSourcePublisher).start();
@@ -361,7 +361,7 @@ class DataSourcePublisherTest {
 
         final EventStore eventStore = EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
 
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testGetPublisher");
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore, null, null, "testGetPublisher");
 
         eventStore.start();
         new Thread(dataSourcePublisher).start();
@@ -384,7 +384,7 @@ class DataSourcePublisherTest {
 
         final EventStore eventStore = EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
 
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testGetPublisher");
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore, null, null, "testGetPublisher");
 
         eventStore.start();
         new Thread(dataSourcePublisher).start();
@@ -412,7 +412,7 @@ class DataSourcePublisherTest {
 
         final EventStore eventStore = EventStore.getFactory().setFilterConfig(TimingCtx.class, EvtTypeFilter.class).build();
 
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testSetPublisher");
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore, null, null, "testSetPublisher");
 
         eventStore.start();
         dataSourcePublisher.start();
@@ -432,7 +432,6 @@ class DataSourcePublisherTest {
     @Test
     void testGettersAndSetters() {
         try (final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, null, "testSetPublisher")) {
-            dataSourcePublisher.start();
             assertNotNull(dataSourcePublisher.getContext());
         }
     }

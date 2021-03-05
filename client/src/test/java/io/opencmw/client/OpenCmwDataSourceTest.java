@@ -70,7 +70,7 @@ class OpenCmwDataSourceTest {
         broker.start();
 
         eventStore = EventStore.getFactory().setFilterConfig(TestContext.class, EvtTypeFilter.class).build();
-        dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testOpenCmwPublisher");
+        dataSourcePublisher = new DataSourcePublisher(null, eventStore, null, null, "testOpenCmwPublisher");
     }
 
     @AfterEach

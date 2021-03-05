@@ -52,7 +52,7 @@ import io.opencmw.utils.SystemProperties;
  * http://rfc.zeromq.org/spec:7.
  *
  * <p>
- * The worder is controlled by the following environment variables (see also MajordomoBroker definitions):
+ * The worker is controlled by the following environment variables (see also MajordomoBroker definitions):
  * <ul>
  * <li> 'OpenCMW.heartBeat' [ms]: default (2500 ms) heart-beat time-out [ms]</li>
  * <li> 'OpenCMW.heartBeatLiveness' []: default (3) heart-beat liveness - 3-5 is reasonable
@@ -131,10 +131,10 @@ public class BasicMdpWorker extends Thread {
 
         notifyListenerSocket = this.ctx.createSocket(SocketType.PAIR);
         notifyListenerSocket.bind("inproc://notifyListener" + uniqueID);
-        notifyListenerSocket.setHWM(0);
+        notifyListenerSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         notifySocket = this.ctx.createSocket(SocketType.PAIR);
         notifySocket.connect("inproc://notifyListener" + uniqueID);
-        notifySocket.setHWM(0);
+        notifySocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
 
         LOGGER.atTrace().addArgument(serviceName).addArgument(uniqueID).log("created new service '{}' worker - uniqueID: {}");
     }
@@ -245,7 +245,7 @@ public class BasicMdpWorker extends Thread {
         shallRun.set(false);
         try {
             join(heartBeatInterval);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
             throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
         }
         if (isExternal && !ctx.isClosed()) {
@@ -318,7 +318,7 @@ public class BasicMdpWorker extends Thread {
             activeSubscriptions.remove(subscriptionTopic);
             return true;
         default:
-            throw new IllegalStateException("receoved invalid subscription ID " + subMsg);
+            throw new IllegalStateException("recovered invalid subscription ID " + subMsg);
         }
     }
 
@@ -358,7 +358,7 @@ public class BasicMdpWorker extends Thread {
         final URI translatedBrokerAddress = replaceScheme(brokerAddress, SCHEME_TCP);
         workerSocket = ctx.createSocket(SocketType.DEALER);
         assert workerSocket != null : "worker socket is null";
-        workerSocket.setHWM(0);
+        workerSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         workerSocket.connect(translatedBrokerAddress + SUFFIX_ROUTER);
 
         if (pubSocket != null) {
@@ -366,7 +366,7 @@ public class BasicMdpWorker extends Thread {
         }
         pubSocket = ctx.createSocket(SocketType.XPUB);
         assert pubSocket != null : "publication socket is null";
-        pubSocket.setHWM(0);
+        pubSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         pubSocket.setXpubVerbose(true);
         pubSocket.connect(translatedBrokerAddress + SUFFIX_SUBSCRIBE);
 

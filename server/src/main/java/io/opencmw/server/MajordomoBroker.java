@@ -6,8 +6,11 @@ import static org.zeromq.ZMQ.Socket;
 import static org.zeromq.util.ZData.strhex;
 
 import static io.opencmw.OpenCmwConstants.*;
-import static io.opencmw.OpenCmwProtocol.*;
+import static io.opencmw.OpenCmwProtocol.BROKER_SHUTDOWN;
 import static io.opencmw.OpenCmwProtocol.Command.*;
+import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
+import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
+import static io.opencmw.OpenCmwProtocol.MdpMessage;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
@@ -111,7 +114,7 @@ public class MajordomoBroker extends Thread {
     public MajordomoBroker(@NotNull final String brokerName, final URI dnsAddress, final RbacRole<?>... rbacRoles) {
         super();
         this.brokerName = brokerName;
-        this.dnsAddress = dnsAddress == null || dnsAddress.toString().isBlank() ? null : replaceScheme(dnsAddress, SCHEME_TCP);
+        this.dnsAddress = dnsAddress == null || dnsAddress.toString().isBlank() ? null : replaceScheme(dnsAddress, SCHEME_TCP); // NOPMD - uninitialised/unknown dns defaults to null
         this.setName(MajordomoBroker.class.getSimpleName() + "(" + brokerName + ")#" + BROKER_COUNTER.getAndIncrement());
 
         ctx = new ZContext(SystemProperties.getValueIgnoreCase(N_IO_THREADS, N_IO_THREADS_DEFAULT));
@@ -121,20 +124,20 @@ public class MajordomoBroker extends Thread {
 
         // generate and register internal default inproc socket
         routerSocket = ctx.createSocket(SocketType.ROUTER);
-        routerSocket.setHWM(0);
+        routerSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         routerSocket.bind(INTERNAL_ADDRESS_BROKER); // NOPMD
         pubSocket = ctx.createSocket(SocketType.XPUB);
-        pubSocket.setHWM(0);
+        pubSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         pubSocket.setXpubVerbose(true);
         pubSocket.bind(INTERNAL_ADDRESS_PUBLISHER); // NOPMD
         subSocket = ctx.createSocket(SocketType.SUB);
-        subSocket.setHWM(0);
+        subSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         subSocket.bind(INTERNAL_ADDRESS_SUBSCRIBE); // NOPMD
 
         registerDefaultServices(rbacRoles); // NOPMD
 
         dnsSocket = ctx.createSocket(SocketType.DEALER);
-        dnsSocket.setHWM(0);
+        dnsSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         if (this.dnsAddress == null) {
             dnsSocket.connect(INTERNAL_ADDRESS_BROKER);
         } else {
@@ -269,7 +272,7 @@ public class MajordomoBroker extends Thread {
         if (running.get()) {
             try {
                 this.join(heartBeatInterval);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException e) {  // NOPMD NOSONAR -- re-throwing with different type
                 throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
             }
         }
@@ -393,7 +396,7 @@ public class MajordomoBroker extends Thread {
      * Process a request coming from a client.
      */
     protected void processClients() {
-        // round-robbin
+        // round-robin
         clients.forEach((name, client) -> {
             final MdpMessage clientMessage = client.pop();
             if (clientMessage == null) {
@@ -404,14 +407,10 @@ public class MajordomoBroker extends Thread {
             // old : final Service service = services.get(clientMessage.getServiceName())
             final Service service = getBestMatchingService(StringUtils.strip(URI.create(clientMessage.getServiceName()).getPath(), "/"));
             if (service == null) {
-                // not implemented -- according to Majordomo Management Interface (MMI)
-                // as defined in http://rfc.zeromq.org/spec:8
-                new MdpMessage(clientMessage.senderID, PROT_CLIENT, FINAL,
-                        clientMessage.serviceNameBytes,
-                        clientMessage.clientRequestID,
-                        URI.create(INTERNAL_SERVICE_NAMES),
-                        "501".getBytes(UTF_8), "unknown service (error 501): '" + clientMessage.getServiceName() + '\'', RBAC)
-                        .send(client.socket);
+                // not implemented -- reply according to Majordomo Management Interface (MMI) as defined in http://rfc.zeromq.org/spec:8
+                final MdpMessage msg = new MdpMessage(clientMessage.senderID, PROT_CLIENT, FINAL, clientMessage.serviceNameBytes, clientMessage.clientRequestID, URI.create(INTERNAL_SERVICE_NAMES),
+                        "501".getBytes(UTF_8), "unknown service (error 501): '" + clientMessage.getServiceName() + '\'', RBAC);
+                msg.send(client.socket);
                 return;
             }
             // queue new client message RBAC-priority-based
@@ -555,8 +554,7 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-     * Look for &amp; kill expired workers. Workers are oldest to most recent, so
-     * we stop at the first alive worker.
+     * Look for &amp; kill expired workers. Workers are oldest to most recent, so we stop at the first alive worker.
      */
     protected void purgeWorkers() {
         for (Worker w = waiting.peekFirst(); w != null && w.expiry < System.currentTimeMillis(); w = waiting.peekFirst()) {
@@ -616,7 +614,7 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-     * Send heartbeats to the DNS server if necessary
+     * Send heartbeats to the DNS server if necessary.
      *
      * @param force sending regardless of time-out
      */
@@ -638,7 +636,7 @@ public class MajordomoBroker extends Thread {
     }
 
     /**
-     * Send heartbeats to idle workers if it's time
+     * Send heartbeats to idle workers if it's time.
      */
     protected void sendHeartbeats() {
         // Send heartbeats to idle workers if it's time
@@ -718,7 +716,8 @@ public class MajordomoBroker extends Thread {
     }
 
     /* default */ Service getBestMatchingService(final String serviceName) { // NOPMD package private OK
-        final List<String> sortedList = services.keySet().stream().filter(serviceName::startsWith).sorted(Comparator.comparingInt(String::length)).collect(Collectors.toList());
+        final String shortServiceName = StringUtils.removeStart(serviceName, brokerName + '/');
+        final List<String> sortedList = services.keySet().stream().filter(shortServiceName::startsWith).sorted(Comparator.comparingInt(String::length)).collect(Collectors.toList());
         return sortedList.isEmpty() ? null : services.get(sortedList.get(0));
     }
 

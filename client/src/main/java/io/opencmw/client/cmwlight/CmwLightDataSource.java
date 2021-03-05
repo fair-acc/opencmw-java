@@ -1,18 +1,15 @@
 package io.opencmw.client.cmwlight;
 
 import static io.opencmw.OpenCmwConstants.*;
+import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -22,12 +19,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zeromq.SocketType;
-import org.zeromq.ZContext;
-import org.zeromq.ZFrame;
-import org.zeromq.ZMQ;
-import org.zeromq.ZMQException;
-import org.zeromq.ZMsg;
+import org.zeromq.*;
 
 import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
@@ -182,7 +174,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             return; // already connected
         }
         URI resolveAddress = hostAddress;
-        if (resolveAddress.getAuthority() == null || resolveAddress.getPort() == -1 && directoryLightClient != null) {
+        if ((resolveAddress.getAuthority() == null || resolveAddress.getPort() == -1) && directoryLightClient != null) {
             try {
                 DirectoryLightClient.Device device = directoryLightClient.getDeviceInfo(Collections.singletonList(getDeviceName(resolveAddress))).get(0);
                 LOGGER.atTrace().addArgument(resolveAddress).addArgument(device).log("resolved address for device {}: {}");
@@ -297,14 +289,14 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         case REPLY:
             Request requestForReply = pendingRequests.remove(reply.id);
             try {
-                return createInternalMsg(requestForReply.requestId, new ParsedEndpoint(requestForReply.endpoint, reply.dataContext.cycleName).toURI(), reply.bodyData, null);
+                return createInternalMsg(requestForReply.requestId.getBytes(UTF_8), new ParsedEndpoint(requestForReply.endpoint, reply.dataContext.cycleName).toURI(), reply.bodyData, null);
             } catch (URISyntaxException | CmwLightProtocol.RdaLightException e) {
                 LOGGER.atWarn().addArgument(requestForReply.endpoint).addArgument(reply.dataContext.cycleName).log("Adding reply context to URI results in illegal url {} + {}");
                 return new ZMsg();
             }
         case EXCEPTION:
             final Request requestForException = pendingRequests.remove(reply.id);
-            return createInternalMsg(requestForException.requestId, requestForException.endpoint, null, reply.exceptionMessage.message);
+            return createInternalMsg(requestForException.requestId.getBytes(UTF_8), requestForException.endpoint, null, reply.exceptionMessage.message);
         case SUBSCRIBE:
             final long id = reply.id;
             final Subscription sub = subscriptions.get(id);
@@ -333,21 +325,21 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                 LOGGER.atWarn().setCause(e).log("Error generating reply context URI");
                 return new ZMsg();
             }
-            return createInternalMsg(subscriptionForNotification.idString, endpointForNotificationContext, reply.bodyData, null);
+            return createInternalMsg(subscriptionForNotification.idString.getBytes(UTF_8), endpointForNotificationContext, reply.bodyData, null);
         case NOTIFICATION_EXC:
             final Subscription subscriptionForNotifyExc = replyIdMap.get(reply.id);
             if (subscriptionForNotifyExc == null) {
                 LOGGER.atInfo().addArgument(reply.toString()).log("received unsolicited subscription notification error: {}");
                 return new ZMsg();
             }
-            return createInternalMsg(subscriptionForNotifyExc.idString, subscriptionForNotifyExc.endpoint, null, reply.exceptionMessage.message);
+            return createInternalMsg(subscriptionForNotifyExc.idString.getBytes(UTF_8), subscriptionForNotifyExc.endpoint, null, reply.exceptionMessage.message);
         case SUBSCRIBE_EXCEPTION:
             final Subscription subForSubExc = subscriptions.get(reply.id);
             subForSubExc.subscriptionState = SubscriptionState.UNSUBSCRIBED;
             subForSubExc.timeoutValue = currentTime + subForSubExc.backOff;
             subForSubExc.backOff *= 2;
             LOGGER.atDebug().addArgument(subForSubExc.device).addArgument(subForSubExc.property).log("exception during subscription, retrying: {}/{}");
-            return createInternalMsg(subForSubExc.idString, subForSubExc.endpoint, null, reply.exceptionMessage.message);
+            return createInternalMsg(subForSubExc.idString.getBytes(UTF_8), subForSubExc.endpoint, null, reply.exceptionMessage.message);
         // unsupported or non-actionable replies
         case GET:
         case SET:
@@ -357,15 +349,6 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         default:
             return new ZMsg();
         }
-    }
-
-    private ZMsg createInternalMsg(final String reqId, final URI endpoint, final ZFrame body, final String exception) {
-        final ZMsg result = new ZMsg();
-        result.add(reqId);
-        result.add(endpoint.toString());
-        result.add(body == null ? new ZFrame(new byte[0]) : body);
-        result.add(exception == null ? new ZFrame(new byte[0]) : new ZFrame(exception));
-        return result;
     }
 
     private String getIdentity() {
@@ -573,7 +556,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         }
 
         public ParsedEndpoint(final URI endpoint, final String ctx) throws CmwLightProtocol.RdaLightException {
-            authority = Objects.requireNonNullElse(endpoint.getAuthority(), "").contains(":") ? endpoint.getAuthority() : null;
+            authority = Objects.requireNonNullElse(endpoint.getAuthority(), "").contains(":") ? endpoint.getAuthority() : null; // NOPMD - only accept authorities with a port definition
             device = getDeviceName(endpoint);
             property = getPropertyName(endpoint);
             if (property == null || property.isBlank() || property.contains("/")) {
