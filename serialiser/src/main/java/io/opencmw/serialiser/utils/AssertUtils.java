@@ -40,7 +40,7 @@ public final class AssertUtils {
                     "The argument has incorrect type. The correct type is " + type.getName());
         }
     }
-    
+
     /**
      * Checks if the int value is &gt;= 0
      *
