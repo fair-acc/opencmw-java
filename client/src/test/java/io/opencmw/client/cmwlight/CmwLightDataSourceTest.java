@@ -1,6 +1,6 @@
 package io.opencmw.client.cmwlight;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -16,8 +16,6 @@ import org.junit.jupiter.api.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.*;
-
-import io.opencmw.client.Endpoint;
 
 @Timeout(20)
 class CmwLightDataSourceTest {
@@ -86,7 +84,7 @@ class CmwLightDataSourceTest {
                     client.housekeeping(); // allow the subscription to be sent out
 
                     return reply.size() == 4 && reply.pollFirst().getString(Charset.defaultCharset()).equals("testId")
-                            && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals(new Endpoint(endpoint.toString()).getEndpointForContext(cycleName))
+                            && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals(new CmwLightDataSource.ParsedEndpoint(endpoint, cycleName).toURI().toString())
                             && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals("data")
                             && Objects.requireNonNull(reply.pollFirst()).getData().length == 0;
                 });
@@ -120,5 +118,37 @@ class CmwLightDataSourceTest {
             LockSupport.parkNanos(100000);
             i++;
         }
+    }
+
+    @Test
+    void testParsedEndpoint() throws URISyntaxException, CmwLightProtocol.RdaLightException {
+        final String refDevice = "deviceA";
+        final String refProperty = "MyProperty";
+        final String refPath = '/' + refDevice + '/' + refProperty;
+        final String testAuthority = "server:1337";
+        final Map<String, Object> filterMap = Map.of("filterA", 3, "filterB", true, "filterC", "foo=bar", "filterD", 1234567890987654321L, "filterE", 1.5, "filterF", -3.5f);
+        final String testQuery = "ctx=Test.Context.C=5&filterA=int:3&filterB=bool:true&filterC=foo=bar&filterD=long:1234567890987654321&filterE=double:1.5&filterF=float:-3.5";
+        final URI testUri1 = new URI("rda3", testAuthority, refPath, testQuery, null);
+        final URI testUri2 = new URI("rda3", null, refPath, testQuery, null);
+
+        final CmwLightDataSource.ParsedEndpoint parsed1 = new CmwLightDataSource.ParsedEndpoint(testUri1);
+        assertEquals(testAuthority, parsed1.authority);
+        assertEquals(refDevice, parsed1.device);
+        assertEquals(refProperty, parsed1.property);
+        final CmwLightDataSource.ParsedEndpoint parsed2 = new CmwLightDataSource.ParsedEndpoint(testUri2);
+        assertNull(parsed2.authority);
+        assertEquals(refDevice, parsed2.device);
+        assertEquals(refProperty, parsed2.property);
+
+        assertEquals(parsed1, parsed1);
+        assertNotEquals(parsed1, new Object());
+        assertEquals(testUri1, parsed1.toURI());
+        assertNotEquals(testUri1, parsed2.toURI()); // since testURI2 has no authority given
+        assertEquals(parsed1, parsed2);
+        assertEquals(parsed1.hashCode(), parsed2.hashCode());
+
+        // simple test for faulty sub-property definition - fail early
+        final URI faultyTestUri = new URI("rda3", "server:1337", "/deviceA/MyProperty/SubProperty", "filterA=short:3", null);
+        assertThrows(CmwLightProtocol.RdaLightException.class, () -> new CmwLightDataSource.ParsedEndpoint(faultyTestUri).toURI());
     }
 }

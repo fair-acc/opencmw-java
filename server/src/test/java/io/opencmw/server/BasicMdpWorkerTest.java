@@ -12,6 +12,7 @@ import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
@@ -41,8 +42,8 @@ class BasicMdpWorkerTest {
     void testConstructors() {
         assertDoesNotThrow(() -> new BasicMdpWorker(new ZContext(), "testService"));
         assertDoesNotThrow(() -> new BasicMdpWorker(new ZContext(), "testService", BasicRbacRole.ADMIN));
-        assertDoesNotThrow(() -> new BasicMdpWorker("mdp://localhost", "testService"));
-        assertDoesNotThrow(() -> new BasicMdpWorker("mdp://localhost", "testService", BasicRbacRole.ADMIN));
+        assertDoesNotThrow(() -> new BasicMdpWorker(URI.create("mdp://localhost"), "testService"));
+        assertDoesNotThrow(() -> new BasicMdpWorker(URI.create("mdp://localhost"), "testService", BasicRbacRole.ADMIN));
     }
 
     @Test
@@ -73,7 +74,7 @@ class BasicMdpWorkerTest {
     @ValueSource(booleans = { true /*, false */ })
     void testBasicThreadHander(boolean internal) {
         // N.B. this is not a full-blown tests and only covers the basic failure mode, full tests is implemented in MajordomoBrokerTests
-        BasicMdpWorker worker = internal ? new BasicMdpWorker(new ZContext(), "testService", BasicRbacRole.ADMIN) : new BasicMdpWorker("mdp://*:8080/", "testService", BasicRbacRole.ADMIN);
+        BasicMdpWorker worker = internal ? new BasicMdpWorker(new ZContext(), "testService", BasicRbacRole.ADMIN) : new BasicMdpWorker(URI.create("mdp://*:8080/"), "testService", BasicRbacRole.ADMIN);
 
         final AtomicBoolean run = new AtomicBoolean(false);
         final AtomicBoolean stop = new AtomicBoolean(false);

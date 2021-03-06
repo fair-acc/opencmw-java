@@ -52,7 +52,7 @@ import io.opencmw.utils.SystemProperties;
  * http://rfc.zeromq.org/spec:7.
  *
  * <p>
- * The worder is controlled by the following environment variables (see also MajordomoBroker definitions):
+ * The worker is controlled by the following environment variables (see also MajordomoBroker definitions):
  * <ul>
  * <li> 'OpenCMW.heartBeat' [ms]: default (2500 ms) heart-beat time-out [ms]</li>
  * <li> 'OpenCMW.heartBeatLiveness' []: default (3) heart-beat liveness - 3-5 is reasonable
@@ -80,7 +80,7 @@ public class BasicMdpWorker extends Thread {
     // ---------------------------------------------------------------------
     protected final String uniqueID;
     protected final ZContext ctx;
-    protected final String brokerAddress;
+    protected final URI brokerAddress;
     protected final String serviceName;
     protected final byte[] serviceBytes;
 
@@ -101,22 +101,22 @@ public class BasicMdpWorker extends Thread {
     protected RequestHandler requestHandler;
     protected ZMQ.Poller poller;
 
-    public BasicMdpWorker(String brokerAddress, String serviceName, final RbacRole<?>... rbacRoles) {
+    public BasicMdpWorker(URI brokerAddress, String serviceName, final RbacRole<?>... rbacRoles) {
         this(null, brokerAddress, serviceName, rbacRoles);
     }
 
     public BasicMdpWorker(ZContext ctx, String serviceName, final RbacRole<?>... rbacRoles) {
-        this(ctx, "inproc://broker", serviceName, rbacRoles);
+        this(ctx, URI.create("inproc://broker"), serviceName, rbacRoles);
     }
 
-    protected BasicMdpWorker(ZContext ctx, String brokerAddress, String serviceName, final RbacRole<?>... rbacRoles) {
+    protected BasicMdpWorker(ZContext ctx, URI brokerAddress, String serviceName, final RbacRole<?>... rbacRoles) {
         super();
         assert (brokerAddress != null);
         assert (serviceName != null);
-        this.brokerAddress = StringUtils.stripEnd(brokerAddress, "/");
+        this.brokerAddress = stripPathTrailingSlash(brokerAddress);
         this.serviceName = StringUtils.stripStart(serviceName, "/");
         this.serviceBytes = this.serviceName.getBytes(UTF_8);
-        this.isExternal = !brokerAddress.toLowerCase(Locale.UK).contains("inproc://");
+        this.isExternal = !brokerAddress.getScheme().toLowerCase(Locale.UK).contains("inproc");
 
         // initialise RBAC role-based priority queues
         this.rbacRoles = Collections.unmodifiableSortedSet(new TreeSet<>(Set.of(rbacRoles)));
@@ -131,10 +131,10 @@ public class BasicMdpWorker extends Thread {
 
         notifyListenerSocket = this.ctx.createSocket(SocketType.PAIR);
         notifyListenerSocket.bind("inproc://notifyListener" + uniqueID);
-        notifyListenerSocket.setHWM(0);
+        notifyListenerSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         notifySocket = this.ctx.createSocket(SocketType.PAIR);
         notifySocket.connect("inproc://notifyListener" + uniqueID);
-        notifySocket.setHWM(0);
+        notifySocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
 
         LOGGER.atTrace().addArgument(serviceName).addArgument(uniqueID).log("created new service '{}' worker - uniqueID: {}");
     }
@@ -245,7 +245,7 @@ public class BasicMdpWorker extends Thread {
         shallRun.set(false);
         try {
             join(heartBeatInterval);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
             throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
         }
         if (isExternal && !ctx.isClosed()) {
@@ -318,7 +318,7 @@ public class BasicMdpWorker extends Thread {
             activeSubscriptions.remove(subscriptionTopic);
             return true;
         default:
-            throw new IllegalStateException("receoved invalid subscription ID " + subMsg);
+            throw new IllegalStateException("recovered invalid subscription ID " + subMsg);
         }
     }
 
@@ -355,10 +355,10 @@ public class BasicMdpWorker extends Thread {
         if (workerSocket != null) {
             workerSocket.close();
         }
-        final String translatedBrokerAddress = brokerAddress.replace(SCHEME_MDP, SCHEME_TCP).replace(SCHEME_MDS, SCHEME_TCP);
+        final URI translatedBrokerAddress = replaceScheme(brokerAddress, SCHEME_TCP);
         workerSocket = ctx.createSocket(SocketType.DEALER);
         assert workerSocket != null : "worker socket is null";
-        workerSocket.setHWM(0);
+        workerSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         workerSocket.connect(translatedBrokerAddress + SUFFIX_ROUTER);
 
         if (pubSocket != null) {
@@ -366,7 +366,7 @@ public class BasicMdpWorker extends Thread {
         }
         pubSocket = ctx.createSocket(SocketType.XPUB);
         assert pubSocket != null : "publication socket is null";
-        pubSocket.setHWM(0);
+        pubSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         pubSocket.setXpubVerbose(true);
         pubSocket.connect(translatedBrokerAddress + SUFFIX_SUBSCRIBE);
 

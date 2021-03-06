@@ -54,6 +54,7 @@
         <exclude name="UnnecessaryLocalBeforeReturn"/>
         <exclude name="UselessParentheses"/>
         <exclude name="LinguisticNaming"/> <!-- allow factory setter methods to return itself (fluent-design) -->
+        <exclude name="TooManyStaticImports"/> <!-- makes the code more readable/shorter in most cases -->
     </rule>
     <rule ref="category/java/codestyle.xml/PrematureDeclaration">
         <properties>

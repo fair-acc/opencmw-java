@@ -29,8 +29,8 @@ public class MajordomoTestClientAsync {
     private long timeout = 2500;
     private ZMQ.Poller poller;
 
-    public MajordomoTestClientAsync(final String broker) {
-        this.broker = broker.replace("mdp://", "tcp://");
+    public MajordomoTestClientAsync(final URI broker) {
+        this.broker = broker.toString().replace("mdp://", "tcp://");
         ctx = new ZContext();
         reconnectToBroker();
     }

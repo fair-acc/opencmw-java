@@ -29,7 +29,7 @@ public class DataSourceExample {
         });
         eventStore.start();
         // create a data source publisher and add a subscription
-        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testSubPublisher");
+        final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore, null, null, "testSubPublisher");
         if (args.length == 0) {
             LOGGER.atError().log("no directory server supplied");
             return;

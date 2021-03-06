@@ -5,10 +5,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.LockSupport;
 
 import org.awaitility.Awaitility;
@@ -18,6 +24,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.function.ThrowingSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.Utils;
@@ -41,18 +48,16 @@ class OpenCmwDataSourceTest {
     private static final String TEST_EXCEPTION_MSG = "test exception message";
     private EventStore eventStore;
     private DataSourcePublisher dataSourcePublisher;
-    private int brokerPort;
-    private int brokerPortMds;
     private MajordomoWorker<TestContext, TestObject, TestObject> worker;
     private MajordomoBroker broker;
+    private URI brokerAddress;
+    private URI brokerPubAddress;
 
     @BeforeEach
     void setupBrokerAndEventStore() throws IOException {
-        broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());
-        brokerPort = Utils.findOpenPort();
-        brokerPortMds = Utils.findOpenPort();
-        final String brokerAddress = broker.bind("mdp://*:" + brokerPort);
-        final String brokerPubAddress = broker.bind("mds://*:" + brokerPortMds);
+        broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
+        brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
+        brokerPubAddress = broker.bind(URI.create("mds://*:" + Utils.findOpenPort()));
         LOGGER.atDebug().addArgument(brokerAddress).addArgument(brokerPubAddress).log("started broker on {} and {}");
 
         worker = new MajordomoWorker<>(
@@ -65,7 +70,7 @@ class OpenCmwDataSourceTest {
         broker.start();
 
         eventStore = EventStore.getFactory().setFilterConfig(TestContext.class, EvtTypeFilter.class).build();
-        dataSourcePublisher = new DataSourcePublisher(eventStore, null, null, "testOpenCmwPublisher");
+        dataSourcePublisher = new DataSourcePublisher(null, eventStore, null, null, "testOpenCmwPublisher");
     }
 
     @AfterEach
@@ -82,7 +87,7 @@ class OpenCmwDataSourceTest {
         LockSupport.parkNanos(Duration.ofMillis(200).toNanos());
 
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            final URI requestURI = URI.create("mds://localhost:" + brokerPortMds + "/testWorker");
+            final URI requestURI = URI.create(brokerPubAddress + "/testWorker");
             LOGGER.atDebug().addArgument(requestURI).log("subscribing to endpoint: {}");
             final TestContext requestContext = new TestContext("FAIR.SELECTOR.C=2");
             final NotificationListener<TestObject, TestContext> listener = new NotificationListener<>() {
@@ -140,7 +145,7 @@ class OpenCmwDataSourceTest {
     }
 
     @Test
-    void testSubscription() throws URISyntaxException {
+    void testSubscription() {
         final Map<String, TestObject> updates = new ConcurrentHashMap<>();
         eventStore.register((event, seq, last) -> {
             LOGGER.atDebug().addArgument(event).log("received event: {}");
@@ -151,7 +156,7 @@ class OpenCmwDataSourceTest {
         LockSupport.parkNanos(Duration.ofMillis(20).toNanos());
 
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            final URI requestURI = new URI("mds", "localhost:" + brokerPortMds, "/testWorker", "ctx=FAIR.SELECTOR.C=2", null); // mdp-> mds
+            final URI requestURI = URI.create(brokerPubAddress + "/testWorker?ctx=FAIR.SELECTOR.C=2"); // mdp-> mds
             LOGGER.atDebug().addArgument(requestURI).log("subscribing to endpoint: {}");
             final String reqId = client.subscribe(requestURI, TestObject.class);
             LockSupport.parkNanos(Duration.ofMillis(10).toNanos());
@@ -194,7 +199,7 @@ class OpenCmwDataSourceTest {
     }
 
     @Test
-    void testGetRequestException() throws URISyntaxException {
+    void testGetRequestException() {
         worker.setHandler((ctx, requestCtx, request, replyCtx, reply) -> {
             throw new CmwLightProtocol.RdaLightException(TEST_EXCEPTION_MSG);
         });
@@ -204,7 +209,7 @@ class OpenCmwDataSourceTest {
         LockSupport.parkNanos(Duration.ofMillis(200).toNanos());
 
         // get request
-        final URI requestURI = new URI("mdp", "localhost:" + brokerPort, "/testWorker", "ctx=FAIR.SELECTOR.C=3&contentType=application/octet-stream", null);
+        final URI requestURI = URI.create(brokerAddress + "/testWorker?ctx=FAIR.SELECTOR.C=3&contentType=application/octet-stream");
         LOGGER.atDebug().addArgument(requestURI).log("requesting GET from endpoint: {}");
         final Future<TestObject> future;
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
@@ -220,7 +225,7 @@ class OpenCmwDataSourceTest {
     }
 
     @Test
-    void testGetRequest() throws URISyntaxException, InterruptedException, ExecutionException, TimeoutException {
+    void testGetRequest() throws InterruptedException, ExecutionException, TimeoutException {
         final TestObject referenceObject = new TestObject("asdf", 42);
         worker.setHandler((ctx, requestCtx, request, replyCtx, reply) -> {
             assertEquals("FAIR.SELECTOR.C=3", requestCtx.ctx);
@@ -234,7 +239,7 @@ class OpenCmwDataSourceTest {
         LockSupport.parkNanos(Duration.ofMillis(200).toNanos());
 
         // get request
-        final URI requestURI = new URI("mdp", "localhost:" + brokerPort, "/testWorker", "ctx=FAIR.SELECTOR.C=3&contentType=application/octet-stream", null);
+        final URI requestURI = URI.create(brokerAddress + "/testWorker?ctx=FAIR.SELECTOR.C=3&contentType=application/octet-stream");
         LOGGER.atDebug().addArgument(requestURI).log("requesting GET from endpoint: {}");
         final Future<TestObject> future;
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
@@ -263,7 +268,7 @@ class OpenCmwDataSourceTest {
         LockSupport.parkNanos(Duration.ofMillis(200).toNanos());
 
         // get request
-        final URI requestURI = URI.create("mdp://localhost:" + brokerPort + "/testWorker");
+        final URI requestURI = URI.create(brokerAddress + "/testWorker");
         final TestContext requestContext = new TestContext("FAIR.SELECTOR.C=3", MimeType.BINARY);
         LOGGER.atDebug().addArgument(requestURI).addArgument(requestContext).log("requesting GET from endpoint: {} with context: {}");
         final Future<TestObject> future;
@@ -280,7 +285,7 @@ class OpenCmwDataSourceTest {
     }
 
     @Test
-    void testSetRequest() throws URISyntaxException, InterruptedException, ExecutionException, TimeoutException {
+    void testSetRequest() throws InterruptedException, ExecutionException, TimeoutException {
         final TestObject toSet = new TestObject("newValue", 666);
         worker.setHandler((ctx, requestCtx, request, replyCtx, reply) -> {
             assertEquals("FAIR.SELECTOR.C=3", requestCtx.ctx);
@@ -294,7 +299,7 @@ class OpenCmwDataSourceTest {
         LockSupport.parkNanos(Duration.ofMillis(200).toNanos());
 
         // set request
-        final URI requestURI = new URI("mdp", "localhost:" + brokerPort, "/testWorker", "ctx=FAIR.SELECTOR.C=3", null);
+        final URI requestURI = URI.create(brokerAddress + "/testWorker?ctx=FAIR.SELECTOR.C=3");
         LOGGER.atDebug().addArgument(requestURI).log("requesting GET from endpoint: {}");
         final Future<TestObject> future;
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
@@ -309,6 +314,11 @@ class OpenCmwDataSourceTest {
         dataSourcePublisher.stop();
     }
 
+    @Test
+    void testMiscellaneous() {
+        assertDoesNotThrow((ThrowingSupplier<TestObject>) TestObject::new);
+    }
+
     public static class TestObject {
         private String foo;
         private double bar;
@@ -319,6 +329,7 @@ class OpenCmwDataSourceTest {
         }
 
         public TestObject() {
+            // needed and access via reflection
             this.foo = "";
             this.bar = Double.NaN;
         }

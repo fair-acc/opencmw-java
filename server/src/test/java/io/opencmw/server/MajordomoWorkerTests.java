@@ -70,7 +70,7 @@ class MajordomoWorkerTests {
     @Test
     void testGetterSetter() {
         assertDoesNotThrow(() -> new MajordomoWorker<>(broker.getContext(), "testServiceName", TestContext.class, RequestDataType.class, ReplyDataType.class, BasicRbacRole.ADMIN));
-        assertDoesNotThrow(() -> new MajordomoWorker<>("mdp://localhost", "testServiceName", TestContext.class, RequestDataType.class, ReplyDataType.class, BasicRbacRole.ADMIN));
+        assertDoesNotThrow(() -> new MajordomoWorker<>(URI.create("mdp://localhost"), "testServiceName", TestContext.class, RequestDataType.class, ReplyDataType.class, BasicRbacRole.ADMIN));
 
         MajordomoWorker<TestContext, RequestDataType, ReplyDataType> internal = new MajordomoWorker<>(broker.getContext(), "testServiceName",
                 TestContext.class, RequestDataType.class, ReplyDataType.class, BasicRbacRole.ADMIN);
@@ -90,10 +90,10 @@ class MajordomoWorkerTests {
 
     @Test
     void simpleTest() throws IOException {
-        final MajordomoBroker broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());
+        final MajordomoBroker broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
-        final String brokerAddress = broker.bind("mdp://*:" + Utils.findOpenPort());
-        final String brokerPubAddress = broker.bind("mds://*:" + Utils.findOpenPort());
+        final URI brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
+        final URI brokerPubAddress = broker.bind(URI.create("mds://*:" + Utils.findOpenPort()));
         broker.start();
 
         RequestDataType inputData = new RequestDataType();
@@ -160,9 +160,9 @@ class MajordomoWorkerTests {
 
     @BeforeAll
     void startBroker() throws IOException {
-        broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());
+        broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
-        final String brokerAddress = broker.bind("mdp://*:" + Utils.findOpenPort());
+        final URI brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         broker.start();
 
         basicHtmlService = new TestHtmlService(broker.getContext());

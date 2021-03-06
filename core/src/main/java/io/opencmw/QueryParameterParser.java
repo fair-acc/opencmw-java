@@ -205,6 +205,20 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
                 .collect(Collectors.groupingBy(SimpleImmutableEntry::getKey, HashMap::new, mapping(Map.Entry::getValue, toList())));
     }
 
+    /**
+     * @param queryParam a query string as returned by @see{URI.getQuery()}
+     * @return map containing the parameters and keys for the query. If there are multiple parameters with the same key, the last one has precedence.
+     */
+    public static Map<String, String> getFlatMap(final String queryParam) {
+        if (queryParam == null || queryParam.isBlank()) {
+            return Collections.emptyMap();
+        }
+
+        return Arrays.stream(StringUtils.split(queryParam, "&;"))
+                .map(QueryParameterParser::splitQueryParameter)
+                .collect(Collectors.toMap(SimpleImmutableEntry::getKey, e -> e.getValue() == null ? "" : e.getValue(), (a, b) -> b));
+    }
+
     public static @NotNull MimeType getMimeType(final String queryString) {
         final List<String> mimeTypeList = QueryParameterParser.getMap(queryString).get(MIME_TYPE_TAG);
         return mimeTypeList == null || mimeTypeList.isEmpty() ? MimeType.UNKNOWN : MimeType.getEnum(mimeTypeList.get(mimeTypeList.size() - 1));

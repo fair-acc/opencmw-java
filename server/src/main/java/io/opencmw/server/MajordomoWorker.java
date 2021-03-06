@@ -54,7 +54,7 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
     protected Handler<C, I, O> handler;
     protected Handler<C, I, O> htmlHandler;
 
-    public MajordomoWorker(final String brokerAddress, final String serviceName,
+    public MajordomoWorker(final URI brokerAddress, final String serviceName,
             @NotNull final Class<C> contextClassType,
             @NotNull final Class<I> inputClassType,
             @NotNull final Class<O> outputClassType, final RbacRole<?>... rbacRoles) {
@@ -65,11 +65,11 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
             @NotNull final Class<C> contextClassType,
             @NotNull final Class<I> inputClassType,
             @NotNull final Class<O> outputClassType, final RbacRole<?>... rbacRoles) {
-        this(ctx, "inproc://broker", serviceName, contextClassType, inputClassType, outputClassType, rbacRoles);
+        this(ctx, URI.create("inproc://broker"), serviceName, contextClassType, inputClassType, outputClassType, rbacRoles);
     }
 
     @SuppressWarnings({ "PMD.ExcessiveMethodLength", "PMD.PrematureDeclaration" })
-    protected MajordomoWorker(final ZContext ctx, final String brokerAddress, final String serviceName,
+    protected MajordomoWorker(final ZContext ctx, final URI brokerAddress, final String serviceName,
             @NotNull final Class<C> contextClassType,
             @NotNull final Class<I> inputClassType,
             @NotNull final Class<O> outputClassType, final RbacRole<?>... rbacRoles) {

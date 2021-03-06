@@ -50,7 +50,12 @@
             <version>${revision}${sha1}${changelist}</version>
             <scope>test</scope>
         </dependency>
-
+        <dependency>
+            <groupId>com.github.oshi</groupId>
+            <artifactId>oshi-core</artifactId>
+            <version>5.6.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>

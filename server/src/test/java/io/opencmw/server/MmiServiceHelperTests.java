@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static io.opencmw.OpenCmwProtocol.Command.SET_REQUEST;
 
 import java.io.IOException;
+import java.net.URI;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -23,13 +24,13 @@ class MmiServiceHelperTests {
     private static final String DEFAULT_REQUEST_MESSAGE = "Hello World!";
     private static final byte[] DEFAULT_REQUEST_MESSAGE_BYTES = DEFAULT_REQUEST_MESSAGE.getBytes(UTF_8);
     private MajordomoBroker broker;
-    private String brokerAddress;
+    private URI brokerAddress;
 
     @BeforeAll
     void startBroker() throws IOException {
-        broker = new MajordomoBroker("TestBroker", "", BasicRbacRole.values());
+        broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
-        brokerAddress = broker.bind("mdp://*:" + Utils.findOpenPort());
+        brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         broker.start();
     }
 
@@ -79,7 +80,7 @@ class MmiServiceHelperTests {
     }
 
     @Test
-    void basicSerivceTest() {
+    void basicServiceTest() {
         MajordomoTestClientSync clientSession = new MajordomoTestClientSync(brokerAddress, "customClientName");
 
         {

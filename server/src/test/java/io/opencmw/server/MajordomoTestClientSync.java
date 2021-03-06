@@ -46,8 +46,8 @@ public class MajordomoTestClientSync {
     private final Formatter log = new Formatter(System.out);
     private ZMQ.Poller poller;
 
-    public MajordomoTestClientSync(String broker, String clientName) {
-        this.broker = broker.replace("mdp://", "tcp://");
+    public MajordomoTestClientSync(URI broker, String clientName) {
+        this.broker = broker.toString().replace("mdp://", "tcp://");
         ctx = new ZContext();
 
         uniqueID = clientName + "PID=" + ManagementFactory.getRuntimeMXBean().getName() + "-InstanceID=" + CLIENT_V1_INSTANCE.getAndIncrement();

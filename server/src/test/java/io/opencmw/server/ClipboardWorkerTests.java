@@ -6,6 +6,7 @@ import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
 import static io.opencmw.OpenCmwProtocol.Command.SET_REQUEST;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
@@ -33,16 +34,16 @@ class ClipboardWorkerTests {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClipboardWorkerTests.class);
     private static final String CLIPBOARD_SERVICE_NAME = "clipboard";
     private MajordomoBroker broker;
-    private String extBrokerRouterAddress;
-    private String extBrokerPublisherAddress;
+    private URI extBrokerRouterAddress;
+    private URI extBrokerPublisherAddress;
 
     @BeforeAll
     void init() throws IOException {
-        broker = new MajordomoBroker("TestMdpBroker", "", BasicRbacRole.values());
+        broker = new MajordomoBroker("TestMdpBroker", null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that
         // controls threads Can be called multiple times with different endpoints
-        extBrokerRouterAddress = broker.bind("mdp://localhost:" + Utils.findOpenPort());
-        extBrokerPublisherAddress = broker.bind("mds://localhost:" + Utils.findOpenPort());
+        extBrokerRouterAddress = broker.bind(URI.create("mdp://localhost:" + Utils.findOpenPort()));
+        extBrokerPublisherAddress = broker.bind(URI.create("mds://localhost:" + Utils.findOpenPort()));
         final ClipboardWorker clipboard = new ClipboardWorker(CLIPBOARD_SERVICE_NAME, broker.getContext(), null);
         assertEquals(CLIPBOARD_SERVICE_NAME, clipboard.getServiceName());
 

@@ -1,12 +1,13 @@
 package io.opencmw.client;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
-import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,10 +16,12 @@ import java.util.function.BiPredicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zeromq.*;
+import org.zeromq.SocketType;
+import org.zeromq.ZContext;
+import org.zeromq.ZFrame;
 import org.zeromq.ZMQ.Socket;
+import org.zeromq.ZMsg;
 
-import io.opencmw.OpenCmwProtocol;
 import io.opencmw.filter.SubscriptionMatcher;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.BinarySerialiser;
@@ -78,12 +81,12 @@ public class OpenCmwDataSource extends DataSource {
         if (MDP.equals(endpoint.getScheme())) {
             this.socket = context.createSocket(SocketType.DEALER);
             socket.setHWM(0);
-            socket.setIdentity(clientId.getBytes(StandardCharsets.UTF_8));
+            socket.setIdentity(clientId.getBytes(UTF_8));
             socket.connect("tcp://" + this.endpoint.getAuthority());
         } else if (MDS.equals(endpoint.getScheme())) {
             this.socket = context.createSocket(SocketType.SUB);
             socket.setHWM(0);
-            socket.setIdentity(clientId.getBytes(StandardCharsets.UTF_8));
+            socket.setIdentity(clientId.getBytes(UTF_8));
             socket.connect("tcp://" + this.endpoint.getAuthority()); // determine whether udp or tcp should be used
         } else if (MDR.equals(endpoint.getScheme())) {
             throw new UnsupportedOperationException("RADIO-DISH pattern is not yet implemented");
@@ -104,7 +107,7 @@ public class OpenCmwDataSource extends DataSource {
 
     @Override
     public ZMsg getMessage() {
-        final OpenCmwProtocol.MdpMessage msg = OpenCmwProtocol.MdpMessage.receive(socket, false);
+        final MdpMessage msg = MdpMessage.receive(socket, false);
         if (msg == null) {
             return null;
         }
@@ -120,7 +123,7 @@ public class OpenCmwDataSource extends DataSource {
         }
     }
 
-    private ZMsg handleRequest(final OpenCmwProtocol.MdpMessage msg) {
+    private ZMsg handleRequest(final MdpMessage msg) {
         switch (msg.command) {
         case PARTIAL:
         case FINAL:
@@ -152,7 +155,7 @@ public class OpenCmwDataSource extends DataSource {
         }
     }
 
-    private ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception) {
+    public static ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception) {
         final ZMsg result = new ZMsg();
         result.add(reqId);
         result.add(endpoint.toString());
@@ -169,44 +172,35 @@ public class OpenCmwDataSource extends DataSource {
     @Override
     public void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken) {
         subscriptions.put(reqId, endpoint);
-        final byte[] serviceId = endpoint.getPath().substring(1).getBytes(StandardCharsets.UTF_8);
+        final byte[] serviceId = endpoint.getPath().substring(1).getBytes(UTF_8);
         if (socket.getSocketType() == SocketType.DEALER) { // mpd
             // only tcp fallback?
-            final boolean sent = new OpenCmwProtocol.MdpMessage(null,
-                                                            PROT_CLIENT,
-                                                            SUBSCRIBE,
-                                                            serviceId,
-                                                            reqId.getBytes(StandardCharsets.UTF_8),
-                                                            endpoint,
-                                                            EMPTY_FRAME,
-                                                            "",
-                                                            rbacToken)
+            final boolean sent = new MdpMessage(null,
+                    PROT_CLIENT,
+                    SUBSCRIBE,
+                    serviceId,
+                    reqId.getBytes(UTF_8),
+                    endpoint,
+                    EMPTY_FRAME,
+                    "",
+                    rbacToken)
                                          .send(socket);
             if (!sent) {
                 LOGGER.atError().addArgument(reqId).addArgument(endpoint).log("subscription error (reqId: {}) for endpoint: {}");
             }
         } else { // mds
             final String id = endpoint.getPath().substring(1) + '?' + endpoint.getQuery();
-            socket.subscribe(id.getBytes(StandardCharsets.UTF_8));
+            socket.subscribe(id.getBytes(UTF_8));
         }
     }
 
     @Override
     public void unsubscribe(final String reqId) {
-        final URI subscriptionEndpoint = subscriptions.get(reqId);
-        final byte[] serviceId = subscriptionEndpoint.getPath().substring(1).getBytes(StandardCharsets.UTF_8);
+        final URI subscriptionEndpoint = subscriptions.remove(reqId);
+        final byte[] serviceId = subscriptionEndpoint.getPath().substring(1).getBytes(UTF_8);
         if (socket.getSocketType() == SocketType.DEALER) { // mdp
-            final boolean sent = new OpenCmwProtocol.MdpMessage(clientId.getBytes(StandardCharsets.UTF_8),
-                                                            PROT_CLIENT,
-                                                            UNSUBSCRIBE,
-                                                            serviceId,
-                                                            reqId.getBytes(StandardCharsets.UTF_8),
-                                                            endpoint,
-                                                            EMPTY_FRAME,
-                                                            "",
-                                                            null)
-                                         .send(socket);
-            if (!sent) {
+            final MdpMessage msg = new MdpMessage(clientId.getBytes(UTF_8), PROT_CLIENT, UNSUBSCRIBE, serviceId, reqId.getBytes(UTF_8), endpoint, EMPTY_FRAME, "", null);
+            if (!msg.send(socket)) {
                 LOGGER.atError().addArgument(reqId).addArgument(endpoint).log("unsubscribe error (reqId: {}) for endpoint: {}");
             }
         } else { // mds
@@ -217,18 +211,9 @@ public class OpenCmwDataSource extends DataSource {
     @Override
     public void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
         // todo: filters which are not in endpoint
-        final byte[] serviceId = endpoint.getPath().substring(1).getBytes(StandardCharsets.UTF_8);
-        final boolean sent = new OpenCmwProtocol.MdpMessage(null,
-                                                        PROT_CLIENT,
-                                                        GET_REQUEST,
-                                                        serviceId,
-                                                        requestId.getBytes(StandardCharsets.UTF_8),
-                                                        endpoint,
-                                                        EMPTY_FRAME,
-                                                        "",
-                                                        rbacToken)
-                                     .send(socket);
-        if (!sent) {
+        final byte[] serviceId = endpoint.getPath().substring(1).getBytes(UTF_8);
+        final MdpMessage msg = new MdpMessage(null, PROT_CLIENT, GET_REQUEST, serviceId, requestId.getBytes(UTF_8), endpoint, EMPTY_FRAME, "", rbacToken);
+        if (!msg.send(socket)) {
             LOGGER.atError().addArgument(requestId).addArgument(endpoint).log("get error (reqId: {}) for endpoint: {}");
         }
     }
@@ -236,18 +221,9 @@ public class OpenCmwDataSource extends DataSource {
     @Override
     public void set(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
         // todo: filters which are not in endpoint
-        final byte[] serviceId = endpoint.getPath().substring(1).getBytes(StandardCharsets.UTF_8);
-        final boolean sent = new OpenCmwProtocol.MdpMessage(null,
-                                                        PROT_CLIENT,
-                                                        SET_REQUEST,
-                                                        serviceId,
-                                                        requestId.getBytes(StandardCharsets.UTF_8),
-                                                        endpoint,
-                                                        data,
-                                                        "",
-                                                        rbacToken)
-                                     .send(socket);
-        if (!sent) {
+        final byte[] serviceId = endpoint.getPath().substring(1).getBytes(UTF_8);
+        final MdpMessage msg = new MdpMessage(null, PROT_CLIENT, SET_REQUEST, serviceId, requestId.getBytes(UTF_8), endpoint, data, "", rbacToken);
+        if (!msg.send(socket)) {
             LOGGER.atError().addArgument(requestId).addArgument(endpoint).log("set error (reqId: {}) for endpoint: {}");
         }
     }

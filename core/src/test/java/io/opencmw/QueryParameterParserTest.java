@@ -5,10 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.junit.jupiter.api.Test;
 
@@ -144,6 +141,26 @@ class QueryParameterParserTest {
         assertNull(map.get("param4"), "null for non-existent parameter");
 
         assertEquals(0, QueryParameterParser.getMap("").size(), "empty map for empty query string");
+    }
+
+    @Test
+    void testFlatMapFunction() {
+        final Map<String, String> reference1 = Map.of("param1", "value1", "param2", "value2");
+        URI uri1 = URI.create("https://opencmw.io?param1=value1&param2=value2");
+        final Map<String, String> map1 = QueryParameterParser.getFlatMap(uri1.getQuery());
+        assertEquals(reference1, map1);
+
+        final Map<String, String> reference2 = Map.of("param1", "value1", "param2", "", "param3", "");
+        URI uri2 = URI.create("https://opencmw.io?param1=value1&param2=&param3=value3&param3");
+        final Map<String, String> map2 = QueryParameterParser.getFlatMap(uri2.getQuery());
+        assertEquals(reference2, map2);
+
+        final Map<String, String> reference3 = Map.of("param2", "value2", "param1", "", "param3", "value3");
+        URI uri3 = URI.create("https://opencmw.io?param2=toBeOverwritten&param1=&param3=value3&param2=value2");
+        final Map<String, String> map3 = QueryParameterParser.getFlatMap(uri3.getQuery());
+        assertEquals(reference3, map3);
+
+        assertEquals(Collections.emptyMap(), QueryParameterParser.getMap(""), "empty map for empty query string");
     }
 
     @Test
