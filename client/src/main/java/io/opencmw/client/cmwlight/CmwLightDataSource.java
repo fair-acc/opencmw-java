@@ -1,8 +1,9 @@
 package io.opencmw.client.cmwlight;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.net.InetAddress;
 import java.net.URI;
