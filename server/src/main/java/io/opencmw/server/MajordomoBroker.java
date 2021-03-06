@@ -272,7 +272,7 @@ public class MajordomoBroker extends Thread {
         if (running.get()) {
             try {
                 this.join(heartBeatInterval);
-            } catch (InterruptedException e) {  // NOPMD NOSONAR -- re-throwing with different type
+            } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
                 throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
             }
         }

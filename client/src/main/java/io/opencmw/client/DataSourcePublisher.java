@@ -1,10 +1,10 @@
 package io.opencmw.client;
 
-import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
 import static io.opencmw.OpenCmwConstants.*;
+import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
 
