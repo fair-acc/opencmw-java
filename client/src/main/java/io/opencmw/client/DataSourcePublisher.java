@@ -116,7 +116,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     private final RbacProvider rbacProvider;
     private final ExecutorService executor; // NOPMD - threads are ok, not a webapp
     private final EventStore publicationTarget;
-    private AtomicReference<Thread> threadReference = new AtomicReference<>();
+    private final AtomicReference<Thread> threadReference = new AtomicReference<>();
 
     static { // register default data sources
         DataSource.register(CmwLightDataSource.FACTORY);
