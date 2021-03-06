@@ -1,6 +1,7 @@
 package io.opencmw.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.IOException;
 import java.net.URI;
@@ -57,7 +58,9 @@ class DnsDataSourceTests {
             assertEquals("deviceA/property,mmi.dns,mmi.echo,mmi.openapi,mmi.service", ZData.toString(reply2.get(TIMEOUT, TimeUnit.MILLISECONDS).data));
 
             final Future<BinaryData> reply3 = client.get(URI.create(dnsBrokerAddress + "/mmi.dns"), null, BinaryData.class);
-            assertEquals("", ZData.toString(reply3.get(TIMEOUT, TimeUnit.MILLISECONDS).data));
+            final byte[] dnsResult = reply3.get(TIMEOUT, TimeUnit.MILLISECONDS).data;
+            assertNotNull(dnsResult);
+            // System.err.println("dns query: '" + ZData.toString(dnsResult) + "'")
         }
     }
 
