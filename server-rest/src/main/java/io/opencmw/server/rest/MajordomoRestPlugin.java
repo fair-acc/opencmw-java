@@ -190,7 +190,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
 
         // perform initial get request
         String services = "(uninitialised)";
-        final CustomFuture<MdpMessage> reply = dispatchRequest(new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_NAMES.getBytes(UTF_8), EMPTY_FRAME, URI.create(INTERNAL_SERVICE_NAMES), EMPTY_FRAME, "", RBAC), true);
+        final CustomFuture<MdpMessage> reply = dispatchRequest(new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_NAMES.getBytes(UTF_8), EMPTY_FRAME, URI.create(INTERNAL_SERVICE_NAMES), EMPTY_FRAME, "", RBAC));
         try {
             final MdpMessage msg = reply.get();
             services = msg.data == null ? "" : new String(msg.data, UTF_8);
@@ -304,7 +304,12 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
 
                             // handle subscription message
                             if (brokerMsg.data != null && brokerMsg.getServiceName().startsWith(INTERNAL_SERVICE_NAMES)) {
-                                registerEndPoint(new String(brokerMsg.data, UTF_8)); // NOPMD in-loop instantiation necessary
+                                final String newServiceName = new String(brokerMsg.data, UTF_8); // NOPMD in-loop instantiation necessary
+                                registerEndPoint(newServiceName);
+                                // special handling for internal MMI interface
+                                if (newServiceName.contains("/mmi.")) {
+                                    registerEndPoint(StringUtils.split(newServiceName, "/", 2)[1]);
+                                }
                             }
                             notifySubscribedClients(brokerMsg.topic);
                         }
@@ -327,7 +332,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             // needs to be synchronised since Javalin get(..), put(..) seem to be not thread safe (usually initialised during startup)
             registeredEndpoints.computeIfAbsent(endpoint, ep -> {
                 final MdpMessage requestMsg = new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_OPENAPI.getBytes(UTF_8), EMPTY_FRAME, URI.create(INTERNAL_SERVICE_OPENAPI), ep.getBytes(UTF_8), "", RBAC);
-                final CustomFuture<MdpMessage> openApiReply = dispatchRequest(requestMsg, true);
+                final CustomFuture<MdpMessage> openApiReply = dispatchRequest(requestMsg);
                 try {
                     final MdpMessage serviceOpenApiData = openApiReply.get();
                     if (!serviceOpenApiData.errors.isBlank()) {
@@ -403,15 +408,9 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         return openApi;
     }
 
-    private CustomFuture<MdpMessage> dispatchRequest(final MdpMessage requestMsg, final boolean expectReply) {
+    private CustomFuture<MdpMessage> dispatchRequest(final MdpMessage requestMsg) {
         final String requestID = MajordomoRestPlugin.class.getSimpleName() + "#" + REQUEST_COUNTER.getAndIncrement();
         requestMsg.clientRequestID = requestID.getBytes(UTF_8);
-
-        if (expectReply) {
-            requestMsg.clientRequestID = requestID.getBytes(UTF_8);
-        } else {
-            requestMsg.clientRequestID = REST_SUB_ID;
-        }
         CustomFuture<MdpMessage> reply = new CustomFuture<>();
         final Object ret = requestReplies.put(requestID, reply);
         if (ret != null) {
@@ -461,7 +460,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             }
             final MdpMessage requestMsg = new MdpMessage(null, PROT_CLIENT, cmd, service.getBytes(UTF_8), EMPTY_FRAME, topic, requestData, "", RBAC);
 
-            CustomFuture<MdpMessage> reply = dispatchRequest(requestMsg, true);
+            CustomFuture<MdpMessage> reply = dispatchRequest(requestMsg);
             try {
                 final MdpMessage replyMessage = reply.get(); //TODO: add max time-out -- only if not long-polling (to be checked)
                 MimeType replyMimeType = QueryParameterParser.getMimeType(replyMessage.topic.getQuery());
@@ -507,7 +506,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                     return;
                 default:
                 }
-                throw new BadRequestResponse(MajordomoRestPlugin.class.getName() + ": could not process service '" + service + "' - exception:\n" + e.getMessage()); // NOPMD original exception forwared within the text, BadRequestResponse does not support exception forwarding
+                throw new BadRequestResponse(MajordomoRestPlugin.class.getName() + ": could not process service '" + service + "' - exception:\n" + e.getMessage()); // NOPMD original exception forwarded within the text, BadRequestResponse does not support exception forwarding
             }
         }, newSseClientHandler);
     }

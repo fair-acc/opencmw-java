@@ -13,6 +13,8 @@ import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
 import static io.opencmw.server.MmiServiceHelper.INTERNAL_SERVICE_DNS;
+import static io.opencmw.server.MmiServiceHelper.INTERNAL_SERVICE_ECHO;
+import static io.opencmw.server.MmiServiceHelper.INTERNAL_SERVICE_NAMES;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 
 import java.io.IOException;
@@ -27,14 +29,14 @@ import org.zeromq.SocketType;
 import org.zeromq.Utils;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
+import org.zeromq.util.ZData;
 
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacToken;
 
 class MajordomoBrokerTests {
     private static final byte[] DEFAULT_RBAC_TOKEN = new RbacToken(BasicRbacRole.ADMIN, "HASHCODE").getBytes();
-    private static final String DEFAULT_MMI_SERVICE = "mmi.service";
-    private static final String DEFAULT_ECHO_SERVICE = "mmi.echo";
+    private static final String DEFAULT_BROKER_NAME = "TestMdpBroker";
     private static final String DEFAULT_REQUEST_MESSAGE = "Hello World!";
     private static final byte[] DEFAULT_REQUEST_MESSAGE_BYTES = DEFAULT_REQUEST_MESSAGE.getBytes(UTF_8);
 
@@ -44,7 +46,7 @@ class MajordomoBrokerTests {
      * @param args none
      */
     public static void main(String[] args) {
-        MajordomoBroker broker = new MajordomoBroker("TestMdpBroker", URI.create("tcp://*:5555"), BasicRbacRole.values());
+        MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, URI.create("tcp://*:5555"), BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that
         // controls threads Can be called multiple times with different endpoints
         broker.bind(URI.create("tcp://*:5555"));
@@ -62,7 +64,7 @@ class MajordomoBrokerTests {
 
     @Test
     void basicLowLevelRequestReplyTest() throws IOException {
-        MajordomoBroker broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
+        MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
         final URI brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         assertFalse(broker.isRunning(), "broker not running");
@@ -88,14 +90,14 @@ class MajordomoBrokerTests {
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
 
         final byte[] clientRequestID = "unit-test-clientRequestID".getBytes(UTF_8);
-        new MdpMessage(null, PROT_CLIENT, GET_REQUEST, DEFAULT_ECHO_SERVICE.getBytes(UTF_8), clientRequestID, URI.create(DEFAULT_ECHO_SERVICE), DEFAULT_REQUEST_MESSAGE_BYTES, "", new byte[0]).send(clientSocket);
+        new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_ECHO.getBytes(UTF_8), clientRequestID, URI.create(INTERNAL_SERVICE_ECHO), DEFAULT_REQUEST_MESSAGE_BYTES, "", new byte[0]).send(clientSocket);
         final MdpMessage clientMessage = MdpMessage.receive(clientSocket);
         assertNotNull(clientMessage, "reply message w/o RBAC token not being null");
         assertNotNull(clientMessage.toString());
         assertNotNull(clientMessage.senderID); // default dealer socket does not export sender ID (only ROUTER and/or enabled sockets)
         assertEquals(MdpSubProtocol.PROT_CLIENT, clientMessage.protocol, "equal protocol");
         assertEquals(FINAL, clientMessage.command, "matching command");
-        assertArrayEquals(DEFAULT_ECHO_SERVICE.getBytes(UTF_8), clientMessage.serviceNameBytes, "equal service name");
+        assertArrayEquals((DEFAULT_BROKER_NAME + '/' + INTERNAL_SERVICE_ECHO).getBytes(UTF_8), clientMessage.serviceNameBytes, "equal service name: " + ZData.toString(clientMessage.serviceNameBytes));
         assertNotNull(clientMessage.data, "user-data not being null");
         assertArrayEquals(DEFAULT_REQUEST_MESSAGE_BYTES, clientMessage.data, "equal data");
         assertFalse(clientMessage.hasRbackToken());
@@ -106,8 +108,8 @@ class MajordomoBrokerTests {
     }
 
     @Test
-    void basicSynchronousRequestReplyTest() throws IOException {
-        final MajordomoBroker broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
+    void basicSynchronousRequestReplyTest() throws IOException { // NOSONAR - we need the asserts
+        final MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
         final URI brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         broker.start();
@@ -194,7 +196,7 @@ class MajordomoBrokerTests {
 
     @Test
     void basicMmiTests() throws IOException {
-        MajordomoBroker broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
+        MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
         final int openPort = Utils.findOpenPort();
         broker.bind(URI.create("tcp://*:" + openPort));
@@ -211,14 +213,14 @@ class MajordomoBrokerTests {
         }
 
         {
-            final MdpMessage replyWithoutRbac = clientSession.send(SET_REQUEST, DEFAULT_MMI_SERVICE, DEFAULT_MMI_SERVICE.getBytes(UTF_8)); // w/o RBAC
+            final MdpMessage replyWithoutRbac = clientSession.send(SET_REQUEST, INTERNAL_SERVICE_NAMES, INTERNAL_SERVICE_NAMES.getBytes(UTF_8)); // w/o RBAC
             assertNotNull(replyWithoutRbac, "reply message w/o RBAC token not being null");
             assertNotNull(replyWithoutRbac.data, "user-data not being null");
             assertEquals("200", new String(replyWithoutRbac.data, UTF_8), "known MMI service request");
         }
 
         {
-            final MdpMessage replyWithoutRbac = clientSession.send(SET_REQUEST, DEFAULT_MMI_SERVICE, DEFAULT_ECHO_SERVICE.getBytes(UTF_8)); // w/o RBAC
+            final MdpMessage replyWithoutRbac = clientSession.send(SET_REQUEST, INTERNAL_SERVICE_NAMES, INTERNAL_SERVICE_ECHO.getBytes(UTF_8)); // w/o RBAC
             assertNotNull(replyWithoutRbac, "reply message w/o RBAC token not being null");
             assertNotNull(replyWithoutRbac.data, "user-data not being null");
             assertEquals("200", new String(replyWithoutRbac.data, UTF_8), "known MMI service request");
@@ -226,7 +228,7 @@ class MajordomoBrokerTests {
 
         {
             // MMI service request: service should not exist
-            final MdpMessage replyWithoutRbac = clientSession.send(SET_REQUEST, DEFAULT_MMI_SERVICE, DEFAULT_REQUEST_MESSAGE_BYTES); // w/o RBAC
+            final MdpMessage replyWithoutRbac = clientSession.send(SET_REQUEST, INTERNAL_SERVICE_NAMES, DEFAULT_REQUEST_MESSAGE_BYTES); // w/o RBAC
             assertNotNull(replyWithoutRbac, "reply message w/o RBAC token not being null");
             assertNotNull(replyWithoutRbac.data, "user-data not being null");
             assertEquals("400", new String(replyWithoutRbac.data, UTF_8), "known MMI service request");
@@ -245,7 +247,7 @@ class MajordomoBrokerTests {
             final MdpMessage replyWithoutRbac = clientSession.send(GET_REQUEST, INTERNAL_SERVICE_DNS, EMPTY_FRAME); // w/o RBAC
             assertNotNull(replyWithoutRbac, "reply message w/o RBAC token not being null");
             assertNotNull(replyWithoutRbac.data, "user-data not being null");
-            assertTrue(new String(replyWithoutRbac.data, UTF_8).startsWith("[TestBroker: "), "unknown MMI service request");
+            assertTrue(new String(replyWithoutRbac.data, UTF_8).startsWith("[" + DEFAULT_BROKER_NAME + ": "), "unknown MMI service request");
         }
 
         broker.stopBroker();
@@ -253,7 +255,7 @@ class MajordomoBrokerTests {
 
     @Test
     void basicASynchronousRequestReplyTest() throws IOException {
-        MajordomoBroker broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
+        MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
         final URI brokerAddress = broker.bind(URI.create("tcp://*:" + Utils.findOpenPort()));
         broker.start();
@@ -269,7 +271,7 @@ class MajordomoBrokerTests {
             // send bursts of 10 messages
             for (int i = 0; i < 5; i++) {
                 clientSession.send("mmi.echo", DEFAULT_REQUEST_MESSAGE_BYTES);
-                clientSession.send(DEFAULT_ECHO_SERVICE, DEFAULT_REQUEST_MESSAGE_BYTES);
+                clientSession.send(INTERNAL_SERVICE_ECHO, DEFAULT_REQUEST_MESSAGE_BYTES);
             }
 
             // receive bursts of 10 messages
@@ -290,7 +292,7 @@ class MajordomoBrokerTests {
 
     @Test
     void testSubscription() throws IOException {
-        final MajordomoBroker broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
+        final MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
         final URI brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         final URI brokerPubAddress = broker.bind(URI.create("mds://*:" + Utils.findOpenPort()));
@@ -342,7 +344,7 @@ class MajordomoBrokerTests {
         // low-level subscription
         final AtomicInteger subCounter = new AtomicInteger(0);
         final AtomicBoolean started2 = new AtomicBoolean(false);
-        final Thread subcriptionThread = new Thread(() -> {
+        final Thread subscriptionThread = new Thread(() -> {
             // low-level subscription
             final ZMQ.Socket sub = broker.getContext().createSocket(SocketType.SUB);
             sub.setHWM(0);
@@ -361,7 +363,7 @@ class MajordomoBrokerTests {
             }
             sub.unsubscribe("device/property");
         });
-        subcriptionThread.start();
+        subscriptionThread.start();
 
         // wait until all services are initialised
         await().alias("wait for thread1 to start").atMost(1, TimeUnit.SECONDS).until(started1::get, equalTo(true));
@@ -373,7 +375,7 @@ class MajordomoBrokerTests {
 
         await().alias("wait for reply messages").atMost(2, TimeUnit.SECONDS).until(counter::get, equalTo(10));
         run.set(false);
-        await().alias("wait for subscription thread shut-down").atMost(1, TimeUnit.SECONDS).until(subcriptionThread::isAlive, equalTo(false));
+        await().alias("wait for subscription thread shut-down").atMost(1, TimeUnit.SECONDS).until(subscriptionThread::isAlive, equalTo(false));
         assertEquals(10, counter.get(), "received expected number of replies");
         assertEquals(10, subCounter.get(), "received expected number of subscription replies");
 
@@ -382,10 +384,10 @@ class MajordomoBrokerTests {
 
     @Test
     void testMisc() {
-        final MajordomoBroker broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
+        final MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         assertDoesNotThrow(() -> broker.new Client(null, "testClient", "testClient".getBytes(UTF_8)));
         final MajordomoBroker.Client testClient = broker.new Client(null, "testClient", "testClient".getBytes(UTF_8));
-        final MdpMessage testMsg = new MdpMessage(null, PROT_CLIENT, GET_REQUEST, DEFAULT_ECHO_SERVICE.getBytes(UTF_8), EMPTY_FRAME, URI.create(DEFAULT_ECHO_SERVICE), DEFAULT_REQUEST_MESSAGE_BYTES, "", new byte[0]);
+        final MdpMessage testMsg = new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_ECHO.getBytes(UTF_8), EMPTY_FRAME, URI.create(INTERNAL_SERVICE_ECHO), DEFAULT_REQUEST_MESSAGE_BYTES, "", new byte[0]);
         assertDoesNotThrow(() -> testClient.offerToQueue(testMsg));
         assertEquals(testMsg, testClient.pop());
     }

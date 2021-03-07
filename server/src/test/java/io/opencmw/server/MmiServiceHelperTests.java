@@ -8,7 +8,19 @@ import static io.opencmw.OpenCmwProtocol.Command.SET_REQUEST;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -22,13 +34,14 @@ import io.opencmw.rbac.BasicRbacRole;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class MmiServiceHelperTests {
     private static final String DEFAULT_REQUEST_MESSAGE = "Hello World!";
+    private static final String DEFAULT_BROKER_NAME = "TestBroker";
     private static final byte[] DEFAULT_REQUEST_MESSAGE_BYTES = DEFAULT_REQUEST_MESSAGE.getBytes(UTF_8);
     private MajordomoBroker broker;
     private URI brokerAddress;
 
     @BeforeAll
     void startBroker() throws IOException {
-        broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
+        broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
         brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         broker.start();
@@ -66,7 +79,30 @@ class MmiServiceHelperTests {
         final OpenCmwProtocol.MdpMessage reply = clientSession.send(SET_REQUEST, "mmi.dns", DEFAULT_REQUEST_MESSAGE_BYTES); // w/o RBAC
         assertNotNull(reply, "reply not being null");
         assertNotNull(reply.data, "user-data not being null");
-        assertTrue(ZData.toString(reply.data).startsWith("[TestBroker: mdp://"));
+        assertTrue(ZData.toString(reply.data).startsWith("[" + DEFAULT_BROKER_NAME + ": mdp://"));
+
+        final OpenCmwProtocol.MdpMessage dnsAll = clientSession.send(SET_REQUEST, "mmi.dns", DEFAULT_REQUEST_MESSAGE_BYTES); // w/o RBAC
+        assertNotNull(dnsAll, "dnsAll not being null");
+        assertNotNull(dnsAll.data, "dnsAll user-data not being null");
+        final Map<String, List<URI>> dnsMapAll = parseDnsReply(dnsAll.data);
+        assertFalse(dnsMapAll.isEmpty());
+        assertFalse(dnsMapAll.get(DEFAULT_BROKER_NAME).isEmpty());
+        // System.err.println("dnsMapAll: '" + dnsMapAll + "'\n") // enable for debugging
+
+        final List<String> queryDevice = Arrays.asList("mdp:/TestBroker/mmi.service", "/TestBroker/mmi.openapi", "mds:/TestBroker/mmi.service", "/TestBroker", "unknown");
+        final String query = String.join(",", queryDevice);
+        final OpenCmwProtocol.MdpMessage dnsSpecific = clientSession.send(SET_REQUEST, "mmi.dns?" + query, DEFAULT_REQUEST_MESSAGE_BYTES); // w/o RBAC
+        assertNotNull(dnsSpecific, "dnsSpecific not being null");
+        assertNotNull(dnsSpecific.data, " dnsSpecificuser-data not being null");
+        final Map<String, List<URI>> dnsMapSelective = parseDnsReply(dnsSpecific.data);
+        System.err.println("dnsMapSelective: '" + dnsMapSelective + "'\n"); // enable for debugging
+        assertFalse(dnsMapSelective.isEmpty());
+        assertEquals(5, dnsMapSelective.size());
+        assertEquals(1, dnsMapSelective.get("mdp:/TestBroker/mmi.service").size(), "match full scheme and path");
+        assertEquals(1, dnsMapSelective.get("/TestBroker/mmi.openapi").size(), "match full path w/o scheme");
+        assertEquals(4, dnsMapSelective.get("/TestBroker").size(), "list of all properties for a given device");
+        assertTrue(dnsMapSelective.get("mds:/TestBroker/mmi.service").isEmpty(), "protocol mismatch");
+        assertTrue(dnsMapSelective.get("unknown").isEmpty(), "unknown service/device");
     }
 
     @Test
@@ -76,7 +112,7 @@ class MmiServiceHelperTests {
         final OpenCmwProtocol.MdpMessage reply = clientSession.send(SET_REQUEST, "mmi.dns?contentType=HTML", DEFAULT_REQUEST_MESSAGE_BYTES); // w/o RBAC
         assertNotNull(reply, "reply not being null");
         assertNotNull(reply.data, "user-data not being null");
-        assertTrue(ZData.toString(reply.data).startsWith("[TestBroker: mdp://"));
+        assertTrue(ZData.toString(reply.data).startsWith("[" + DEFAULT_BROKER_NAME + ": mdp://"), " reply data was: " + ZData.toString(reply.data));
     }
 
     @Test
@@ -87,7 +123,10 @@ class MmiServiceHelperTests {
             final OpenCmwProtocol.MdpMessage reply = clientSession.send(SET_REQUEST, "mmi.service", "".getBytes(UTF_8)); // w/o RBAC
             assertNotNull(reply, "reply not being null");
             assertNotNull(reply.data, "user-data not being null");
-            assertTrue(ZData.toString(reply.data).startsWith("mmi.dns,mmi.echo,mmi.openapi,mmi.service"));
+            assertTrue(ZData.toString(reply.data).contains(DEFAULT_BROKER_NAME + "/mmi.dns"));
+            assertTrue(ZData.toString(reply.data).contains(DEFAULT_BROKER_NAME + "/mmi.echo"));
+            assertTrue(ZData.toString(reply.data).contains(DEFAULT_BROKER_NAME + "/mmi.openapi"));
+            assertTrue(ZData.toString(reply.data).contains(DEFAULT_BROKER_NAME + "/mmi.service"));
         }
 
         {
@@ -113,7 +152,10 @@ class MmiServiceHelperTests {
             final OpenCmwProtocol.MdpMessage reply = clientSession.send(SET_REQUEST, "mmi.service?contentType=HTML", "".getBytes(UTF_8)); // w/o RBAC
             assertNotNull(reply, "reply not being null");
             assertNotNull(reply.data, "user-data not being null");
-            assertTrue(ZData.toString(reply.data).startsWith("<a href=\"/mmi.dns\">mmi.dns</a>,<a href=\"/mmi.echo\">mmi.echo</a>,<a href=\"/mmi.openapi\">mmi.openapi</a>,<a href=\"/mmi.service\">mmi.service</a>"));
+            assertTrue(ZData.toString(reply.data).contains("<a href=\"/" + DEFAULT_BROKER_NAME + "/mmi.dns\">"));
+            assertTrue(ZData.toString(reply.data).contains("<a href=\"/" + DEFAULT_BROKER_NAME + "/mmi.echo\">"));
+            assertTrue(ZData.toString(reply.data).contains("<a href=\"/" + DEFAULT_BROKER_NAME + "/mmi.openapi\">"));
+            assertTrue(ZData.toString(reply.data).contains("<a href=\"/" + DEFAULT_BROKER_NAME + "/mmi.service\">"));
         }
 
         {
@@ -150,5 +192,48 @@ class MmiServiceHelperTests {
         assertNotNull(reply.data, "user-data not being null");
         assertNotNull(reply.errors);
         assertFalse(reply.errors.isBlank());
+    }
+
+    private static Map<String, List<URI>> parseDnsReply(final byte[] dnsReply) {
+        final HashMap<String, List<URI>> map = new HashMap<>();
+        if (dnsReply == null || dnsReply.length == 0 || !isUTF8(dnsReply)) {
+            return map;
+        }
+        final String reply = new String(dnsReply, UTF_8);
+        if (reply.isBlank()) {
+            return map;
+        }
+
+        // parse reply
+        Pattern dnsPattern = Pattern.compile("\\[(.*?)]"); // N.B. need only one instance of this
+        final Matcher matchPattern = dnsPattern.matcher(reply);
+        while (matchPattern.find()) {
+            final String device = matchPattern.group(1);
+            final String[] message = device.split("(: )", 2);
+            assert message.length == 2 : "could not split into 2 segments: " + device;
+            final List<URI> uriList = map.computeIfAbsent(message[0], deviceName -> new ArrayList<>());
+            for (String uriString : StringUtils.split(message[1], ",")) {
+                if (!"null".equalsIgnoreCase(uriString)) {
+                    try {
+                        uriList.add(new URI(StringUtils.strip(uriString)));
+                    } catch (final URISyntaxException e) {
+                        System.err.println("could not parse device '" + message[0] + "' uri: '" + uriString + "' cause: " + e);
+                    }
+                }
+            }
+        }
+
+        return map;
+    }
+
+    private static boolean isUTF8(byte[] array) {
+        final CharsetDecoder decoder = UTF_8.newDecoder();
+        final ByteBuffer buf = ByteBuffer.wrap(array);
+        try {
+            decoder.decode(buf);
+        } catch (CharacterCodingException e) {
+            return false;
+        }
+        return true;
     }
 }

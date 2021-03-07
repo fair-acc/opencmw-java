@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,12 +30,14 @@ public final class ClassUtils { //NOPMD nomen est omen
     private static final Map<Class<?>, Class<?>> WRAPPER_PRIMITIVE_MAP = new HashMap<>();
     private static final Map<Class<?>, Class<?>> PRIMITIVE_ARRAY_BOXED_MAP = new HashMap<>();
     private static final Map<Class<?>, Class<?>> BOXED_ARRAY_PRIMITIVE_MAP = new HashMap<>();
-    public static final Map<Class<?>, String> DO_NOT_PARSE_MAP = new HashMap<>(); // NOPMD should not be a threading issue - static one-time/init write, multiple reads afterwards are safe
+    public static final Map<Class<?>, String> DO_NOT_PARSE_MAP = new HashMap<>(); // NOPMD NOSONAR should not be a threading issue - static one-time/init write, multiple reads afterwards are safe
     private static final Map<Integer, ClassFieldDescription> CLASS_FIELD_DESCRIPTION_MAP = new ConcurrentHashMap<>();
     private static final Map<String, Class<?>> CLASS_STRING_MAP = new ConcurrentHashMap<>();
     private static final Map<Class<?>, Map<String, Method>> CLASS_METHOD_MAP = new ConcurrentHashMap<>();
     private static int indentationNumberOfSpace = 4;
     private static int maxRecursionDepth = 10;
+
+    public static final String DOES_NOT_LIKE_TO_BE_PARSED = "does not like to be parsed";
 
     static {
         // primitive types
@@ -64,8 +68,10 @@ public final class ClassUtils { //NOPMD nomen est omen
         // do not parse following classes
         DO_NOT_PARSE_MAP.put(Class.class, "private java implementation");
         DO_NOT_PARSE_MAP.put(Thread.class, "recursive definitions"); // NOPMD - not an issue/not a use within a J2EE context
-        DO_NOT_PARSE_MAP.put(AtomicBoolean.class, "does not like to be parsed");
-        DO_NOT_PARSE_MAP.put(URI.class, "does not like to be parsed");
+        DO_NOT_PARSE_MAP.put(AtomicBoolean.class, DOES_NOT_LIKE_TO_BE_PARSED);
+        DO_NOT_PARSE_MAP.put(AtomicInteger.class, DOES_NOT_LIKE_TO_BE_PARSED);
+        DO_NOT_PARSE_MAP.put(AtomicReference.class, DOES_NOT_LIKE_TO_BE_PARSED);
+        DO_NOT_PARSE_MAP.put(URI.class, DOES_NOT_LIKE_TO_BE_PARSED);
     }
     private ClassUtils() {
         // utility class

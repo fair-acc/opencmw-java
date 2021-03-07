@@ -1,11 +1,15 @@
 #if (!$noMenu)
     #parse("/velocity/layout.vm")
     #@mainLayout()
+    <div style="word-wrap: break-word">
         $textBody
+    </div>
     #end
 #else
     #parse("/velocity/layoutNoFrame.vm")
     #@mainLayoutNoFrame()
+    <div style="word-wrap: break-word">
         $textBody
+    </div>
     #end
 #end
