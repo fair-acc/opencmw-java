@@ -45,7 +45,7 @@
         <version.jmh>1.28</version.jmh>
         <version.micrometer>1.6.4</version.micrometer>
         <version.velocity>2.2</version.velocity>
-        <version.chartfx>11.2.3</version.chartfx>
+        <version.chartfx>11.2.4</version.chartfx>
     </properties>
 
     <licenses>
