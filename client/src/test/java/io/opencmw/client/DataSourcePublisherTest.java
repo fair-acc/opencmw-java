@@ -10,7 +10,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Timer;
@@ -24,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.awaitility.Awaitility;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -44,28 +47,34 @@ import io.opencmw.serialiser.IoClassSerialiser;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.BinarySerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
+import io.opencmw.utils.NoDuplicatesList;
 
 @Timeout(30)
 class DataSourcePublisherTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisherTest.class);
     private static final AtomicReference<TestObject> testObject = new AtomicReference<>();
     private static final String TEST_ERROR_MSG = "Test error occurred";
-
+    private static final List<DnsResolver> RESOLVERS = Collections.synchronizedList(new NoDuplicatesList<>());
     private static class TestDataSource extends DataSource {
         public static final Factory FACTORY = new Factory() {
             @Override
-            public boolean matches(final URI endpoint) {
-                return endpoint.getScheme().equals("test");
+            public List<String> getApplicableSchemes() {
+                return List.of("test");
             }
 
             @Override
-            public Class<? extends IoSerialiser> getMatchingSerialiserType(final URI endpoint) {
+            public Class<? extends IoSerialiser> getMatchingSerialiserType(final @NotNull URI endpoint) {
                 return BinarySerialiser.class;
             }
 
             @Override
-            public DataSource newInstance(final ZContext context, final URI endpoint, final Duration timeout, final String clientId) {
+            public DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull String clientId) {
                 return new TestDataSource(context, endpoint);
+            }
+
+            @Override
+            public List<DnsResolver> getRegisteredDnsResolver() {
+                return RESOLVERS;
             }
         };
         private final static String INPROC = "inproc://testDataSource";
@@ -172,6 +181,11 @@ class DataSourcePublisherTest {
         }
 
         @Override
+        public void close() {
+            socket.close();
+        }
+
+        @Override
         protected Factory getFactory() {
             return FACTORY;
         }
@@ -193,8 +207,8 @@ class DataSourcePublisherTest {
     }
 
     public static class TestContext {
-        public String ctx;
-        public String filter;
+        public final String ctx;
+        public final String filter;
 
         public TestContext(final String ctx, final String filter) {
             this.ctx = ctx;
@@ -281,7 +295,7 @@ class DataSourcePublisherTest {
         new Thread(dataSourcePublisher).start();
 
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            client.subscribe(new URI("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), TestObject.class);
+            client.subscribe(new URI("test://foobar/testDevice/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), TestObject.class);
         }
 
         Awaitility.waitAtMost(Duration.ofSeconds(10)).until(eventReceived::get);
@@ -315,7 +329,7 @@ class DataSourcePublisherTest {
             }
         };
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            client.subscribe(URI.create("test://foobar/testdev/prop"), TestObject.class, ctx, TestContext.class, listener);
+            client.subscribe(URI.create("test://foobar/testDevice/prop"), TestObject.class, ctx, TestContext.class, listener);
         }
 
         Awaitility.waitAtMost(Duration.ofSeconds(1)).until(eventReceived::get);
@@ -346,7 +360,7 @@ class DataSourcePublisherTest {
             }
         };
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            client.subscribe(URI.create("test://foobar/testdev/prop"), TestObject.class, ctx, TestContext.class, listener);
+            client.subscribe(URI.create("test://foobar/testDevice/prop"), TestObject.class, ctx, TestContext.class, listener);
         }
 
         Awaitility.waitAtMost(Duration.ofSeconds(1)).until(exceptionReceived::get);
@@ -368,7 +382,7 @@ class DataSourcePublisherTest {
 
         final Future<TestObject> future;
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            future = client.get(new URI("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), null, TestObject.class);
+            future = client.get(new URI("test://foobar/testDevice/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), null, TestObject.class);
         }
 
         final TestObject result = future.get(1000, TimeUnit.MILLISECONDS);
@@ -391,7 +405,7 @@ class DataSourcePublisherTest {
 
         final Future<TestObject> future;
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            future = client.get(URI.create("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), null, TestObject.class);
+            future = client.get(URI.create("test://foobar/testDevice/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), null, TestObject.class);
         }
 
         try {
@@ -419,7 +433,7 @@ class DataSourcePublisherTest {
 
         final Future<TestObject> future;
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
-            future = client.get(new URI("test://foobar/testdev/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), null, TestObject.class);
+            future = client.get(new URI("test://foobar/testDevice/prop?ctx=FAIR.SELECTOR.ALL&filter=foobar"), null, TestObject.class);
         }
 
         assertNotNull(future);
@@ -480,9 +494,9 @@ class DataSourcePublisherTest {
     @Test
     void testHelperFunctions() throws URISyntaxException {
         assertEquals("device", getDeviceName(URI.create("mdp:/device/property/sub-property")));
-        assertEquals("device", getDeviceName(URI.create("mdp://authrority/device/property/sub-property")));
-        assertEquals("device", getDeviceName(URI.create("mdp://authrority//device/property/sub-property")));
-        assertEquals("authrority", URI.create("mdp://authrority//device/property/sub-property").getAuthority());
+        assertEquals("device", getDeviceName(URI.create("mdp://authority/device/property/sub-property")));
+        assertEquals("device", getDeviceName(URI.create("mdp://authority//device/property/sub-property")));
+        assertEquals("authority", URI.create("mdp://authority//device/property/sub-property").getAuthority());
         assertEquals("property/sub-property", getPropertyName(URI.create("mdp:/device/property/sub-property")));
         assertEquals("property/sub-property", getPropertyName(URI.create("mdp:/device/property/sub-property")));
 

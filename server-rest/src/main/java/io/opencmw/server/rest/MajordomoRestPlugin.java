@@ -291,13 +291,16 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             shallRun.set(true);
             try (ZMQ.Poller subPoller = ctx.createPoller(1)) {
                 subPoller.register(subSocket, ZMQ.Poller.POLLIN);
-                while (shallRun.get() && !Thread.interrupted() && subPoller.poll(TimeUnit.MILLISECONDS.toMillis(100)) != -1) {
+                while (shallRun.get() && !Thread.interrupted() && !ctx.isClosed() && subPoller.poll(TimeUnit.MILLISECONDS.toMillis(100)) != -1) {
+                    if (ctx.isClosed()) {
+                        break;
+                    }
                     // handle message from or to broker
                     boolean dataReceived = true;
-                    while (dataReceived) {
+                    while (dataReceived && !ctx.isClosed()) {
                         dataReceived = false;
                         // handle subscription message from or to broker
-                        final MdpMessage brokerMsg = receive(subSocket, true);
+                        final MdpMessage brokerMsg = receive(subSocket, false);
                         if (brokerMsg != null) {
                             dataReceived = true;
                             liveness = heartBeatLiveness;

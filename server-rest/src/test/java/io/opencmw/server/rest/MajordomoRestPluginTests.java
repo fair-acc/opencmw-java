@@ -1,5 +1,7 @@
 package io.opencmw.server.rest;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -9,9 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -33,8 +34,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.opencmw.MimeType;
+import io.opencmw.domain.BinaryData;
+import io.opencmw.domain.NoData;
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.server.MajordomoBroker;
+import io.opencmw.server.MajordomoWorker;
 import io.opencmw.server.rest.test.HelloWorldService;
 import io.opencmw.server.rest.test.ImageService;
 
@@ -51,17 +55,20 @@ import zmq.util.Utils;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class MajordomoRestPluginTests {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPluginTests.class);
-    private MajordomoBroker primaryBroker;
-    private MajordomoRestPlugin restPlugin;
-    private URI brokerRouterAddress;
-    private MajordomoBroker secondaryBroker;
-    private URI secondaryBrokerRouterAddress;
-    private OkHttpClient okHttp;
+    private static final Duration STARTUP = Duration.ofSeconds(3);
+    public static final String PRIMARY_BROKER = "PrimaryBroker";
+    public static final String SECONDARY_BROKER = "SecondaryBroker";
+    private static MajordomoBroker primaryBroker;
+    private static MajordomoRestPlugin restPlugin;
+    private static URI brokerRouterAddress;
+    private static MajordomoBroker secondaryBroker;
+    private static URI secondaryBrokerRouterAddress;
+    private static OkHttpClient okHttp;
 
     @BeforeAll
-    void init() throws IOException {
+    static void init() throws IOException {
         okHttp = getUnsafeOkHttpClient(); // N.B. ignore SSL certificates
-        primaryBroker = new MajordomoBroker("PrimaryBroker", null, BasicRbacRole.values());
+        primaryBroker = new MajordomoBroker(PRIMARY_BROKER, null, BasicRbacRole.values());
         brokerRouterAddress = primaryBroker.bind(URI.create("mdp://localhost:" + Utils.findOpenPort()));
         primaryBroker.bind(URI.create("mds://localhost:" + Utils.findOpenPort()));
         restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "*:8080", BasicRbacRole.ADMIN);
@@ -78,13 +85,22 @@ class MajordomoRestPluginTests {
         // TODO: add OpenCMW client requesting binary and json models
 
         // second broker to test DNS functionalities
-        secondaryBroker = new MajordomoBroker("SecondaryTestBroker", brokerRouterAddress, BasicRbacRole.values());
+        secondaryBroker = new MajordomoBroker(SECONDARY_BROKER, brokerRouterAddress, BasicRbacRole.values());
         secondaryBrokerRouterAddress = secondaryBroker.bind(URI.create("tcp://*:" + Utils.findOpenPort()));
+        final MajordomoWorker<NoData, NoData, BinaryData> worker = new MajordomoWorker<>(secondaryBroker.getContext(), "deviceA/property", NoData.class, NoData.class, BinaryData.class);
+        worker.setHandler((raw, reqCtx, req, repCtx, rep) -> rep.data = "deviceA/property".getBytes(UTF_8)); // simple property returning the <device>/<property> description
+        secondaryBroker.addInternalService(worker);
         secondaryBroker.start();
+        await().alias("wait for primary services to report in").atMost(STARTUP).until(() -> providedServices(PRIMARY_BROKER, PRIMARY_BROKER + "/mmi.service"));
+        await().alias("wait for secondary services to report in").atMost(STARTUP).until(() -> providedServices(SECONDARY_BROKER, "deviceA"));
+    }
+
+    static boolean providedServices(final @NotNull String brokerName, final @NotNull String serviceName) {
+        return primaryBroker.getDnsCache().get(brokerName).getUri().stream().filter(s -> s != null && s.toString().contains(serviceName)).count() >= 1;
     }
 
     @AfterAll
-    void finish() {
+    static void finish() {
         secondaryBroker.stopBroker();
         primaryBroker.stopBroker();
     }
@@ -93,7 +109,7 @@ class MajordomoRestPluginTests {
     @ValueSource(strings = { "http://localhost:8080", "https://localhost:8443" })
     @Timeout(value = 2)
     void testDns(final String address) throws IOException {
-        final Request request = new Request.Builder().url(address + "/mmi.dns?noMenu").addHeader("accept", MimeType.HTML.getMediaType()).get().build();
+        final Request request = new Request.Builder().url(address + "/mmi.dns?noMenu," + PRIMARY_BROKER + "/mmi.service," + SECONDARY_BROKER).addHeader("accept", MimeType.HTML.getMediaType()).get().build();
         final Response response = okHttp.newCall(request).execute();
         final String body = Objects.requireNonNull(response.body()).string();
 
@@ -104,7 +120,7 @@ class MajordomoRestPluginTests {
 
     @ParameterizedTest
     @EnumSource(value = MimeType.class, names = { "HTML", "BINARY", "JSON", "CMWLIGHT", "TEXT", "UNKNOWN" })
-    @Timeout(value = 2)
+    @Timeout(value = 4)
     void testGet(final MimeType contentType) throws IOException {
         final Request request = new Request.Builder().url("http://localhost:8080/helloWorld?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
         final Response response = okHttp.newCall(request).execute();
@@ -132,6 +148,7 @@ class MajordomoRestPluginTests {
         final Request request = new Request.Builder().url("http://localhost:8080/mmi.openapi?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
         final Response response = okHttp.newCall(request).execute();
         final Headers header = response.headers();
+        assertNotNull(header);
         final String body = Objects.requireNonNull(response.body()).string();
         switch (contentType) {
         case HTML:
@@ -169,6 +186,7 @@ class MajordomoRestPluginTests {
         final Request getRequest = new Request.Builder().url("http://localhost:8080/helloWorld?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
         final Response response = okHttp.newCall(getRequest).execute();
         final Headers header = response.headers();
+        assertNotNull(header);
         final String body = Objects.requireNonNull(response.body()).string();
         switch (contentType) {
         case HTML:
@@ -188,8 +206,6 @@ class MajordomoRestPluginTests {
         AtomicInteger eventCounter = new AtomicInteger();
         Request request = new Request.Builder().url("http://localhost:8080/" + ImageService.PROPERTY_NAME).build();
         EventSourceListener eventSourceListener = new EventSourceListener() {
-            private final BlockingQueue<Object> events = new LinkedBlockingDeque<>();
-
             @Override
             public void onEvent(final @NotNull EventSource eventSource, final String id, final String type, @NotNull String data) {
                 eventCounter.getAndIncrement();

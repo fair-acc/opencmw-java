@@ -74,7 +74,7 @@ class RestDataSourceTest {
 
     @Test
     void basicRestDataSourceTests() {
-        assertThrows(UnsupportedOperationException.class, () -> new RestDataSource(null, null));
+        assertThrows(UnsupportedOperationException.class, () -> new RestDataSource(null, URI.create("mdp://unsupported")));
         assertThrows(IllegalArgumentException.class, () -> new RestDataSource(null, server.url("/sse").uri(), null, "clientName")); // NOSONAR
         RestDataSource dataSource = new RestDataSource(null, server.url("/sse").uri());
         assertNotNull(dataSource);
@@ -127,7 +127,7 @@ class RestDataSourceTest {
             dataSource.cancelLastCall = 3; // required for unit-testing
             dataSource.enqueueRequest("testHashKey#1");
             ZMsg returnMessage = receiveAndCheckData(dataSource, "testHashKey#1", true);
-            System.err.println("returnMessage = " + returnMessage);
+
             assertNotEquals(0, requireNonNull(requireNonNull(returnMessage.pollLast())).getData().length);
             assertNotEquals(0, requireNonNull(requireNonNull(returnMessage.pollLast())).getData().length);
 
@@ -162,7 +162,7 @@ class RestDataSourceTest {
             throw new IllegalStateException("wrong dispatcher type: " + dispatcher);
         }
         CustomDispatcher customDispatcher = (CustomDispatcher) dispatcher;
-        customDispatcher.enquedEvents.offer(response);
+        customDispatcher.enqueuedEvents.offer(response);
     }
 
     private EventSource newEventSource() {
@@ -209,12 +209,12 @@ class RestDataSourceTest {
     }
 
     private static class CustomDispatcher extends Dispatcher {
-        public final BlockingQueue<MockResponse> enquedEvents = new LinkedBlockingQueue<>();
+        public final BlockingQueue<MockResponse> enqueuedEvents = new LinkedBlockingQueue<>();
         @Override
         public @NotNull MockResponse dispatch(@NotNull RecordedRequest request) {
-            if (!enquedEvents.isEmpty()) {
+            if (!enqueuedEvents.isEmpty()) {
                 // dispatch enqued events
-                return enquedEvents.poll();
+                return enqueuedEvents.poll();
             }
             final String acceptHeader = request.getHeader("Accept");
             final String contentType = request.getHeader("content-type");

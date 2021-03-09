@@ -11,7 +11,6 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
-import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -91,7 +90,7 @@ class ClipboardWorkerTests {
 
         // check subscription result
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
-        System.err.println("messages = " + subClientRoot.mdpMessages.stream().map(s -> s.topic.toString()).collect(Collectors.joining(", ")));
+
         assertEquals(2, subClientRoot.mdpMessages.size(), "raw message count");
         assertEquals(2, subClientRoot.domainMessages.size(), "domain message count");
         assertEquals(1, subClientMatching.mdpMessages.size(), "matching message count");

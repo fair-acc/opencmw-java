@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -48,16 +49,19 @@ public final class MmiServiceHelper {
     @MetaInfo(description = "Dynamic Name Service (DNS) returning registered internal and external broker endpoints' URIs (protocol, host ip, port etc.)", unit = "MMI DNS Service")
     public static class MmiDns extends BasicMdpWorker {
         private final Map<String, MajordomoBroker.DnsServiceItem> dnsCache;
+        private final String brokerName;
 
         public MmiDns(final MajordomoBroker broker, final RbacRole<?>... rbacRoles) {
             super(broker.getContext(), broker.brokerName + '/' + INTERNAL_SERVICE_DNS, rbacRoles);
-            dnsCache = broker.dnsCache;
+            dnsCache = broker.getDnsCache();
+            brokerName = broker.brokerName;
             this.registerHandler(ctx -> {
                 final boolean isHtml = isHtmlRequest(ctx.req.topic);
                 final String delimiter = isHtml ? ", " : ",";
-                final String query = ctx.req.topic.getQuery();
-                if (query == null || query.isBlank() || !query.contains(",")) {
-                    ctx.rep.data = dnsCache.values().stream().map(MajordomoBroker.DnsServiceItem::getDnsEntryHtml).collect(Collectors.joining(delimiter)).getBytes(UTF_8);
+                final String query = ctx.req.topic.getQuery() == null ? null : ctx.req.topic.getQuery().split("&")[0];
+                if (query == null || query.isBlank() || !(query.contains(",") || query.contains(":") || query.contains("/"))) {
+                    final Function<MajordomoBroker.DnsServiceItem, String> mapper = isHtml ? MajordomoBroker.DnsServiceItem::getDnsEntryHtml : MajordomoBroker.DnsServiceItem::getDnsEntry;
+                    ctx.rep.data = dnsCache.values().stream().map(mapper).collect(Collectors.joining(delimiter)).getBytes(UTF_8);
                     return;
                 }
                 // search for specific service
@@ -82,13 +86,14 @@ public final class MmiServiceHelper {
 
             final String queryPath = StringUtils.stripStart(query.getPath(), "/");
             final boolean providedScheme = query.getScheme() != null && !query.getScheme().isBlank();
+            final String stripStartFromSearchPath = queryPath.startsWith("mmi.") ? ('/' + brokerName) : "/"; // crop initial broker name for broker-specific MMI services
             Predicate<URI> matcher = dnsEntry -> {
                 if (providedScheme && !dnsEntry.getScheme().equalsIgnoreCase(query.getScheme())) {
                     // require scheme but entry does not provide any
                     return false;
                 }
                 // scheme matches - check path compatibility
-                return StringUtils.stripStart(dnsEntry.getPath(), "/").startsWith(queryPath);
+                return StringUtils.stripStart(dnsEntry.getPath(), stripStartFromSearchPath).startsWith(queryPath);
             };
             for (final String brokerName : dnsCache.keySet()) {
                 final MajordomoBroker.DnsServiceItem serviceItem = dnsCache.get(brokerName);
