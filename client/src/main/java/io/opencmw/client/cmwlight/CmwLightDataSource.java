@@ -2,6 +2,8 @@ package io.opencmw.client.cmwlight;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import static org.zeromq.ZMonitor.Event;
+
 import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
 
@@ -10,22 +12,38 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zeromq.*;
+import org.zeromq.SocketType;
+import org.zeromq.ZContext;
+import org.zeromq.ZFrame;
+import org.zeromq.ZMQ;
+import org.zeromq.ZMQException;
+import org.zeromq.ZMonitor;
+import org.zeromq.ZMsg;
 
 import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
+import io.opencmw.client.DnsResolver;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
+import io.opencmw.utils.NoDuplicatesList;
 import io.opencmw.utils.SystemProperties;
 
 /**
@@ -37,21 +55,28 @@ import io.opencmw.utils.SystemProperties;
  */
 @SuppressWarnings({ "PMD.UseConcurrentHashMap", "PMD.ExcessiveImports" }) // - only accessed from main thread
 public class CmwLightDataSource extends DataSource { // NOPMD - class should probably be smaller
-    public static final String RDA_3_PROTOCOL = "rda3";
+    private static final String RDA_3_PROTOCOL = "rda3";
+    private static final List<String> APPLICABLE_SCHEMES = List.of(RDA_3_PROTOCOL);
+    private static final List<DnsResolver> RESOLVERS = Collections.synchronizedList(new NoDuplicatesList<>());
     public static final Factory FACTORY = new Factory() {
         @Override
-        public boolean matches(final URI endpoint) {
-            return endpoint.getScheme().equals(RDA_3_PROTOCOL);
+        public List<String> getApplicableSchemes() {
+            return APPLICABLE_SCHEMES;
         }
 
         @Override
-        public Class<? extends IoSerialiser> getMatchingSerialiserType(final URI endpoint) {
+        public Class<? extends IoSerialiser> getMatchingSerialiserType(final @NotNull URI endpoint) {
             return CmwLightSerialiser.class;
         }
 
         @Override
-        public DataSource newInstance(final ZContext context, final URI endpoint, final Duration timeout, final String clientId) {
-            return new CmwLightDataSource(context, endpoint, clientId);
+        public DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull String clientId) {
+            return new CmwLightDataSource(context, endpoint, timeout, clientId);
+        }
+
+        @Override
+        public List<DnsResolver> getRegisteredDnsResolver() {
+            return RESOLVERS;
         }
     };
     private static final Logger LOGGER = LoggerFactory.getLogger(CmwLightDataSource.class);
@@ -59,12 +84,15 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     private static final AtomicInteger REQUEST_ID_GENERATOR = new AtomicInteger(0);
     private static DirectoryLightClient directoryLightClient;
     protected final AtomicInteger channelId = new AtomicInteger(0); // connection local counter incremented for each channel
+    private final AtomicInteger reconnectAttempt = new AtomicInteger(0);
+    private final Duration timeout;
     protected final ZContext context;
     protected final ZMQ.Socket socket;
+    private final ZMonitor socketMonitor;
     protected final AtomicReference<ConnectionState> connectionState = new AtomicReference<>(ConnectionState.DISCONNECTED);
     protected final String sessionId;
     protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
-    protected final int heartbeatAllowedMisses = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable number of heartbeats which can be missed before resetting the conection
+    protected final int heartbeatAllowedMisses = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable number of heartbeats which can be missed before resetting the connection
     protected final long subscriptionTimeout = SystemProperties.getValueIgnoreCase(SUBSCRIPTION_TIMEOUT, SUBSCRIPTION_TIMEOUT_DEFAULT); // maximum time after which a connection should be reconnected
     protected final Map<Long, Subscription> subscriptions = new HashMap<>(); // all subscriptions added to the server
     protected final Map<String, Subscription> subscriptionsByReqId = new HashMap<>(); // all subscriptions added to the server
@@ -78,13 +106,19 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     protected int backOff = 20;
     private String connectedAddress = "";
 
-    public CmwLightDataSource(final ZContext context, final URI hostAddress, final String clientId) {
+    public CmwLightDataSource(final @NotNull ZContext context, final @NotNull URI hostAddress, final @NotNull Duration timeout, final String clientId) {
         super(hostAddress);
         LOGGER.atTrace().addArgument(hostAddress).log("connecting to: {}");
         this.context = context;
+        this.timeout = timeout;
         this.socket = context.createSocket(SocketType.DEALER);
+        this.socket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
         this.sessionId = getSessionId(clientId);
         this.hostAddress = hostAddress;
+
+        socketMonitor = new ZMonitor(context, socket);
+        socketMonitor.add(Event.CONNECTED, Event.DISCONNECTED);
+        socketMonitor.start();
     }
 
     @Override
@@ -170,6 +204,17 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         return socket;
     }
 
+    public void reconnect() {
+        disconnect();
+        try {
+            hostAddress = new URI(hostAddress.getScheme(), null, hostAddress.getPath(), hostAddress.getQuery(), null);
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException("error while resetting authority part of host '" + hostAddress + "'", e);
+        }
+        LOGGER.atTrace().addArgument(hostAddress).log("Connecting to {}");
+        connect();
+    }
+
     public void connect() {
         if (connectionState.getAndSet(ConnectionState.CONNECTING) != ConnectionState.DISCONNECTED) {
             return; // already connected
@@ -197,7 +242,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             final URI modifiedURI = URI.create(resolveAddress.getScheme() + "://" + resolveAddress.getAuthority());
             connectedAddress = StringUtils.stripEnd(StringUtils.replace(modifiedURI.toString(), RDA_3_PROTOCOL + "://", "tcp://"), "/");
             LOGGER.atDebug().addArgument(resolveAddress).addArgument(connectedAddress).addArgument(identity).log("connecting to: '{}'->'{}' with identity {}");
-            socket.setIdentity(identity.getBytes()); // hostname/process/id/channel
+            socket.setIdentity(identity.getBytes()); // hostname/process/id/channel -- TODO: check if this is really necessary - can cause a lot of troubles if this isn't unique enough
             socket.connect(connectedAddress);
             CmwLightProtocol.sendMsg(socket, CmwLightMessage.connect(CmwLightProtocol.VERSION));
             hostAddress = resolveAddress;
@@ -211,16 +256,32 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     @Override
     public long housekeeping() {
         final long currentTime = System.currentTimeMillis();
+        ZMonitor.ZEvent event;
+        while ((event = socketMonitor.nextEvent(false)) != null) {
+            switch (event.type) {
+            case DISCONNECTED:
+                if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD1, DEFAULT_RECONNECT_THRESHOLD1)) {
+                    LockSupport.parkNanos(timeout.toNanos());
+                } else if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD1, DEFAULT_RECONNECT_THRESHOLD1)) {
+                    LockSupport.parkNanos(10 * timeout.toNanos());
+                } else {
+                    LockSupport.parkNanos(100 * timeout.toNanos());
+                }
+                reconnect();
+                break;
+            case CONNECTED:
+                reconnectAttempt.set(0);
+                break;
+            default:
+                LOGGER.atDebug().addArgument(event).log("unknown socket event: {}");
+                break;
+            }
+        }
+
         switch (connectionState.get()) {
         case DISCONNECTED: // reconnect after adequate back off - reset authority since we may likely need to resolve the server:port via the DNS
             if (currentTime > lastHeartbeatSent + backOff) {
-                try {
-                    hostAddress = new URI(hostAddress.getScheme(), null, hostAddress.getPath(), hostAddress.getQuery(), null);
-                } catch (URISyntaxException e) {
-                    throw new IllegalStateException("error while resetting authority part of host '" + hostAddress + "'", e);
-                }
-                LOGGER.atTrace().addArgument(hostAddress).log("Connecting to {}");
-                connect();
+                reconnect();
             }
             return lastHeartbeatSent + backOff;
         case CONNECTING:
@@ -264,6 +325,12 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         } catch (CmwLightProtocol.RdaLightException e) {
             throw new IllegalStateException("error sending heartbeat", e);
         }
+    }
+
+    @Override
+    public void close() throws Exception {
+        socketMonitor.close();
+        socket.close();
     }
 
     @Override
@@ -366,7 +433,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     }
 
     private String getSessionId(final String clientId) {
-        return "cmwLightClient{pid=" + ProcessHandle.current().pid() + ", conn=" + connectionId + ", clientId=" + clientId + '}'; // Todo: create identification string, cmw uses string with user/app name, pid, etc
+        return "cmwLightClient{pid=" + ProcessHandle.current().pid() + ", conn=" + connectionId + ", clientId=" + clientId + '}'; // Todo: create identification string, cmw uses string with user/app name, pid, etc -- reevaluate if this is really necessary
     }
 
     private void disconnect() {

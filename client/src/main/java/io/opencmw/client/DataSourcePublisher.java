@@ -106,7 +106,6 @@ public class DataSourcePublisher implements Runnable, Closeable {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicInteger internalReqIdGenerator = new AtomicInteger(0);
     private final EventStore rawDataEventStore;
-    private final boolean owningContext;
     private final ZContext context;
     private final ZMQ.Poller poller;
     private final ZMQ.Socket sourceSocket;
@@ -130,7 +129,6 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     public DataSourcePublisher(final ZContext ctx, final EventStore publicationTarget, final RbacProvider rbacProvider, final ExecutorService executorService, final String... clientId) {
-        owningContext = ctx == null;
         this.context = Objects.requireNonNullElse(ctx, new ZContext(SystemProperties.getValueIgnoreCase(N_IO_THREADS, N_IO_THREADS_DEFAULT)));
         this.executor = Objects.requireNonNullElse(executorService, Executors.newCachedThreadPool());
         poller = context.createPoller(1);
@@ -180,9 +178,8 @@ public class DataSourcePublisher implements Runnable, Closeable {
         if (running.get() && thread != null) {
             thread.interrupt();
         }
-        if (owningContext) {
-            context.destroy();
-        }
+        poller.close();
+        sourceSocket.close();
     }
 
     public void start() {
@@ -213,7 +210,10 @@ public class DataSourcePublisher implements Runnable, Closeable {
         // event loop polling all data sources and performing regular housekeeping jobs
         long nextHousekeeping = System.currentTimeMillis(); // immediately perform first housekeeping
         long timeOut = 0L;
-        while (!Thread.interrupted() && shallRun.get() && (timeOut <= 0 || -1 != poller.poll(timeOut))) {
+        while (!Thread.interrupted() && shallRun.get() && !context.isClosed() && (timeOut <= 0 || -1 != poller.poll(timeOut))) {
+            if (context.isClosed()) {
+                break;
+            }
             boolean dataAvailable = true;
             while (dataAvailable && System.currentTimeMillis() < nextHousekeeping && shallRun.get()) {
                 dataAvailable = handleDataSourceSockets(); // get data from clients
@@ -229,6 +229,13 @@ public class DataSourcePublisher implements Runnable, Closeable {
             LOGGER.atDebug().log("Shutting down DataSourcePublisher");
         }
         rawDataEventStore.stop();
+        for (DataSource dataSource : clientMap.values()) {
+            try {
+                dataSource.close();
+            } catch (Exception e) { // NOPMD
+                // shut-down close
+            }
+        }
         running.set(false);
         threadReference.set(null);
     }
@@ -369,11 +376,11 @@ public class DataSourcePublisher implements Runnable, Closeable {
                 final StringWriter sw = new StringWriter();
                 final PrintWriter pw = new PrintWriter(sw);
                 e.printStackTrace(pw);
-                final ProtocolException protException = new ProtocolException(ANSI_RED + "error deserialising object:\n" + sw.toString() + ANSI_RESET);
+                final ProtocolException protocolException = new ProtocolException(ANSI_RED + "error deserialising object:\n" + sw.toString() + ANSI_RESET);
                 if (notifyFuture) {
-                    domainObject.future.setException(protException);
+                    domainObject.future.setException(protocolException);
                 } else {
-                    executor.submit(() -> domainObject.future.listener.updateException(protException)); // NOPMD - threads are ok, not a webapp
+                    executor.submit(() -> domainObject.future.listener.updateException(protocolException)); // NOPMD - threads are ok, not a webapp
                 }
             }
         } else if (notifyFuture) {
@@ -412,7 +419,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     private DataSource getClient(final URI endpoint) {
-        return clientMap.computeIfAbsent(endpoint.getScheme() + "://" + getDeviceName(endpoint), requestedEndPoint -> {
+        return clientMap.computeIfAbsent(endpoint.getScheme() + ":/" + getDeviceName(endpoint), requestedEndPoint -> {
             final DataSource dataSource = DataSource.getFactory(URI.create(requestedEndPoint)).newInstance(context, endpoint, Duration.ofMillis(100), Long.toString(internalReqIdGenerator.incrementAndGet()));
             poller.register(dataSource.getSocket(), ZMQ.Poller.POLLIN);
             return dataSource;

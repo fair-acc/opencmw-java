@@ -7,6 +7,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.Locale;
+import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
@@ -50,12 +51,16 @@ public final class OpenCmwConstants {
     public static final String CLIENT_TIMEOUT = "OpenCMW.clientTimeOut"; // [s]
     public static final long CLIENT_TIMEOUT_DEFAULT = 0L; // [s]
     public static final String ADDRESS_GIVEN = "address given: ";
+    public static final String RECONNECT_THRESHOLD1 = "OpenCMW.reconnectThreshold1"; // []
+    public static final int DEFAULT_RECONNECT_THRESHOLD1 = 3; // []
+    public static final String RECONNECT_THRESHOLD2 = "OpenCMW.reconnectThreshold2"; // []
+    public static final int DEFAULT_RECONNECT_THRESHOLD2 = 6; // []
 
     private OpenCmwConstants() {
         // this is a utility class
     }
 
-    public static URI replaceScheme(final @NotNull URI address, final String schemeReplacement) {
+    public static URI replaceScheme(final @NotNull URI address, final @NotNull String schemeReplacement) {
         if (address.getScheme() != null && address.getScheme().toLowerCase(Locale.UK).equals(SCHEME_INPROC)) {
             return address;
         }
@@ -66,7 +71,33 @@ public final class OpenCmwConstants {
         }
     }
 
-    public static URI resolveHost(final @NotNull URI address, final String hostName) {
+    public static URI replaceSchemeKeepOnlyAuthority(final @NotNull URI address, final @NotNull String schemeReplacement) {
+        return URI.create(schemeReplacement + "://" + Objects.requireNonNull(address.getAuthority(), "authority is null: " + address));
+    }
+
+    public static URI replacePath(final @NotNull URI address, final @NotNull String pathReplacement) {
+        if (pathReplacement.equals(address.getPath())) {
+            return address;
+        }
+        try {
+            return new URI(address.getScheme(), address.getAuthority(), pathReplacement, address.getQuery(), null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
+        }
+    }
+
+    public static URI replaceQuery(final @NotNull URI address, final String queryReplacement) {
+        if (queryReplacement != null && queryReplacement.equals(address.getQuery())) {
+            return address;
+        }
+        try {
+            return new URI(address.getScheme(), address.getAuthority(), address.getPath(), queryReplacement, null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
+        }
+    }
+
+    public static URI resolveHost(final @NotNull URI address, final @NotNull String hostName) {
         if (((address.getScheme() != null && address.getScheme().toLowerCase(Locale.UK).equals(SCHEME_INPROC)) || (address.getAuthority() == null || !address.getAuthority().toLowerCase(Locale.UK).contains(WILDCARD)))) {
             return address;
         }

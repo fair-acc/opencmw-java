@@ -17,6 +17,17 @@ class OpenCmwConstantsTest {
         assertEquals(URI.create("mdp://host:20"), replaceScheme(URI.create("mdp://host:20"), SCHEME_MDP));
         assertEquals(URI.create("mds://host:20"), replaceScheme(URI.create("mdp://host:20"), SCHEME_MDS));
 
+        assertEquals(URI.create("tcp://host:20"), replaceSchemeKeepOnlyAuthority(URI.create("mdp://host:20/device/property?test"), SCHEME_TCP));
+        assertThrows(NullPointerException.class, () -> replaceSchemeKeepOnlyAuthority(URI.create("mdp:/device/property"), SCHEME_TCP));
+
+        assertEquals(URI.create("mdp://host:20"), replacePath(URI.create("mdp://host:20/device/property"), ""));
+        assertEquals(URI.create("mdp://host:20/device/property"), replacePath(URI.create("mdp://host:20/device/property"), "/device/property"));
+        assertEquals(URI.create("mdp://host:20/otherDevice/path"), replacePath(URI.create("mdp://host:20/device/property"), "/otherDevice/path"));
+
+        assertEquals(URI.create("mdp://host:20/device/property?queryA"), replaceQuery(URI.create("mdp://host:20/device/property?queryA"), "queryA"));
+        assertEquals(URI.create("mdp://host:20/device/property?queryB"), replaceQuery(URI.create("mdp://host:20/device/property?queryA"), "queryB"));
+        assertEquals(URI.create("mdp://host:20/device/property"), replaceQuery(URI.create("mdp://host:20/device/property?queryA"), null));
+
         assertEquals(URI.create("tcp://host:20/path"), replaceScheme(URI.create("mdp://host:20/path"), SCHEME_TCP));
         assertEquals(URI.create("tcp://host:20/path"), replaceScheme(URI.create("mdp://host:20/path"), SCHEME_TCP));
 
@@ -30,9 +41,9 @@ class OpenCmwConstantsTest {
     @Test
     void testDeviceAndPropertyNames() {
         assertEquals("device", getDeviceName(URI.create("mdp:/device/property/sub-property")));
-        assertEquals("device", getDeviceName(URI.create("mdp://authrority/device/property/sub-property")));
-        assertEquals("device", getDeviceName(URI.create("mdp://authrority//device/property/sub-property")));
-        assertEquals("authrority", URI.create("mdp://authrority//device/property/sub-property").getAuthority());
+        assertEquals("device", getDeviceName(URI.create("mdp://authority/device/property/sub-property")));
+        assertEquals("device", getDeviceName(URI.create("mdp://authority//device/property/sub-property")));
+        assertEquals("authority", URI.create("mdp://authority//device/property/sub-property").getAuthority());
         assertEquals("property/sub-property", getPropertyName(URI.create("mdp:/device/property/sub-property")));
         assertEquals("property/sub-property", getPropertyName(URI.create("mdp:/device/property/sub-property")));
     }

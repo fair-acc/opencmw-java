@@ -58,7 +58,7 @@ public class CustomFuture<T> implements Future<T> {
             while (!isDone()) {
                 if (timeout > 0) {
                     if (!processorNotifyCondition.await(timeout, unit)) {
-                        throw new TimeoutException();
+                        throw new TimeoutException("timeout = " + timeout + " " + unit);
                     }
                 } else {
                     processorNotifyCondition.await();

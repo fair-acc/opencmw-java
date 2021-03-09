@@ -94,6 +94,8 @@ class MajordomoWorkerTests {
         // broker.setDaemon(true); // use this if running in another app that controls threads
         final URI brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         final URI brokerPubAddress = broker.bind(URI.create("mds://*:" + Utils.findOpenPort()));
+        assertNotNull(brokerAddress);
+        assertNotNull(brokerPubAddress);
         broker.start();
 
         RequestDataType inputData = new RequestDataType();
@@ -232,7 +234,6 @@ class MajordomoWorkerTests {
             ioBuffer.flip();
 
             assertNotNull(reply);
-            System.err.println("reply " + reply);
             assertEquals(inputData.resourceName, reply.resourceName, "identity resourceName field");
             assertEquals(inputData.contentType, reply.contentType, "identity contentType field");
             assertArrayEquals(inputData.data, reply.data, "identity data field");

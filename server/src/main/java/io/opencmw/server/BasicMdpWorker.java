@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -64,11 +63,11 @@ import io.opencmw.utils.SystemProperties;
  */
 @MetaInfo(description = "default BasicMdpWorker implementation")
 @SuppressWarnings({ "PMD.GodClass", "PMD.ExcessiveImports", "PMD.TooManyStaticImports", "PMD.DoNotUseThreads", "PMD.TooManyFields", "PMD.TooManyMethods" }) // makes the code more readable/shorter lines
-public class BasicMdpWorker extends Thread {
+public class BasicMdpWorker extends Thread implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(BasicMdpWorker.class);
     protected static final byte[] RBAC = {}; //TODO: implement RBAC between Majordomo and Worker
     protected static final AtomicInteger WORKER_COUNTER = new AtomicInteger();
-    protected BiPredicate<URI, URI> subscriptionMatcher = new SubscriptionMatcher(); // <notify topic, subscribe topic>
+    protected final BiPredicate<URI, URI> subscriptionMatcher = new SubscriptionMatcher(); // <notify topic, subscribe topic>
 
     static {
         final String reason = "recursive definitions inside ZeroMQ";
@@ -80,6 +79,7 @@ public class BasicMdpWorker extends Thread {
     // ---------------------------------------------------------------------
     protected final String uniqueID;
     protected final ZContext ctx;
+    protected final boolean ownsContext;
     protected final URI brokerAddress;
     protected final String serviceName;
     protected final byte[] serviceBytes;
@@ -90,7 +90,6 @@ public class BasicMdpWorker extends Thread {
     protected final ZMQ.Socket notifySocket; // Socket to listener -- needed for thread-decoupling
     protected final ZMQ.Socket notifyListenerSocket; // Socket to notifier -- needed for thread-decoupling
     protected final List<URI> activeSubscriptions = Collections.synchronizedList(new ArrayList<>());
-    protected final boolean isExternal; // used to skip heart-beating and disconnect checks
     protected ZMQ.Socket workerSocket; // Socket to broker
     protected ZMQ.Socket pubSocket; // Socket to broker
     protected final int heartBeatLiveness = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable
@@ -116,13 +115,13 @@ public class BasicMdpWorker extends Thread {
         this.brokerAddress = stripPathTrailingSlash(brokerAddress);
         this.serviceName = StringUtils.stripStart(serviceName, "/");
         this.serviceBytes = this.serviceName.getBytes(UTF_8);
-        this.isExternal = !brokerAddress.getScheme().toLowerCase(Locale.UK).contains("inproc");
+        this.ownsContext = ctx == null;
 
         // initialise RBAC role-based priority queues
         this.rbacRoles = Collections.unmodifiableSortedSet(new TreeSet<>(Set.of(rbacRoles)));
 
         this.ctx = Objects.requireNonNullElseGet(ctx, ZContext::new);
-        if (ctx != null) {
+        if (!ownsContext) {
             this.setDaemon(true);
         }
         this.setName(BasicMdpWorker.class.getSimpleName() + "#" + WORKER_COUNTER.getAndIncrement());
@@ -248,8 +247,25 @@ public class BasicMdpWorker extends Thread {
         } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
             throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
         }
-        if (isExternal && !ctx.isClosed()) {
-            ctx.destroy();
+        close();
+    }
+
+    @Override
+    public void close() {
+        if (running.get()) {
+            LOGGER.atWarn().addArgument(serviceName).log("trying to shut-down service '{}' while not fully finished");
+            try {
+                join(heartBeatInterval);
+            } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
+                throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
+            }
+        }
+        pubSocket.close();
+        workerSocket.close();
+        notifyListenerSocket.close();
+        notifySocket.close();
+        if (ownsContext) {
+            ctx.close();
         }
     }
 
@@ -273,7 +289,7 @@ public class BasicMdpWorker extends Thread {
         case DISCONNECT:
             if (Arrays.equals(BROKER_SHUTDOWN, request.data)) {
                 shallRun.set(false);
-                LOGGER.atInfo().addArgument(getName()).log("broker requested to shut-down '{}'");
+                LOGGER.atInfo().addArgument(serviceName).log("broker requested to shut-down '{}'");
                 return Collections.emptyList();
             }
             reconnectToBroker();
@@ -323,7 +339,11 @@ public class BasicMdpWorker extends Thread {
     }
 
     protected boolean notifyRaw(@NotNull final MdpMessage notifyMessage) {
-        return notifyMessage.send(notifySocket);
+        if (running.get()) {
+            return notifyMessage.send(notifySocket);
+        }
+        LOGGER.atDebug().addArgument(serviceName).log("Service '{}' is not running");
+        return false;
     }
 
     protected List<MdpMessage> processRequest(final MdpMessage request) {
