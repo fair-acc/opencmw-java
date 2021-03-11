@@ -63,7 +63,7 @@ import io.opencmw.utils.SystemProperties;
  * </ul>
  * @see io.opencmw.OpenCmwConstants for more details
  */
-@SuppressWarnings({ "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.TooManyMethods", "PMD.ExcessiveImports", "PMD.CommentSize", "PMD.UseConcurrentHashMap" })
+@SuppressWarnings({ "PMD.GodClass", "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.TooManyMethods", "PMD.ExcessiveImports", "PMD.CommentSize", "PMD.UseConcurrentHashMap" })
 // package private explicitly needed for MmiServiceHelper, thread-safe/performance use of HashMap
 public class MajordomoBroker extends Thread implements AutoCloseable {
     public static final byte[] RBAC = {}; // TODO: implement RBAC between Majordomo and Worker
