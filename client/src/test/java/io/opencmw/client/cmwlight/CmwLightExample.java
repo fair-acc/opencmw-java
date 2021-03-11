@@ -41,7 +41,7 @@ public class CmwLightExample { // NOPMD is not a utility class but a sample
         System.out.println(device);
         final String address = device.servers.stream().findFirst().orElseThrow().get("Address:").replace("tcp://", "rda3://");
         System.out.println("connect client to " + address);
-        final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), URI.create(address + '/'), Duration.ofMillis(100),"testclient");
+        final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), URI.create(address + '/'), Duration.ofMillis(100), "testclient");
         final ZMQ.Poller poller = client.getContext().createPoller(1);
         poller.register(client.getSocket(), ZMQ.Poller.POLLIN);
         client.connect();
