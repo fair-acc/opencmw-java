@@ -1,18 +1,11 @@
 package io.opencmw.serialiser.spi;
 
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import java.lang.reflect.*;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -250,10 +243,10 @@ public class ClassFieldDescription implements FieldDescription {
     public FieldDescription findChildField(final int fieldNameHashCode, final String fieldName) {
         for (final FieldDescription child : children) {
             final String name = child.getFieldName();
-            if (Objects.equals(name, fieldName)) { //NOSONAR NOPMD early return if the same String object reference
+            if (name == fieldName) { //NOSONAR NOPMD early return if the same String object reference
                 return child;
             }
-            if (child.getFieldNameHashCode() == fieldNameHashCode) {
+            if (child.getFieldNameHashCode() == fieldNameHashCode && name.equals(fieldName)) {
                 return child;
             }
         }

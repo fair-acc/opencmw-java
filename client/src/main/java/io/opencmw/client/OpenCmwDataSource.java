@@ -143,16 +143,16 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         final long basicHeartBeat = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT);
         final long clientTimeOut = SystemProperties.getValueIgnoreCase(CLIENT_TIMEOUT, CLIENT_TIMEOUT_DEFAULT); // [s] N.B. '0' means disabled
         // take the minimum of the (albeit worker) heartbeat, client (if defined) or locally prescribed timeout
-        heartbeatInterval = (clientTimeOut != 0 ? Math.min(Math.min(basicHeartBeat, timeout.toMillis()), TimeUnit.SECONDS.toMicros(clientTimeOut)) : Math.min(basicHeartBeat, timeout.toMillis()));
+        heartbeatInterval = clientTimeOut == 0 ? Math.min(basicHeartBeat, timeout.toMillis()) : Math.min(Math.min(basicHeartBeat, timeout.toMillis()), TimeUnit.SECONDS.toMicros(clientTimeOut));
 
         nextReconnectAttemptTimeStamp = System.currentTimeMillis() + timeout.toMillis();
-        final URI reply = connect(); // NOPMD
+        final URI reply = connect();
         if (reply == EMPTY_URI) {
             LOGGER.atWarn().addArgument(endpoint).addArgument(sourceName).log("could not connect URI {} immediately - source {}");
         }
     }
 
-    public URI connect() {
+    public final URI connect() {
         if (context.isClosed()) {
             LOGGER.atDebug().addArgument(sourceName).log("ZContext closed for '{}'");
             return EMPTY_URI;
@@ -187,7 +187,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
             address = replaceSchemeKeepOnlyAuthority(address, SCHEME_TCP);
             if (!socket.connect(address.toString())) {
                 LOGGER.atError().addArgument(address.toString()).log("could not connect to '{}'");
-                connectedAddress = null;
+                connectedAddress = EMPTY_URI;
                 return EMPTY_URI;
             }
             connectedAddress = address;
