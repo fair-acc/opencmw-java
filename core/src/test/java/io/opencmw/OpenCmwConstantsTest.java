@@ -1,11 +1,12 @@
 package io.opencmw;
 
-import static io.opencmw.OpenCmwConstants.*;
-import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import static io.opencmw.OpenCmwConstants.*;
+import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 
 import java.net.URI;
 
@@ -76,9 +77,9 @@ class OpenCmwConstantsTest {
             assertEquals(hwm, socket.getRcvHWM(), "receive high-water mark");
             assertEquals(hwm, socket.getSndHWM(), "send high-water mark");
             assertArrayEquals(PROT_CLIENT.getData(), socket.getHeartbeatContext(), "heart-beat payload message");
-            assertEquals(heartBeatInterval*liveness, socket.getHeartbeatTtl(),"time-out for remote socket [ms]");
-            assertEquals(heartBeatInterval*liveness, socket.getHeartbeatTimeout(),"time-out for local socket [ms]");
-            assertEquals(heartBeatInterval, socket.getHeartbeatIvl(),"heart-beat ping period [ms]");
+            assertEquals(heartBeatInterval * liveness, socket.getHeartbeatTtl(), "time-out for remote socket [ms]");
+            assertEquals(heartBeatInterval * liveness, socket.getHeartbeatTimeout(), "time-out for local socket [ms]");
+            assertEquals(heartBeatInterval, socket.getHeartbeatIvl(), "heart-beat ping period [ms]");
         }
     }
 }
