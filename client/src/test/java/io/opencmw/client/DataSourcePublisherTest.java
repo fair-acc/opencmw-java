@@ -1,8 +1,9 @@
 package io.opencmw.client;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import static io.opencmw.OpenCmwConstants.getDeviceName;
 import static io.opencmw.OpenCmwConstants.getPropertyName;
-import static org.junit.jupiter.api.Assertions.*;
 
 import java.net.ProtocolException;
 import java.net.URI;

@@ -1,6 +1,5 @@
 package io.opencmw.server;
 
-import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static org.awaitility.Awaitility.await;
@@ -9,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import static io.opencmw.OpenCmwConstants.SCHEME_TCP;
 import static io.opencmw.OpenCmwConstants.replaceScheme;
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;

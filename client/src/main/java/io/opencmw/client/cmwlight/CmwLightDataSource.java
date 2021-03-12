@@ -1,9 +1,11 @@
 package io.opencmw.client.cmwlight;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import static org.zeromq.ZMonitor.Event;
+
 import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.zeromq.ZMonitor.Event;
 
 import java.io.IOException;
 import java.net.InetAddress;
