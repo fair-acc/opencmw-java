@@ -39,12 +39,14 @@ public abstract class DataSource implements AutoCloseable {
     }
 
     /**
-     * Get Socket to wait for in the event loop.
-     * The main event thread will wait for data becoming available on this socket.
-     * The socket might be used to receive the actual data or it might just be used to notify the main thread.
-     * @return a Socket for the event loop to wait upon
+     * Perform a get request on this endpoint.
+     * @param requestId request id which later allows to match the returned value to this query.
+     *                  This is the only mandatory parameter, all the following may be null.
+     * @param endpoint extend the filters originally supplied to the endpoint e.g. "ctx=selector&amp;channel=channelA"
+     * @param data The serialised data which can be used by the get call
+     * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
      */
-    public abstract Socket getSocket();
+    public abstract void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken);
 
     /**
      * Gets called whenever data is available on the DataSource's socket.
@@ -55,32 +57,18 @@ public abstract class DataSource implements AutoCloseable {
     public abstract ZMsg getMessage();
 
     /**
+     * Get Socket to wait for in the event loop.
+     * The main event thread will wait for data becoming available on this socket.
+     * The socket might be used to receive the actual data or it might just be used to notify the main thread.
+     * @return a Socket for the event loop to wait upon
+     */
+    public abstract Socket getSocket();
+
+    /**
      * Perform housekeeping tasks like connection management, heartbeats, subscriptions, etc
      * @return UTC time-stamp in [ms] when the next housekeeping duties should be performed
      */
     public abstract long housekeeping();
-
-    /**
-     * Subscribe to this endpoint
-     * @param reqId the id to join the result of this subscribe with
-     * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
-     */
-    public abstract void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken);
-
-    /**
-     * Unsubscribe from the endpoint of this DataSource.
-     */
-    public abstract void unsubscribe(final String reqId);
-
-    /**
-     * Perform a get request on this endpoint.
-     * @param requestId request id which later allows to match the returned value to this query.
-     *                  This is the only mandatory parameter, all the following may be null.
-     * @param endpoint extend the filters originally supplied to the endpoint e.g. "ctx=selector&amp;channel=channelA"
-     * @param data The serialised data which can be used by the get call
-     * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
-     */
-    public abstract void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken);
 
     /**
      * Perform a set request on this endpoint using additional filters
@@ -92,7 +80,18 @@ public abstract class DataSource implements AutoCloseable {
      */
     public abstract void set(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken);
 
-    protected abstract Factory getFactory();
+    /**
+     * Subscribe to this endpoint
+     * @param reqId the id to join the result of this subscribe with
+     * @param endpoint endpoint URI to subscribe to
+     * @param rbacToken byte array containing signed body hash-key and corresponding RBAC role
+     */
+    public abstract void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken);
+
+    /**
+     * Unsubscribe from the endpoint of this DataSource.
+     */
+    public abstract void unsubscribe(final String reqId);
 
     /**
      * Factory method to get a DataSource for a given endpoint
@@ -114,19 +113,24 @@ public abstract class DataSource implements AutoCloseable {
         IMPLEMENTATIONS.add(0, factory); // custom added implementations are added in front to be discovered first
     }
 
-    protected interface Factory {
+    protected abstract Factory getFactory();
+
+    public interface Factory {
         /**
          * @return returns the list of applicable schemes (and protocols this resolver can handle) this resolver can handle
          */
         List<String> getApplicableSchemes();
-        List<DnsResolver> getRegisteredDnsResolver();
+
         Class<? extends IoSerialiser> getMatchingSerialiserType(final @NotNull URI endpoint);
-        DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull ExecutorService executorService, final @NotNull String clientId);
+
+        List<DnsResolver> getRegisteredDnsResolver();
 
         default boolean matches(final @NotNull URI endpoint) {
             final String scheme = Objects.requireNonNull(endpoint.getScheme(), "required URI has no scheme defined: " + endpoint);
             return getApplicableSchemes().stream().anyMatch(s -> s.equalsIgnoreCase(scheme));
         }
+
+        DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull ExecutorService executorService, final @NotNull String clientId);
 
         default void registerDnsResolver(final @NotNull DnsResolver resolver) {
             final ArrayList<String> list = new ArrayList<>(getApplicableSchemes());

@@ -1,9 +1,5 @@
 package io.opencmw.client;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
-import static org.zeromq.ZMonitor.Event;
-
 import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
 import static io.opencmw.OpenCmwProtocol.Command.SET_REQUEST;
@@ -13,6 +9,8 @@ import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
 import static io.opencmw.OpenCmwProtocol.MdpMessage;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.zeromq.ZMonitor.Event;
 
 import java.io.IOException;
 import java.net.URI;
@@ -97,6 +95,9 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
     private Future<URI> dnsWorkerResult;
     private long nextReconnectAttemptTimeStamp;
     private URI connectedAddress;
+    static { // register default data sources
+        DataSource.register(OpenCmwDataSource.FACTORY);
+    }
 
     /**
      * @param context zeroMQ context used for internal as well as external communication

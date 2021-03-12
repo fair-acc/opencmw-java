@@ -146,7 +146,7 @@ class DnsDataSourceTests {
         DataSource.getFactory(URI.create("mdp:/mmi.dns")).registerDnsResolver(new OpenCmwDnsResolver(dnsBrokerAddress));
         System.setProperty(OpenCmwConstants.RECONNECT_THRESHOLD1, "10000"); // to reduce waiting time for reconnects
         System.setProperty(OpenCmwConstants.RECONNECT_THRESHOLD2, "1000"); // to reduce waiting time for reconnects
-        // uses full/known URI definition
+
         try (DataSourcePublisher dataSource = new DataSourcePublisher(null, null, "test-client");
                 DataSourcePublisher.Client client = dataSource.getClient()) {
             AtomicInteger notificationCounterA = new AtomicInteger();

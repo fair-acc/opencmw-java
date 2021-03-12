@@ -188,7 +188,6 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
     }
 
     public static CmwLightMessage parseMsg(final @NotNull ZMsg data) throws RdaLightException { // NOPMD - NPath complexity acceptable (complex protocol)
-        assert data != null : "data";
         final ZFrame firstFrame = data.pollFirst();
         if (firstFrame != null && Arrays.equals(firstFrame.getData(), new byte[] { MessageType.SERVER_CONNECT_ACK.value() })) {
             final CmwLightMessage reply = new CmwLightMessage(MessageType.SERVER_CONNECT_ACK);
@@ -296,8 +295,8 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
         }
     }
 
-    public static void sendMsg(final ZMQ.Socket socket, final CmwLightMessage msg) throws RdaLightException {
-        serialiseMsg(msg).send(socket);
+    public static boolean sendMsg(final ZMQ.Socket socket, final CmwLightMessage msg) throws RdaLightException {
+        return serialiseMsg(msg).send(socket);
     }
 
     public static ZMsg serialiseMsg(final CmwLightMessage msg) throws RdaLightException {
@@ -522,7 +521,6 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
     }
 
     private static CmwLightMessage.RequestContext parseRequestContext(final @NotNull ZFrame contextData) throws RdaLightException {
-        assert contextData != null : "contextData";
         CmwLightMessage.RequestContext requestContext = new CmwLightMessage.RequestContext();
         IO_CLASS_SERIALISER.setDataBuffer(FastByteBuffer.wrap(contextData.getData()));
         final FieldDescription contextMap;
@@ -556,7 +554,6 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
     }
 
     private static CmwLightMessage.DataContext parseContextData(final @NotNull ZFrame contextData) throws RdaLightException {
-        assert contextData != null : "contextData";
         CmwLightMessage.DataContext dataContext = new CmwLightMessage.DataContext();
         IO_CLASS_SERIALISER.setDataBuffer(FastByteBuffer.wrap(contextData.getData()));
         final FieldDescription contextMap;

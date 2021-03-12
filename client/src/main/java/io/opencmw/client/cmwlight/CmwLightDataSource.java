@@ -5,6 +5,7 @@ import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.zeromq.ZMonitor.Event;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -16,15 +17,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.*;
 
+import io.opencmw.OpenCmwProtocol;
 import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
 import io.opencmw.client.DnsResolver;
@@ -57,26 +57,22 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         }
 
         @Override
-        public DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull ExecutorService executorService, final @NotNull String clientId) {
-            return new CmwLightDataSource(context, endpoint, timeout, clientId);
+        public List<DnsResolver> getRegisteredDnsResolver() {
+            return RESOLVERS;
         }
 
         @Override
-        public List<DnsResolver> getRegisteredDnsResolver() {
-            return RESOLVERS;
+        public DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull ExecutorService executorService, final @NotNull String clientId) {
+            return new CmwLightDataSource(context, endpoint, executorService, clientId);
         }
     };
     private static final Logger LOGGER = LoggerFactory.getLogger(CmwLightDataSource.class);
     private static final AtomicLong CONNECTION_ID_GENERATOR = new AtomicLong(0); // global counter incremented for each connection
     private static final AtomicInteger REQUEST_ID_GENERATOR = new AtomicInteger(0);
-    private static DirectoryLightClient directoryLightClient;
     protected final AtomicInteger channelId = new AtomicInteger(0); // connection local counter incremented for each channel
-    private final AtomicInteger reconnectAttempt = new AtomicInteger(0);
-    private final Duration timeout;
     protected final ZContext context;
     protected final ZMQ.Socket socket;
-    private final ZMonitor socketMonitor;
-    protected final AtomicReference<ConnectionState> connectionState = new AtomicReference<>(ConnectionState.DISCONNECTED);
+    protected final AtomicReference<Event> connectionState = new AtomicReference<>(Event.CLOSED);
     protected final String sessionId;
     protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
     protected final int heartbeatAllowedMisses = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable number of heartbeats which can be missed before resetting the connection
@@ -84,28 +80,109 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     protected final Map<Long, Subscription> subscriptions = new HashMap<>(); // all subscriptions added to the server
     protected final Map<String, Subscription> subscriptionsByReqId = new HashMap<>(); // all subscriptions added to the server
     protected final Map<Long, Subscription> replyIdMap = new HashMap<>(); // all acknowledged subscriptions by their reply id
+    protected final URI endpoint;
+    private final AtomicInteger reconnectAttempt = new AtomicInteger(0);
+    private final ZMonitor socketMonitor;
     private final Queue<Request> queuedRequests = new LinkedBlockingQueue<>();
     private final Map<Long, Request> pendingRequests = new HashMap<>();
-    protected URI hostAddress;
+    private final ExecutorService executorService;
     protected long connectionId;
     protected long lastHeartbeatReceived = -1;
     protected long lastHeartbeatSent = -1;
     protected int backOff = 20;
-    private String connectedAddress = "";
+    private URI connectedAddress = OpenCmwProtocol.EMPTY_URI;
+    static { // register default data sources
+        DataSource.register(CmwLightDataSource.FACTORY);
+    }
 
-    public CmwLightDataSource(final @NotNull ZContext context, final @NotNull URI hostAddress, final @NotNull Duration timeout, final String clientId) {
-        super(hostAddress);
-        LOGGER.atTrace().addArgument(hostAddress).log("connecting to: {}");
+    public CmwLightDataSource(final @NotNull ZContext context, final @NotNull URI endpoint, final @NotNull ExecutorService executorService, final String clientId) {
+        super(endpoint);
+        LOGGER.atTrace().addArgument(endpoint).log("connecting to: {}");
         this.context = context;
-        this.timeout = timeout;
+        this.executorService = executorService;
         this.socket = context.createSocket(SocketType.DEALER);
         setDefaultSocketParameters(socket);
         this.sessionId = getSessionId(clientId);
-        this.hostAddress = hostAddress;
+        this.endpoint = endpoint;
 
         socketMonitor = new ZMonitor(context, socket);
-        socketMonitor.add(Event.CONNECTED, Event.DISCONNECTED);
+        socketMonitor.add(Event.CLOSED, Event.CONNECTED, Event.DISCONNECTED);
         socketMonitor.start();
+
+        connect();
+    }
+
+    @Override
+    public void close() throws IOException {
+        socketMonitor.close();
+        socket.close();
+    }
+
+    public void connect() {
+        if (connectionState.getAndSet(Event.CONNECT_RETRIED) != Event.CLOSED) {
+            return; // already connected
+        }
+
+        URI resolveAddress = endpoint;
+        if (resolveAddress.getAuthority() == null || resolveAddress.getPort() == -1) {
+            // need to resolve authority if unknown
+            // here: implemented first available DNS resolver, could also be round-robin or rotation if there are several resolver registered
+            final Optional<DnsResolver> resolver = getFactory().getRegisteredDnsResolver().stream().findFirst();
+            if (resolver.isEmpty()) {
+                LOGGER.atWarn().addArgument(endpoint).log("cannot resolve {} without a registered DNS resolver");
+                backOff = backOff * 2;
+                connectionState.set(Event.CLOSED);
+                return;
+            }
+            try {
+                // resolve address
+                resolveAddress = new URI(resolveAddress.getScheme(), null, '/' + getDeviceName(endpoint), null, null);
+                final Map<URI, List<URI>> candidates = resolver.get().resolveNames(List.of(resolveAddress));
+                if (Objects.requireNonNull(candidates.get(resolveAddress), "candidates did not contain '" + resolveAddress + "':" + candidates).isEmpty()) {
+                    throw new UnknownHostException("DNS resolver could not resolve " + endpoint + " - unknown service - candidates" + candidates + " - " + resolveAddress);
+                }
+                resolveAddress = candidates.get(resolveAddress).get(0); // take first matching - may upgrade in the future if there are more than one option
+            } catch (URISyntaxException | UnknownHostException e) { // NOPMD - directory client must be refactored anyway
+                LOGGER.atError().setCause(e).addArgument(e.getMessage()).log("Error resolving device from nameserver, using address from endpoint. Error was: {}");
+                backOff = backOff * 2;
+                connectionState.set(Event.CLOSED);
+                return;
+            }
+        }
+        lastHeartbeatSent = System.currentTimeMillis();
+        if (resolveAddress.getPort() == -1) {
+            LOGGER.atError().addArgument(endpoint).log("could not resolve host service address: '{}'");
+        }
+        try {
+            final String identity = getIdentity();
+            resolveAddress = replaceSchemeKeepOnlyAuthority(resolveAddress, SCHEME_TCP);
+            socket.setIdentity(identity.getBytes()); // hostname/process/id/channel -- seems to be needed by CMW :-|
+            LOGGER.atDebug().addArgument(resolveAddress).addArgument(resolveAddress).addArgument(identity).log("connecting to: '{}'->'{}' with identity {}");
+            if (!socket.connect(resolveAddress.toString())) {
+                LOGGER.atError().addArgument(endpoint).addArgument(resolveAddress.toString()).log("could not connect requested URI '{}' to '{}'");
+                connectedAddress = OpenCmwProtocol.EMPTY_URI;
+            }
+            connectedAddress = resolveAddress;
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.connect(CmwLightProtocol.VERSION));
+        } catch (ZMQException | CmwLightProtocol.RdaLightException | NumberFormatException e) {
+            LOGGER.atError().setCause(e).addArgument(connectedAddress).addArgument(endpoint).log("failed to connect to '{}' source host address: '{}'");
+            backOff = backOff * 2;
+            connectionState.set(Event.CLOSED);
+        }
+    }
+
+    @Override
+    public void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
+        final Request request = new Request(CmwLightProtocol.RequestType.GET, requestId, endpoint, data, rbacToken);
+        queuedRequests.add(request);
+    }
+
+    public Event getConnectionState() {
+        return connectionState.get();
+    }
+
+    public ZContext getContext() {
+        return context;
     }
 
     @Override
@@ -117,7 +194,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         final long currentTime = System.currentTimeMillis(); // NOPMD
         switch (reply.messageType) {
         case SERVER_CONNECT_ACK:
-            if (connectionState.compareAndSet(ConnectionState.CONNECTING, ConnectionState.CONNECTED)) {
+            if (connectionState.compareAndSet(Event.CONNECT_RETRIED, Event.CONNECTED)) {
                 LOGGER.atTrace().addArgument(connectedAddress).log("Connected to server: {}");
                 lastHeartbeatReceived = currentTime;
                 backOff = 20; // reset back-off time
@@ -126,14 +203,14 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             }
             return new ZMsg();
         case SERVER_HB:
-            if (connectionState.get() != ConnectionState.CONNECTED) {
+            if (connectionState.get() != Event.CONNECTED) {
                 LOGGER.atWarn().addArgument(reply).log("ignoring heartbeat received before connection established: {}");
                 return new ZMsg();
             }
             lastHeartbeatReceived = currentTime;
             return new ZMsg();
         case SERVER_REP:
-            if (connectionState.get() != ConnectionState.CONNECTED) {
+            if (connectionState.get() != Event.CONNECTED) {
                 LOGGER.atWarn().addArgument(reply).log("ignoring data received before connection established: {}");
                 return new ZMsg();
             }
@@ -149,9 +226,92 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     }
 
     @Override
-    public void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
-        final Request request = new Request(CmwLightProtocol.RequestType.GET, requestId, endpoint, data, rbacToken);
-        queuedRequests.add(request);
+    public ZMQ.Socket getSocket() {
+        return socket;
+    }
+
+    @Override
+    public long housekeeping() {
+        final long currentTime = System.currentTimeMillis();
+        ZMonitor.ZEvent event;
+        while ((event = socketMonitor.nextEvent(false)) != null) {
+            switch (event.type) {
+            case DISCONNECTED:
+            case CLOSED:
+                // low-level detection that the connection has been separated
+                connectionState.set(Event.CLOSED);
+                break;
+            case CONNECTED:
+                // connectionState.set(Event.CONNECTED) - may not be needed
+                break;
+            default:
+                LOGGER.atDebug().addArgument(event).log("unknown socket event: {}");
+                break;
+            }
+        }
+
+        switch (connectionState.get()) {
+        case DISCONNECTED:
+        case CLOSED: // reconnect after adequate back off - reset authority since we may likely need to resolve the server:port via the DNS
+            if (currentTime > lastHeartbeatSent + backOff) {
+                executorService.submit(this::reconnect);
+            }
+            return lastHeartbeatSent + backOff;
+        case CONNECT_RETRIED:
+            if (currentTime > lastHeartbeatSent + heartbeatInterval * heartbeatAllowedMisses) { // connect timed out -> increase back of and retry
+                backOff = backOff * 2;
+                lastHeartbeatSent = currentTime;
+                LOGGER.atTrace().addArgument(connectedAddress).addArgument(backOff).log("Connection timed out for {}, retrying in {} ms");
+                disconnect();
+            }
+            return lastHeartbeatSent + heartbeatInterval * heartbeatAllowedMisses;
+        case CONNECTED:
+            reconnectAttempt.set(0);
+            Request request;
+            while ((request = queuedRequests.poll()) != null) {
+                pendingRequests.put(request.id, request);
+                if (!sendRequest(request)) {
+                    LOGGER.atWarn().addArgument(endpoint).log("could not send request for host {}");
+                }
+            }
+            if (currentTime > lastHeartbeatSent + heartbeatInterval) { // check for heartbeat interval
+                // send Heartbeats
+                sendHeartBeat();
+                lastHeartbeatSent = currentTime;
+                // check if heartbeat was received
+                if (lastHeartbeatReceived + heartbeatInterval * heartbeatAllowedMisses < currentTime) {
+                    LOGGER.atDebug().addArgument(backOff).log("Connection timed out, reconnecting in {} ms");
+                    disconnect();
+                    return heartbeatInterval;
+                }
+                // check timeouts of connection/subscription requests
+                for (Subscription sub : subscriptions.values()) {
+                    updateSubscription(currentTime, sub);
+                }
+            }
+            return lastHeartbeatSent + heartbeatInterval;
+        default:
+            throw new IllegalStateException("unexpected connection state: " + connectionState.get());
+        }
+    }
+
+    public void reconnect() {
+        LOGGER.atDebug().addArgument(endpoint).log("need to reconnect for URI {}");
+        disconnect();
+        connect();
+    }
+
+    public void registerDnsResolver(final @NotNull DnsResolver resolver) {
+        // delegate method primarily for testing
+        getFactory().registerDnsResolver(resolver);
+    }
+
+    public void sendHeartBeat() {
+        try {
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.CLIENT_HB);
+        } catch (CmwLightProtocol.RdaLightException e) {
+            throw new IllegalStateException("error sending heartbeat", e);
+        }
     }
 
     @Override
@@ -178,165 +338,42 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         subscriptionsByReqId.get(reqId).subscriptionState = SubscriptionState.CANCELED;
     }
 
-    public ConnectionState getConnectionState() {
-        return connectionState.get();
-    }
-
-    public ZContext getContext() {
-        return context;
-    }
-
-    @Override
-    public ZMQ.Socket getSocket() {
-        return socket;
-    }
-
-    public void reconnect() {
-        disconnect();
-        try {
-            hostAddress = new URI(hostAddress.getScheme(), null, hostAddress.getPath(), hostAddress.getQuery(), null);
-        } catch (URISyntaxException e) {
-            throw new IllegalStateException("error while resetting authority part of host '" + hostAddress + "'", e);
-        }
-        LOGGER.atTrace().addArgument(hostAddress).log("Connecting to {}");
-        connect();
-    }
-
-    public void connect() {
-        if (connectionState.getAndSet(ConnectionState.CONNECTING) != ConnectionState.DISCONNECTED) {
-            return; // already connected
-        }
-        URI resolveAddress = hostAddress;
-        if ((resolveAddress.getAuthority() == null || resolveAddress.getPort() == -1) && directoryLightClient != null) {
-            try {
-                DirectoryLightClient.Device device = directoryLightClient.getDeviceInfo(Collections.singletonList(getDeviceName(resolveAddress))).get(0);
-                LOGGER.atTrace().addArgument(resolveAddress).addArgument(device).log("resolved address for device {}: {}");
-                final URI specificHost = URI.create(device.servers.stream().findFirst().orElseThrow().get("Address:"));
-                resolveAddress = new URI(resolveAddress.getScheme(), null, specificHost.getHost(), specificHost.getPort(), resolveAddress.getPath(), resolveAddress.getQuery(), null);
-            } catch (NullPointerException | NoSuchElementException | DirectoryLightClient.DirectoryClientException | URISyntaxException e) { // NOPMD - directory client must be refactored anyway
-                LOGGER.atError().setCause(e).addArgument(e.getMessage()).log("Error resolving device from nameserver, using address from endpoint. Error was: {}");
-                backOff = backOff * 2;
-                connectionState.set(ConnectionState.DISCONNECTED);
-                return;
-            }
-        }
-        lastHeartbeatSent = System.currentTimeMillis();
-        if (resolveAddress.getPort() == -1) {
-            LOGGER.atError().addArgument(hostAddress).log("could not resolve host service address: '{}'");
-        }
-        try {
-            final String identity = getIdentity();
-            final URI modifiedURI = URI.create(resolveAddress.getScheme() + "://" + resolveAddress.getAuthority());
-            connectedAddress = StringUtils.stripEnd(StringUtils.replace(modifiedURI.toString(), RDA_3_PROTOCOL + "://", "tcp://"), "/");
-            LOGGER.atDebug().addArgument(resolveAddress).addArgument(connectedAddress).addArgument(identity).log("connecting to: '{}'->'{}' with identity {}");
-            socket.setIdentity(identity.getBytes()); // hostname/process/id/channel -- TODO: check if this is really necessary - can cause a lot of troubles if this isn't unique enough
-            socket.connect(connectedAddress);
-            CmwLightProtocol.sendMsg(socket, CmwLightMessage.connect(CmwLightProtocol.VERSION));
-            hostAddress = resolveAddress;
-        } catch (ZMQException | CmwLightProtocol.RdaLightException | NumberFormatException e) {
-            LOGGER.atError().setCause(e).addArgument(connectedAddress).addArgument(hostAddress).log("failed to connect to '{}' source host address: '{}'");
-            backOff = backOff * 2;
-            connectionState.set(ConnectionState.DISCONNECTED);
-        }
-    }
-
-    @Override
-    public long housekeeping() {
-        final long currentTime = System.currentTimeMillis();
-        ZMonitor.ZEvent event;
-        while ((event = socketMonitor.nextEvent(false)) != null) {
-            switch (event.type) {
-            case DISCONNECTED:
-                if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD1, DEFAULT_RECONNECT_THRESHOLD1)) {
-                    LockSupport.parkNanos(timeout.toNanos());
-                } else if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD2, DEFAULT_RECONNECT_THRESHOLD2)) {
-                    LockSupport.parkNanos(10 * timeout.toNanos());
-                } else {
-                    LockSupport.parkNanos(100 * timeout.toNanos());
-                }
-                reconnect();
-                break;
-            case CONNECTED:
-                reconnectAttempt.set(0);
-                break;
-            default:
-                LOGGER.atDebug().addArgument(event).log("unknown socket event: {}");
-                break;
-            }
-        }
-
-        switch (connectionState.get()) {
-        case DISCONNECTED: // reconnect after adequate back off - reset authority since we may likely need to resolve the server:port via the DNS
-            if (currentTime > lastHeartbeatSent + backOff) {
-                reconnect();
-            }
-            return lastHeartbeatSent + backOff;
-        case CONNECTING:
-            if (currentTime > lastHeartbeatSent + heartbeatInterval * heartbeatAllowedMisses) { // connect timed out -> increase back of and retry
-                backOff = backOff * 2;
-                lastHeartbeatSent = currentTime;
-                LOGGER.atTrace().addArgument(connectedAddress).addArgument(backOff).log("Connection timed out for {}, retrying in {} ms");
-                disconnect();
-            }
-            return lastHeartbeatSent + heartbeatInterval * heartbeatAllowedMisses;
-        case CONNECTED:
-            Request request;
-            while ((request = queuedRequests.poll()) != null) {
-                pendingRequests.put(request.id, request);
-                sendRequest(request);
-            }
-            if (currentTime > lastHeartbeatSent + heartbeatInterval) { // check for heartbeat interval
-                // send Heartbeats
-                sendHeartBeat();
-                lastHeartbeatSent = currentTime;
-                // check if heartbeat was received
-                if (lastHeartbeatReceived + heartbeatInterval * heartbeatAllowedMisses < currentTime) {
-                    LOGGER.atDebug().addArgument(backOff).log("Connection timed out, reconnecting in {} ms");
-                    disconnect();
-                    return heartbeatInterval;
-                }
-                // check timeouts of connection/subscription requests
-                for (Subscription sub : subscriptions.values()) {
-                    updateSubscription(currentTime, sub);
-                }
-            }
-            return lastHeartbeatSent + heartbeatInterval;
-        default:
-            throw new IllegalStateException("unexpected connection state: " + connectionState.get());
-        }
-    }
-
-    public void sendHeartBeat() {
-        try {
-            CmwLightProtocol.sendMsg(socket, CmwLightMessage.CLIENT_HB);
-        } catch (CmwLightProtocol.RdaLightException e) {
-            throw new IllegalStateException("error sending heartbeat", e);
-        }
-    }
-
-    @Override
-    public void close() throws Exception {
-        socketMonitor.close();
-        socket.close();
-    }
-
     @Override
     protected Factory getFactory() {
         return FACTORY;
     }
 
-    private CmwLightMessage receiveData() {
-        // receive data
-        try {
-            final ZMsg data = ZMsg.recvMsg(socket, ZMQ.DONTWAIT);
-            if (data == null) {
-                return null;
+    private void disconnect() {
+        LOGGER.atDebug().addArgument(connectedAddress).log("disconnecting {}");
+        connectionState.set(Event.CLOSED);
+        if (connectedAddress != OpenCmwProtocol.EMPTY_URI) {
+            try {
+                socket.disconnect(connectedAddress.toString());
+            } catch (ZMQException e) {
+                LOGGER.atError().setCause(e).log("Failed to disconnect socket");
             }
-            return CmwLightProtocol.parseMsg(data);
-        } catch (CmwLightProtocol.RdaLightException e) {
-            LOGGER.atDebug().setCause(e).log("error parsing cmw light reply: ");
-            return null;
         }
+        // disconnect/reset subscriptions
+        for (Subscription sub : subscriptions.values()) {
+            sub.subscriptionState = SubscriptionState.UNSUBSCRIBED;
+        }
+    }
+
+    private String getIdentity() {
+        String hostname;
+        try {
+            hostname = InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException e) {
+            hostname = "localhost";
+        }
+        final long processId = ProcessHandle.current().pid();
+        connectionId = CONNECTION_ID_GENERATOR.incrementAndGet();
+        final int chId = this.channelId.incrementAndGet();
+        return hostname + '/' + processId + '/' + connectionId + '/' + chId; // N.B. this scheme is parsed/enforced by CMW
+    }
+
+    private String getSessionId(final String clientId) {
+        return "CmwLightClient{pid=" + ProcessHandle.current().pid() + ", conn=" + connectionId + ", clientId=" + clientId + '}';
     }
 
     private ZMsg handleServerReply(final CmwLightMessage reply, final long currentTime) { //NOPMD
@@ -406,87 +443,40 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         }
     }
 
-    private String getIdentity() {
-        String hostname;
+    private CmwLightMessage receiveData() {
+        // receive data
         try {
-            hostname = InetAddress.getLocalHost().getHostName();
-        } catch (UnknownHostException e) {
-            hostname = "localhost";
-        }
-        final long processId = ProcessHandle.current().pid();
-        connectionId = CONNECTION_ID_GENERATOR.incrementAndGet();
-        final int chId = this.channelId.incrementAndGet();
-        return hostname + '/' + processId + '/' + connectionId + '/' + chId;
-    }
-
-    private String getSessionId(final String clientId) {
-        return "cmwLightClient{pid=" + ProcessHandle.current().pid() + ", conn=" + connectionId + ", clientId=" + clientId + '}'; // Todo: create identification string, cmw uses string with user/app name, pid, etc -- reevaluate if this is really necessary
-    }
-
-    private void disconnect() {
-        LOGGER.atDebug().addArgument(connectedAddress).log("disconnecting {}");
-        connectionState.set(ConnectionState.DISCONNECTED);
-        try {
-            socket.disconnect(connectedAddress);
-        } catch (ZMQException e) {
-            LOGGER.atError().setCause(e).log("Failed to disconnect socket");
-        }
-        // disconnect/reset subscriptions
-        for (Subscription sub : subscriptions.values()) {
-            sub.subscriptionState = SubscriptionState.UNSUBSCRIBED;
+            final ZMsg data = ZMsg.recvMsg(socket, ZMQ.DONTWAIT);
+            if (data == null) {
+                return null;
+            }
+            return CmwLightProtocol.parseMsg(data);
+        } catch (CmwLightProtocol.RdaLightException e) {
+            LOGGER.atDebug().setCause(e).log("error parsing cmw light reply: ");
+            return null;
         }
     }
 
-    private void sendRequest(final Request request) {
+    private boolean sendRequest(final Request request) {
         try {
-            final ParsedEndpoint endpoint = new ParsedEndpoint(request.endpoint);
+            final ParsedEndpoint parsedEndpoint = new ParsedEndpoint(request.endpoint);
             switch (request.requestType) {
             case GET:
-                CmwLightProtocol.sendMsg(socket, CmwLightMessage.getRequest(
-                                                         sessionId, request.id, endpoint.device, endpoint.property,
-                                                         new CmwLightMessage.RequestContext(endpoint.ctx, endpoint.filters, null)));
-                break;
+                return CmwLightProtocol.sendMsg(socket, CmwLightMessage.getRequest(
+                                                                sessionId, request.id, parsedEndpoint.device, parsedEndpoint.property,
+                                                                new CmwLightMessage.RequestContext(parsedEndpoint.ctx, parsedEndpoint.filters, null)));
             case SET:
                 Objects.requireNonNull(request.data, "Data for set cannot be null");
-                CmwLightProtocol.sendMsg(socket, CmwLightMessage.setRequest(
-                                                         sessionId, request.id, endpoint.device, endpoint.property,
-                                                         new ZFrame(request.data),
-                                                         new CmwLightMessage.RequestContext(endpoint.ctx, endpoint.filters, null)));
-                break;
+                return CmwLightProtocol.sendMsg(socket, CmwLightMessage.setRequest(
+                                                                sessionId, request.id, parsedEndpoint.device, parsedEndpoint.property,
+                                                                new ZFrame(request.data),
+                                                                new CmwLightMessage.RequestContext(parsedEndpoint.ctx, parsedEndpoint.filters, null)));
             default:
                 throw new CmwLightProtocol.RdaLightException("Message of unknown type");
             }
         } catch (CmwLightProtocol.RdaLightException e) {
             LOGGER.atDebug().setCause(e).log("Error sending get request:");
-        }
-    }
-
-    private void updateSubscription(final long currentTime, final Subscription sub) {
-        switch (sub.subscriptionState) {
-        case SUBSCRIBING:
-            // check timeout
-            if (currentTime > sub.timeoutValue) {
-                sub.subscriptionState = SubscriptionState.UNSUBSCRIBED;
-                sub.timeoutValue = currentTime + sub.backOff;
-                sub.backOff = sub.backOff * 2; // exponential back of
-                LOGGER.atDebug().addArgument(sub.device).addArgument(sub.property).log("subscription timed out, retrying: {}/{}");
-            }
-            break;
-        case UNSUBSCRIBED:
-            if (currentTime > sub.timeoutValue) {
-                LOGGER.atDebug().addArgument(sub.device).addArgument(sub.property).log("subscribing {}/{}");
-                sendSubscribe(sub);
-            }
-            break;
-        case SUBSCRIBED:
-        case UNSUBSCRIBE_SENT:
-            // do nothing
-            break;
-        case CANCELED:
-            sendUnsubscribe(sub);
-            break;
-        default:
-            throw new IllegalStateException("unexpected subscription state: " + sub.subscriptionState);
+            return false;
         }
     }
 
@@ -521,18 +511,33 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         }
     }
 
-    public static DirectoryLightClient getDirectoryLightClient() {
-        return directoryLightClient;
-    }
-
-    public static void setDirectoryLightClient(final DirectoryLightClient directoryLightClient) {
-        CmwLightDataSource.directoryLightClient = directoryLightClient;
-    }
-
-    public enum ConnectionState {
-        DISCONNECTED,
-        CONNECTING,
-        CONNECTED
+    private void updateSubscription(final long currentTime, final Subscription sub) {
+        switch (sub.subscriptionState) {
+        case SUBSCRIBING:
+            // check timeout
+            if (currentTime > sub.timeoutValue) {
+                sub.subscriptionState = SubscriptionState.UNSUBSCRIBED;
+                sub.timeoutValue = currentTime + sub.backOff;
+                sub.backOff = sub.backOff * 2; // exponential back of
+                LOGGER.atDebug().addArgument(sub.device).addArgument(sub.property).log("subscription timed out, retrying: {}/{}");
+            }
+            break;
+        case UNSUBSCRIBED:
+            if (currentTime > sub.timeoutValue) {
+                LOGGER.atDebug().addArgument(sub.device).addArgument(sub.property).log("subscribing {}/{}");
+                sendSubscribe(sub);
+            }
+            break;
+        case SUBSCRIBED:
+        case UNSUBSCRIBE_SENT:
+            // do nothing
+            break;
+        case CANCELED:
+            sendUnsubscribe(sub);
+            break;
+        default:
+            throw new IllegalStateException("unexpected subscription state: " + sub.subscriptionState);
+        }
     }
 
     public enum SubscriptionState {
@@ -647,6 +652,23 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             }));
         }
 
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof ParsedEndpoint)) {
+                return false;
+            }
+            final ParsedEndpoint that = (ParsedEndpoint) o;
+            return filters.equals(that.filters) && ctx.equals(that.ctx) && device.equals(that.device) && property.equals(that.property);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(filters, ctx, device, property);
+        }
+
         public URI toURI() throws URISyntaxException {
             final String filterString = filters.entrySet().stream() //
                                                 .map(e -> {
@@ -672,23 +694,6 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                                                 }) //
                                                 .collect(Collectors.joining("&"));
             return new URI(RDA_3_PROTOCOL, authority, '/' + device + '/' + property, "ctx=" + ctx + '&' + filterString, null);
-        }
-
-        @Override
-        public boolean equals(final Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (!(o instanceof ParsedEndpoint)) {
-                return false;
-            }
-            final ParsedEndpoint that = (ParsedEndpoint) o;
-            return filters.equals(that.filters) && ctx.equals(that.ctx) && device.equals(that.device) && property.equals(that.property);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(filters, ctx, device, property);
         }
     }
 }

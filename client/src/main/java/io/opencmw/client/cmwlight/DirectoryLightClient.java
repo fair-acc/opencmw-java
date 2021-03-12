@@ -6,19 +6,25 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.URI;
 import java.net.URLDecoder;
+import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import io.opencmw.OpenCmwConstants;
+import io.opencmw.client.DnsResolver;
 
 /**
  * Obtain device info from the directory server
  */
-public class DirectoryLightClient {
+public class DirectoryLightClient implements DnsResolver {
     public static final String GET_DEVICE_INFO = "get-device-info";
     // public static final String GET_SERVER_INFO = "get-server-info";
     // private static final String SUPPORTED_CHARACTERS = "\\.\\-\\+_a-zA-Z0-9";
@@ -34,16 +40,41 @@ public class DirectoryLightClient {
     private final String nameserver;
     private final int nameserverPort;
 
-    public DirectoryLightClient(final String... nameservers) throws DirectoryClientException {
+    public DirectoryLightClient(final String... nameservers) {
         if (nameservers.length != 1) {
-            throw new DirectoryClientException("only one nameserver supported at the moment");
+            throw new IllegalArgumentException("only one nameserver supported at the moment");
         }
-        final String[] hostport = nameservers[0].split(HOST_PORT_SEPARATOR);
-        if (hostport.length != 2) {
-            throw new DirectoryClientException("nameserver address has wrong format: " + nameservers[0]);
+        final String[] hostPort = nameservers[0].split(HOST_PORT_SEPARATOR);
+        if (hostPort.length != 2) {
+            throw new IllegalArgumentException("nameserver address has wrong format: " + nameservers[0]);
         }
-        nameserver = hostport[0];
-        nameserverPort = Integer.parseInt(hostport[1]);
+        nameserver = hostPort[0];
+        nameserverPort = Integer.parseInt(hostPort[1]);
+    }
+
+    @Override
+    public void close() {
+        // nothing to be closed here
+    }
+
+    @Override
+    public List<String> getApplicableSchemes() {
+        return List.of("rda3");
+    }
+
+    @Override
+    public Map<URI, List<URI>> resolveNames(final List<URI> devicesToResolve) throws UnknownHostException {
+        final List<String> deviceList = devicesToResolve.stream().map(OpenCmwConstants::getDeviceName).collect(Collectors.toList());
+        try {
+            final List<Device> deviceInfos = getDeviceInfo(deviceList);
+            final Map<URI, List<URI>> map = new ConcurrentHashMap<>();
+            for (Device device : deviceInfos) {
+                map.put(URI.create("rda3:/" + device.name), List.of(URI.create(device.getAddress())));
+            }
+            return map;
+        } catch (Exception e) { // NOPMD
+            throw new UnknownHostException("resolveNames : " + e.getMessage());
+        }
     }
 
     /**
