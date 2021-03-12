@@ -1,24 +1,17 @@
 package io.opencmw.client.cmwlight;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
-import static org.zeromq.ZMonitor.Event;
-
 import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.zeromq.ZMonitor.Event;
 
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -30,13 +23,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zeromq.SocketType;
-import org.zeromq.ZContext;
-import org.zeromq.ZFrame;
-import org.zeromq.ZMQ;
-import org.zeromq.ZMQException;
-import org.zeromq.ZMonitor;
-import org.zeromq.ZMsg;
+import org.zeromq.*;
 
 import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
@@ -70,7 +57,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         }
 
         @Override
-        public DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull String clientId) {
+        public DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull ExecutorService executorService, final @NotNull String clientId) {
             return new CmwLightDataSource(context, endpoint, timeout, clientId);
         }
 
@@ -262,7 +249,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             case DISCONNECTED:
                 if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD1, DEFAULT_RECONNECT_THRESHOLD1)) {
                     LockSupport.parkNanos(timeout.toNanos());
-                } else if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD1, DEFAULT_RECONNECT_THRESHOLD1)) {
+                } else if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD2, DEFAULT_RECONNECT_THRESHOLD2)) {
                     LockSupport.parkNanos(10 * timeout.toNanos());
                 } else {
                     LockSupport.parkNanos(100 * timeout.toNanos());

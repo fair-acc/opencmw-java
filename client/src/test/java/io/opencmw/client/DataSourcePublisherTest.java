@@ -1,27 +1,15 @@
 package io.opencmw.client;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import static io.opencmw.OpenCmwConstants.getDeviceName;
 import static io.opencmw.OpenCmwConstants.getPropertyName;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.net.ProtocolException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -68,7 +56,7 @@ class DataSourcePublisherTest {
             }
 
             @Override
-            public DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull String clientId) {
+            public DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull ExecutorService executorService, final @NotNull String clientId) {
                 return new TestDataSource(context, endpoint);
             }
 

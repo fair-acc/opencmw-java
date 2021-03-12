@@ -420,7 +420,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
     private DataSource getClient(final URI endpoint) {
         return clientMap.computeIfAbsent(endpoint.getScheme() + ":/" + getDeviceName(endpoint), requestedEndPoint -> {
-            final DataSource dataSource = DataSource.getFactory(URI.create(requestedEndPoint)).newInstance(context, endpoint, Duration.ofMillis(100), Long.toString(internalReqIdGenerator.incrementAndGet()));
+            final DataSource dataSource = DataSource.getFactory(URI.create(requestedEndPoint)).newInstance(context, endpoint, Duration.ofMillis(100), executor, Long.toString(internalReqIdGenerator.incrementAndGet()));
             poller.register(dataSource.getSocket(), ZMQ.Poller.POLLIN);
             return dataSource;
         });

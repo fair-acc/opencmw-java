@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 
 import org.jetbrains.annotations.NotNull;
 import org.zeromq.ZContext;
@@ -31,7 +32,7 @@ public abstract class DataSource implements AutoCloseable {
      * Constructor
      * @param endpoint Endpoint to subscribe to
      */
-    public DataSource(final @NotNull URI endpoint) {
+    protected DataSource(final @NotNull URI endpoint) {
         if (!getFactory().matches(endpoint)) {
             throw new UnsupportedOperationException(this.getClass().getName() + " DataSource Implementation does not support endpoint: " + endpoint);
         }
@@ -55,7 +56,7 @@ public abstract class DataSource implements AutoCloseable {
 
     /**
      * Perform housekeeping tasks like connection management, heartbeats, subscriptions, etc
-     * @return next time housekeeping duties should be performed
+     * @return UTC time-stamp in [ms] when the next housekeeping duties should be performed
      */
     public abstract long housekeeping();
 
@@ -120,7 +121,7 @@ public abstract class DataSource implements AutoCloseable {
         List<String> getApplicableSchemes();
         List<DnsResolver> getRegisteredDnsResolver();
         Class<? extends IoSerialiser> getMatchingSerialiserType(final @NotNull URI endpoint);
-        DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull String clientId);
+        DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull ExecutorService executorService, final @NotNull String clientId);
 
         default boolean matches(final @NotNull URI endpoint) {
             final String scheme = Objects.requireNonNull(endpoint.getScheme(), "required URI has no scheme defined: " + endpoint);
