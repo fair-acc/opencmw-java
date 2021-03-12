@@ -125,20 +125,20 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
 
         // generate and register internal default inproc socket
         routerSocket = ctx.createSocket(SocketType.ROUTER);
-        routerSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(routerSocket);
         routerSocket.bind(INTERNAL_ADDRESS_BROKER); // NOPMD
         pubSocket = ctx.createSocket(SocketType.XPUB);
-        pubSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(pubSocket);
         pubSocket.setXpubVerbose(true);
         pubSocket.bind(INTERNAL_ADDRESS_PUBLISHER); // NOPMD
         subSocket = ctx.createSocket(SocketType.SUB);
-        subSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(subSocket);
         subSocket.bind(INTERNAL_ADDRESS_SUBSCRIBE); // NOPMD
 
         registerDefaultServices(rbacRoles); // NOPMD
 
         dnsSocket = ctx.createSocket(SocketType.DEALER);
-        dnsSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(dnsSocket);
         if (this.dnsAddress == null) {
             dnsSocket.connect(INTERNAL_ADDRESS_BROKER);
         } else {
@@ -482,7 +482,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
             }
             break;
         case DISCONNECT:
-            //deleteWorker(worker, false);
+            //deleteWorker(worker, false)
             break;
         case PARTIAL:
         case FINAL:

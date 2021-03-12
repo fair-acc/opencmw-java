@@ -1,5 +1,6 @@
 package io.opencmw.server.rest;
 
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static io.javalin.apibuilder.ApiBuilder.get;
@@ -127,7 +128,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         assert (httpAddress != null);
         RestServer.setName(Objects.requireNonNullElse(serverDescription, MajordomoRestPlugin.class.getName()));
         subSocket = ctx.createSocket(SocketType.SUB);
-        subSocket.setHWM(0);
+        setDefaultSocketParameters(subSocket);
         subSocket.connect(INTERNAL_ADDRESS_PUBLISHER);
         subSocket.subscribe(INTERNAL_SERVICE_NAMES);
         subscriptionCount.computeIfAbsent(INTERNAL_SERVICE_NAMES, s -> new AtomicInteger()).incrementAndGet();

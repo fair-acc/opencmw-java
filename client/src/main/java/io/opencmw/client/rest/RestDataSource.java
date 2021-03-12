@@ -1,6 +1,7 @@
 
 package io.opencmw.client.rest;
 
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 
 import java.io.IOException;
@@ -146,10 +147,7 @@ public class RestDataSource extends DataSource implements Runnable {
         }
 
         internalSocket = ctxCopy.createSocket(SocketType.PAIR);
-        assert internalSocket != null : "internalSocket being initialised";
-        if (!internalSocket.setHWM(0)) {
-            throw new IllegalStateException("could not set HWM on internalSocket");
-        }
+        setDefaultSocketParameters(internalSocket);
         if (!internalSocket.setIdentity(uniqueIdBytes)) {
             throw new IllegalStateException("could not set identity on internalSocket");
         }
@@ -158,10 +156,7 @@ public class RestDataSource extends DataSource implements Runnable {
         }
 
         externalSocket = ctxCopy.createSocket(SocketType.PAIR);
-        assert externalSocket != null : "externalSocket being initialised";
-        if (!externalSocket.setHWM(0)) {
-            throw new IllegalStateException("could not set HWM on externalSocket");
-        }
+        setDefaultSocketParameters(externalSocket);
         if (!externalSocket.connect("inproc://" + uniqueID)) {
             throw new IllegalStateException("could not bind externalSocket to: inproc://" + uniqueID);
         }
@@ -293,7 +288,6 @@ public class RestDataSource extends DataSource implements Runnable {
                             // exception branch
                             data = EMPTY_FRAME;
                         } else {
-                            // callBack.response.headers().toString().getBytes(StandardCharsets.UTF_8);
                             data = callBack.response.peekBody(Long.MAX_VALUE).bytes();
                             callBack.response.close();
                         }

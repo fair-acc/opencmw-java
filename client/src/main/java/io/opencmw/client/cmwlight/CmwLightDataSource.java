@@ -112,7 +112,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         this.context = context;
         this.timeout = timeout;
         this.socket = context.createSocket(SocketType.DEALER);
-        this.socket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(socket);
         this.sessionId = getSessionId(clientId);
         this.hostAddress = hostAddress;
 

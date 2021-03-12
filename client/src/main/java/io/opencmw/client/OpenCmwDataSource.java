@@ -1,5 +1,6 @@
 package io.opencmw.client;
 
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static org.zeromq.ZMonitor.Event;
@@ -122,11 +123,10 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         default:
             throw new UnsupportedOperationException("Unsupported protocol type " + endpoint.getScheme());
         }
-        socket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(socket);
 
         socketMonitor = new ZMonitor(context, socket);
-        //socketMonitor.add(Event.CONNECTED, Event.DISCONNECTED);
-        socketMonitor.add(Event.ALL);
+        socketMonitor.add(Event.CLOSED, Event.CONNECTED, Event.DISCONNECTED);
         socketMonitor.start();
 
         reconnect(); // NOPMD
@@ -240,7 +240,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
                     // need to (re-)start connection
                     if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD1, DEFAULT_RECONNECT_THRESHOLD1)) {
                         LockSupport.parkNanos(timeout.toNanos());
-                    } else if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD1, DEFAULT_RECONNECT_THRESHOLD1)) {
+                    } else if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD2, DEFAULT_RECONNECT_THRESHOLD2)) {
                         LockSupport.parkNanos(10 * timeout.toNanos());
                     } else {
                         LockSupport.parkNanos(100 * timeout.toNanos());

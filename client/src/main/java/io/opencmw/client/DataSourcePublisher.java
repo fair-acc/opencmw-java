@@ -134,7 +134,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
         poller = context.createPoller(1);
         // control socket for adding subscriptions / triggering requests from other threads
         sourceSocket = context.createSocket(SocketType.DEALER);
-        sourceSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(sourceSocket);
         sourceSocket.bind(inprocCtrl);
         poller.register(sourceSocket, ZMQ.Poller.POLLIN);
 

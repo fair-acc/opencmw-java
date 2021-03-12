@@ -1,5 +1,6 @@
 package io.opencmw.server;
 
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static io.opencmw.OpenCmwProtocol.Command;
@@ -67,7 +68,7 @@ public class MajordomoTestClientSync {
             clientSocket.close();
         }
         clientSocket = ctx.createSocket(SocketType.DEALER);
-        clientSocket.setHWM(0);
+        setDefaultSocketParameters(clientSocket);
         clientSocket.setIdentity(uniqueIdBytes);
         clientSocket.connect(broker);
 

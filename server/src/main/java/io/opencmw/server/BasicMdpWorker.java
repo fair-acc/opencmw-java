@@ -130,10 +130,10 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
 
         notifyListenerSocket = this.ctx.createSocket(SocketType.PAIR);
         notifyListenerSocket.bind("inproc://notifyListener" + uniqueID);
-        notifyListenerSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(notifyListenerSocket);
         notifySocket = this.ctx.createSocket(SocketType.PAIR);
         notifySocket.connect("inproc://notifyListener" + uniqueID);
-        notifySocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(notifySocket);
 
         LOGGER.atTrace().addArgument(serviceName).addArgument(uniqueID).log("created new service '{}' worker - uniqueID: {}");
     }
@@ -377,16 +377,14 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
         }
         final URI translatedBrokerAddress = replaceScheme(brokerAddress, SCHEME_TCP);
         workerSocket = ctx.createSocket(SocketType.DEALER);
-        assert workerSocket != null : "worker socket is null";
-        workerSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(workerSocket);
         workerSocket.connect(translatedBrokerAddress + SUFFIX_ROUTER);
 
         if (pubSocket != null) {
             pubSocket.close();
         }
         pubSocket = ctx.createSocket(SocketType.XPUB);
-        assert pubSocket != null : "publication socket is null";
-        pubSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(pubSocket);
         pubSocket.setXpubVerbose(true);
         pubSocket.connect(translatedBrokerAddress + SUFFIX_SUBSCRIBE);
 

@@ -1,5 +1,6 @@
 package io.opencmw.server;
 
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static org.awaitility.Awaitility.await;
@@ -347,7 +348,7 @@ class MajordomoBrokerTests {
         final Thread subscriptionThread = new Thread(() -> {
             // low-level subscription
             final ZMQ.Socket sub = broker.getContext().createSocket(SocketType.SUB);
-            sub.setHWM(0);
+            setDefaultSocketParameters(sub);
             sub.connect(replaceScheme(brokerPubAddress, SCHEME_TCP).toString());
             sub.subscribe("device/property");
             sub.subscribe("device/otherProperty");

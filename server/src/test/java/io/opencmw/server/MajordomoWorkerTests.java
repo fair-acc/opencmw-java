@@ -1,5 +1,6 @@
 package io.opencmw.server;
 
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static org.awaitility.Awaitility.await;
@@ -266,7 +267,7 @@ class MajordomoWorkerTests {
         final AtomicBoolean startedSubscriber = new AtomicBoolean(false);
         final Thread subscriptionThread = new Thread(() -> {
             try (ZMQ.Socket sub = broker.getContext().createSocket(SocketType.SUB)) {
-                sub.setHWM(0);
+                setDefaultSocketParameters(sub);
                 sub.connect(MajordomoBroker.INTERNAL_ADDRESS_PUBLISHER);
                 sub.subscribe(TEST_SERVICE_NAME);
                 while (run.get() && !Thread.interrupted()) {
