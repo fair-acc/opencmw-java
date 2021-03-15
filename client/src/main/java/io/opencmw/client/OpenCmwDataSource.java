@@ -51,7 +51,7 @@ import io.opencmw.utils.SystemProperties;
  *
  * @author Alexander Krimm
  */
-@SuppressWarnings({"PMD.TooManyFields", "PMD.ExcessiveImports"})
+@SuppressWarnings({ "PMD.TooManyFields", "PMD.ExcessiveImports" })
 public class OpenCmwDataSource extends DataSource implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(OpenCmwDataSource.class);
     private static final AtomicInteger INSTANCE_COUNT = new AtomicInteger();
