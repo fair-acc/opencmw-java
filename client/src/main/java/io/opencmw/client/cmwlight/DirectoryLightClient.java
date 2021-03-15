@@ -73,7 +73,7 @@ public class DirectoryLightClient implements DnsResolver {
             }
             return map;
         } catch (Exception e) { // NOPMD
-            throw new UnknownHostException("resolveNames : " + e.getMessage());
+            throw new UnknownHostException("resolveNames : " + e.getMessage()); // NOPMD - exception retained in message
         }
     }
 

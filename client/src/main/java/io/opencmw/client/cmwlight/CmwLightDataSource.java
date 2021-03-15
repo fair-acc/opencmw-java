@@ -111,7 +111,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         socketMonitor.add(Event.CLOSED, Event.CONNECTED, Event.DISCONNECTED);
         socketMonitor.start();
 
-        connect();
+        connect(); // NOPMD - override allowed
     }
 
     @Override
