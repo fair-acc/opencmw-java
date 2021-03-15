@@ -95,33 +95,34 @@ import io.opencmw.utils.SystemProperties;
 @SuppressWarnings({ "PMD.GodClass", "PMD.ExcessiveImports", "PMD.TooManyFields" })
 public class DataSourcePublisher implements Runnable, Closeable {
     public static final int MIN_FRAMES_INTERNAL_MSG = 3;
+    protected static final ZFrame EMPTY_ZFRAME = new ZFrame(EMPTY_FRAME);
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisher.class);
-    private static final ZFrame EMPTY_ZFRAME = new ZFrame(EMPTY_FRAME);
     private static final AtomicInteger INSTANCE_COUNT = new AtomicInteger();
-    protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
-    private final String inprocCtrl = "inproc://dsPublisher#" + INSTANCE_COUNT.incrementAndGet();
-    private final Map<String, ThePromisedFuture<?, ?>> requests = new ConcurrentHashMap<>(); // <requestId, future for the get request>
-    private final Map<String, DataSource> clientMap = new ConcurrentHashMap<>(); // scheme://authority -> DataSource
-    private final AtomicBoolean shallRun = new AtomicBoolean(false);
-    private final AtomicBoolean running = new AtomicBoolean(false);
-    private final AtomicInteger internalReqIdGenerator = new AtomicInteger(0);
-    private final EventStore rawDataEventStore;
-    private final ZContext context;
-    private final ZMQ.Poller poller;
-    private final ZMQ.Socket sourceSocket;
-    private final IoBuffer byteBuffer = new FastByteBuffer(0, true, null); // never actually used
-    private final IoClassSerialiser ioClassSerialiser = new IoClassSerialiser(byteBuffer);
-    private final String clientId;
-    private final RbacProvider rbacProvider;
-    private final ExecutorService executor; // NOPMD - threads are ok, not a webapp
-    private final EventStore publicationTarget;
-    private final AtomicReference<Thread> threadReference = new AtomicReference<>();
 
     static { // register default data sources
         DataSource.register(CmwLightDataSource.FACTORY);
         DataSource.register(RestDataSource.FACTORY);
         DataSource.register(OpenCmwDataSource.FACTORY);
     }
+
+    protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
+    protected final String inprocCtrl = "inproc://dsPublisher#" + INSTANCE_COUNT.incrementAndGet();
+    protected final Map<String, ThePromisedFuture<?, ?>> requests = new ConcurrentHashMap<>(); // <requestId, future for the get request>
+    protected final Map<String, DataSource> clientMap = new ConcurrentHashMap<>(); // scheme://authority -> DataSource
+    protected final AtomicInteger internalReqIdGenerator = new AtomicInteger(0);
+    protected final ExecutorService executor; // NOPMD - threads are ok, not a webapp
+    protected final ZContext context;
+    protected final ZMQ.Poller poller;
+    protected final ZMQ.Socket sourceSocket;
+    protected final String clientId;
+    private final IoBuffer byteBuffer = new FastByteBuffer(0, true, null); // never actually used
+    private final IoClassSerialiser ioClassSerialiser = new IoClassSerialiser(byteBuffer);
+    private final AtomicBoolean shallRun = new AtomicBoolean(false);
+    private final AtomicBoolean running = new AtomicBoolean(false);
+    private final EventStore rawDataEventStore;
+    private final RbacProvider rbacProvider;
+    private final EventStore publicationTarget;
+    private final AtomicReference<Thread> threadReference = new AtomicReference<>();
 
     public DataSourcePublisher(final RbacProvider rbacProvider, final ExecutorService executorService, final String... clientId) {
         this(null, null, rbacProvider, executorService, clientId);
@@ -326,7 +327,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     @SuppressWarnings({ "PMD.UnusedFormalParameter" }) // method signature is mandated by functional interface
-    private void internalEventHandler(final RingBufferEvent event, final long sequence, final boolean endOfBatch) {
+    protected void internalEventHandler(final RingBufferEvent event, final long sequence, final boolean endOfBatch) {
         final EvtTypeFilter evtTypeFilter = event.getFilter(EvtTypeFilter.class);
         final boolean notifyFuture;
         switch (evtTypeFilter.updateType) {
@@ -395,7 +396,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     @SuppressWarnings({ "PMD.UnusedFormalParameter" }) // method signature is mandated by functional interface
-    private void publishToExternalStore(final RingBufferEvent publishEvent, final long seq, final RingBufferEvent sourceEvent, final Object replyDomainObject, final String exception) {
+    protected void publishToExternalStore(final RingBufferEvent publishEvent, final long seq, final RingBufferEvent sourceEvent, final Object replyDomainObject, final String exception) {
         sourceEvent.copyTo(publishEvent);
         publishEvent.payload = new SharedPointer<>();
         if (replyDomainObject != null) {
@@ -418,7 +419,10 @@ public class DataSourcePublisher implements Runnable, Closeable {
         }
     }
 
-    private DataSource getClient(final URI endpoint) {
+    protected DataSource getClient(final URI endpoint) {
+        // N.B. protected method so that knowledgeable/courageous developer can define their own multiplexing 'key' map-criteria
+        // e.g. a key including the volatile authority and/or a more specific 'device/property' path information, e.g.
+        // key := "<scheme>://authority/path"  (N.B. usually the authority is resolved by the DnsResolver/any Broker)
         return clientMap.computeIfAbsent(endpoint.getScheme() + ":/" + getDeviceName(endpoint), requestedEndPoint -> {
             final DataSource dataSource = DataSource.getFactory(URI.create(requestedEndPoint)).newInstance(context, endpoint, Duration.ofMillis(100), executor, Long.toString(internalReqIdGenerator.incrementAndGet()));
             poller.register(dataSource.getSocket(), ZMQ.Poller.POLLIN);
