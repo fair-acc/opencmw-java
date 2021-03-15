@@ -1,15 +1,16 @@
 package io.opencmw;
 
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.UnknownHostException;
+import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
+
+import java.net.*;
 import java.util.Locale;
+import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.zeromq.ZMQ;
+
+import io.opencmw.utils.SystemProperties;
 
 /**
  * OpenCMW global constant definitions:
@@ -50,49 +51,17 @@ public final class OpenCmwConstants {
     public static final String CLIENT_TIMEOUT = "OpenCMW.clientTimeOut"; // [s]
     public static final long CLIENT_TIMEOUT_DEFAULT = 0L; // [s]
     public static final String ADDRESS_GIVEN = "address given: ";
+    public static final String RECONNECT_THRESHOLD1 = "OpenCMW.reconnectThreshold1"; // []
+    public static final int DEFAULT_RECONNECT_THRESHOLD1 = 3; // []
+    public static final String RECONNECT_THRESHOLD2 = "OpenCMW.reconnectThreshold2"; // []
+    public static final int DEFAULT_RECONNECT_THRESHOLD2 = 6; // []
 
     private OpenCmwConstants() {
         // this is a utility class
     }
 
-    public static URI replaceScheme(final @NotNull URI address, final String schemeReplacement) {
-        if (address.getScheme() != null && address.getScheme().toLowerCase(Locale.UK).equals(SCHEME_INPROC)) {
-            return address;
-        }
-        try {
-            return new URI(schemeReplacement, address.getAuthority(), address.getPath(), address.getQuery(), null);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
-        }
-    }
-
-    public static URI resolveHost(final @NotNull URI address, final String hostName) {
-        if (((address.getScheme() != null && address.getScheme().toLowerCase(Locale.UK).equals(SCHEME_INPROC)) || (address.getAuthority() == null || !address.getAuthority().toLowerCase(Locale.UK).contains(WILDCARD)))) {
-            return address;
-        }
-        try {
-            final String[] splitAuthority = StringUtils.split(address.getAuthority(), ":");
-            final int port = splitAuthority.length >= 2 ? Integer.parseInt(splitAuthority[1]) : address.getPort();
-            return new URI(address.getScheme(), null, hostName, port, address.getPath(), address.getQuery(), null);
-        } catch (URISyntaxException | NumberFormatException e) {
-            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
-        }
-    }
-
-    public static URI stripPathTrailingSlash(final @NotNull URI address) {
-        try {
-            return new URI(address.getScheme(), address.getAuthority(), StringUtils.stripEnd(address.getPath(), "/"), address.getQuery(), null);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
-        }
-    }
-
     public static String getDeviceName(final @NotNull URI endpoint) {
         return StringUtils.stripStart(endpoint.getPath(), "/").split("/", 2)[0];
-    }
-
-    public static String getPropertyName(final @NotNull URI endpoint) {
-        return StringUtils.stripStart(endpoint.getPath(), "/").split("/", 2)[1];
     }
 
     public static String getLocalHostName() {
@@ -110,6 +79,78 @@ public final class OpenCmwConstants {
             return "localhost";
         } catch (final SocketException | UnknownHostException e) {
             throw new IllegalStateException("cannot resolve own host IP address", e);
+        }
+    }
+
+    public static String getPropertyName(final @NotNull URI endpoint) {
+        return StringUtils.stripStart(endpoint.getPath(), "/").split("/", 2)[1];
+    }
+
+    public static URI replacePath(final @NotNull URI address, final @NotNull String pathReplacement) {
+        if (pathReplacement.equals(address.getPath())) {
+            return address;
+        }
+        try {
+            return new URI(address.getScheme(), address.getAuthority(), pathReplacement, address.getQuery(), null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
+        }
+    }
+
+    public static URI replaceQuery(final @NotNull URI address, final String queryReplacement) {
+        if (queryReplacement != null && queryReplacement.equals(address.getQuery())) {
+            return address;
+        }
+        try {
+            return new URI(address.getScheme(), address.getAuthority(), address.getPath(), queryReplacement, null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
+        }
+    }
+
+    public static URI replaceScheme(final @NotNull URI address, final @NotNull String schemeReplacement) {
+        if (address.getScheme() != null && address.getScheme().toLowerCase(Locale.UK).equals(SCHEME_INPROC)) {
+            return address;
+        }
+        try {
+            return new URI(schemeReplacement, address.getAuthority(), address.getPath(), address.getQuery(), null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
+        }
+    }
+
+    public static URI replaceSchemeKeepOnlyAuthority(final @NotNull URI address, final @NotNull String schemeReplacement) {
+        return URI.create(schemeReplacement + "://" + Objects.requireNonNull(address.getAuthority(), "authority is null: " + address));
+    }
+
+    public static URI resolveHost(final @NotNull URI address, final @NotNull String hostName) {
+        if (((address.getScheme() != null && address.getScheme().toLowerCase(Locale.UK).equals(SCHEME_INPROC)) || (address.getAuthority() == null || !address.getAuthority().toLowerCase(Locale.UK).contains(WILDCARD)))) {
+            return address;
+        }
+        try {
+            final String[] splitAuthority = StringUtils.split(address.getAuthority(), ":");
+            final int port = splitAuthority.length >= 2 ? Integer.parseInt(splitAuthority[1]) : address.getPort();
+            return new URI(address.getScheme(), null, hostName, port, address.getPath(), address.getQuery(), null);
+        } catch (URISyntaxException | NumberFormatException e) {
+            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
+        }
+    }
+
+    public static void setDefaultSocketParameters(final @NotNull ZMQ.Socket socket) {
+        final int heartBeatInterval = (int) SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT);
+        final int liveness = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT);
+        socket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        socket.setHeartbeatContext(PROT_CLIENT.getData());
+        socket.setHeartbeatTtl(heartBeatInterval * liveness);
+        socket.setHeartbeatTimeout(heartBeatInterval * liveness);
+        socket.setHeartbeatIvl(heartBeatInterval);
+    }
+
+    public static URI stripPathTrailingSlash(final @NotNull URI address) {
+        try {
+            return new URI(address.getScheme(), address.getAuthority(), StringUtils.stripEnd(address.getPath(), "/"), address.getQuery(), null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(ADDRESS_GIVEN + address, e);
         }
     }
 }

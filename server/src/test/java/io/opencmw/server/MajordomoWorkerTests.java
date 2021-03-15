@@ -10,6 +10,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.*;
 
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static io.opencmw.OpenCmwProtocol.Command.SET_REQUEST;
 import static io.opencmw.OpenCmwProtocol.MdpMessage;
 
@@ -94,6 +95,8 @@ class MajordomoWorkerTests {
         // broker.setDaemon(true); // use this if running in another app that controls threads
         final URI brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         final URI brokerPubAddress = broker.bind(URI.create("mds://*:" + Utils.findOpenPort()));
+        assertNotNull(brokerAddress);
+        assertNotNull(brokerPubAddress);
         broker.start();
 
         RequestDataType inputData = new RequestDataType();
@@ -216,7 +219,7 @@ class MajordomoWorkerTests {
         case "HTML":
             // HTML return
             final String replyHtml = new String(rawReply.data);
-            // very crude check whether required reply field ids are present - we skip detailed HTLM parsing -> more efficiently done by a human and browser
+            // very crude check whether required reply field ids are present - we skip detailed HTML parsing -> more efficiently done by a human and browser
             assertThat(replyHtml, containsString("id=\"resourceName\""));
             assertThat(replyHtml, containsString("id=\"contentType\""));
             assertThat(replyHtml, containsString("id=\"data\""));
@@ -232,7 +235,6 @@ class MajordomoWorkerTests {
             ioBuffer.flip();
 
             assertNotNull(reply);
-            System.err.println("reply " + reply);
             assertEquals(inputData.resourceName, reply.resourceName, "identity resourceName field");
             assertEquals(inputData.contentType, reply.contentType, "identity contentType field");
             assertArrayEquals(inputData.data, reply.data, "identity data field");
@@ -246,7 +248,7 @@ class MajordomoWorkerTests {
     void basicDefaultHtmlHandlerTest() {
         assertDoesNotThrow(() -> new DefaultHtmlHandler<>(this.getClass(), null, map -> {
             map.put("extraKey", "extraValue");
-            map.put("extraUnkownObject", new NoData());
+            map.put("extraUnknownObject", new NoData());
         }));
     }
 
@@ -263,9 +265,9 @@ class MajordomoWorkerTests {
         final AtomicInteger subCounter = new AtomicInteger(0);
         final AtomicBoolean run = new AtomicBoolean(true);
         final AtomicBoolean startedSubscriber = new AtomicBoolean(false);
-        final Thread subcriptionThread = new Thread(() -> {
+        final Thread subscriptionThread = new Thread(() -> {
             try (ZMQ.Socket sub = broker.getContext().createSocket(SocketType.SUB)) {
-                sub.setHWM(0);
+                setDefaultSocketParameters(sub);
                 sub.connect(MajordomoBroker.INTERNAL_ADDRESS_PUBLISHER);
                 sub.subscribe(TEST_SERVICE_NAME);
                 while (run.get() && !Thread.interrupted()) {
@@ -289,7 +291,7 @@ class MajordomoWorkerTests {
                 sub.unsubscribe(TEST_SERVICE_NAME);
             }
         });
-        subcriptionThread.start();
+        subscriptionThread.start();
 
         // wait until all services are initialised
         await().alias("wait for thread2 to start").atMost(1, TimeUnit.SECONDS).until(startedSubscriber::get, equalTo(true));
@@ -305,8 +307,8 @@ class MajordomoWorkerTests {
 
         await().alias("wait for reply messages").atMost(2, TimeUnit.SECONDS).until(subCounter::get, equalTo(10));
         run.set(false);
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
-        assertFalse(subcriptionThread.isAlive(), "subscription thread shut-down");
+        await().alias("wait for subscription thread to shut-down").atMost(1, TimeUnit.SECONDS).until(subscriptionThread::isAlive, equalTo(false));
+        assertFalse(subscriptionThread.isAlive(), "subscription thread shut-down");
         assertEquals(10, subCounter.get(), "received expected number of subscription replies");
     }
 
@@ -388,7 +390,7 @@ class MajordomoWorkerTests {
             super(ctx, TEST_SERVICE_NAME, MajordomoWorkerTests.TestContext.class, BinaryData.class, BinaryData.class);
             setHtmlHandler(new DefaultHtmlHandler<>(this.getClass(), null, map -> {
                 map.put("extraKey", "extraValue");
-                map.put("extraUnkownObject", new NoData());
+                map.put("extraUnknownObject", new NoData());
             }));
             super.setHandler((rawCtx, reqCtx, request, repCtx, reply) -> {
                 reply.data = request.data;

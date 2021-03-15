@@ -19,6 +19,7 @@ import static io.opencmw.server.MmiServiceHelper.*;
 import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -62,9 +63,9 @@ import io.opencmw.utils.SystemProperties;
  * </ul>
  * @see io.opencmw.OpenCmwConstants for more details
  */
-@SuppressWarnings({ "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.TooManyMethods", "PMD.ExcessiveImports", "PMD.CommentSize", "PMD.UseConcurrentHashMap" })
+@SuppressWarnings({ "PMD.GodClass", "PMD.DefaultPackage", "PMD.UseConcurrentHashMap", "PMD.TooManyFields", "PMD.TooManyMethods", "PMD.ExcessiveImports", "PMD.CommentSize", "PMD.UseConcurrentHashMap" })
 // package private explicitly needed for MmiServiceHelper, thread-safe/performance use of HashMap
-public class MajordomoBroker extends Thread {
+public class MajordomoBroker extends Thread implements AutoCloseable {
     public static final byte[] RBAC = {}; // TODO: implement RBAC between Majordomo and Worker
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoBroker.class);
     // ----------------- default service names -----------------------------
@@ -89,16 +90,16 @@ public class MajordomoBroker extends Thread {
     /* default */ final Map<String, Service> services = new HashMap<>(); // known services Map<'service name', Service>
     protected final Map<String, Worker> workers = new HashMap<>(); // known workers Map<addressHex, Worker
     protected final Map<String, Client> clients = new HashMap<>();
-    protected BiPredicate<URI, URI> subscriptionMatcher = new SubscriptionMatcher(); // <notify topic, subscribe topic>
+    protected final BiPredicate<URI, URI> subscriptionMatcher = new SubscriptionMatcher(); // <notify topic, subscribe topic>
     protected final Map<URI, AtomicInteger> activeSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
     protected final Map<URI, List<byte[]>> routerBasedSubscriptions = new HashMap<>(); // Map<ServiceName,List<SubscriptionTopic>>
     private final AtomicBoolean run = new AtomicBoolean(false); // NOPMD - nomen est omen
     private final AtomicBoolean running = new AtomicBoolean(false); // NOPMD - nomen est omen
     protected final Deque<Worker> waiting = new ArrayDeque<>(); // idle workers
-    /* default */ final Map<String, DnsServiceItem> dnsCache = new HashMap<>(); // <server name, DnsServiceItem>
     protected final int heartBeatLiveness = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable
     protected final long heartBeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms]
     protected final long heartBeatExpiry = heartBeatInterval * heartBeatLiveness;
+    private final Map<String, DnsServiceItem> dnsCache = new ConcurrentHashMap<>(); // <server name, DnsServiceItem>
     protected final long clientTimeOut = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase(CLIENT_TIMEOUT, CLIENT_TIMEOUT_DEFAULT)); // [s]
     protected final long dnsTimeOut = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase("OpenCMW.dnsTimeOut", 10)); // [ms] time when
     protected long heartbeatAt = System.currentTimeMillis() + heartBeatInterval; // When to send HEARTBEAT
@@ -124,20 +125,20 @@ public class MajordomoBroker extends Thread {
 
         // generate and register internal default inproc socket
         routerSocket = ctx.createSocket(SocketType.ROUTER);
-        routerSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(routerSocket);
         routerSocket.bind(INTERNAL_ADDRESS_BROKER); // NOPMD
         pubSocket = ctx.createSocket(SocketType.XPUB);
-        pubSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(pubSocket);
         pubSocket.setXpubVerbose(true);
         pubSocket.bind(INTERNAL_ADDRESS_PUBLISHER); // NOPMD
         subSocket = ctx.createSocket(SocketType.SUB);
-        subSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(subSocket);
         subSocket.bind(INTERNAL_ADDRESS_SUBSCRIBE); // NOPMD
 
         registerDefaultServices(rbacRoles); // NOPMD
 
         dnsSocket = ctx.createSocket(SocketType.DEALER);
-        dnsSocket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        setDefaultSocketParameters(dnsSocket);
         if (this.dnsAddress == null) {
             dnsSocket.connect(INTERNAL_ADDRESS_BROKER);
         } else {
@@ -172,9 +173,6 @@ public class MajordomoBroker extends Thread {
         final URI endpointAdjusted = replaceScheme(endpoint, isRouterSocket ? SCHEME_MDP : SCHEME_MDS);
         final URI adjustedAddressPublic = resolveHost(endpointAdjusted, getLocalHostName());
         routerSockets.add(adjustedAddressPublic.toString());
-        if (endpoint.getAuthority().contains(WILDCARD)) {
-            routerSockets.add(resolveHost(endpointAdjusted, "localhost").toString());
-        }
         LOGGER.atDebug().addArgument(adjustedAddressPublic).log("Majordomo broker/0.1 is active at '{}'");
         return adjustedAddressPublic;
     }
@@ -198,6 +196,14 @@ public class MajordomoBroker extends Thread {
 
     public Collection<Service> getServices() {
         return services.values();
+    }
+
+    /**
+     *
+     * @return Map containing known brokers as keys and service items
+     */
+    public Map<String, DnsServiceItem> getDnsCache() {
+        return dnsCache;
     }
 
     public boolean isRunning() {
@@ -224,7 +230,10 @@ public class MajordomoBroker extends Thread {
             items.register(dnsSocket, ZMQ.Poller.POLLIN);
             items.register(pubSocket, ZMQ.Poller.POLLIN);
             items.register(subSocket, ZMQ.Poller.POLLIN);
-            while (run.get() && !Thread.currentThread().isInterrupted() && items.poll(heartBeatInterval) != -1) {
+            while (run.get() && !Thread.currentThread().isInterrupted() && !ctx.isClosed() && items.poll(heartBeatInterval) != -1) {
+                if (ctx.isClosed()) {
+                    break;
+                }
                 int loopCount = 0;
                 boolean receivedMsg = true;
                 while (run.get() && !Thread.currentThread().isInterrupted() && receivedMsg) {
@@ -276,7 +285,7 @@ public class MajordomoBroker extends Thread {
                 throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
             }
         }
-        destroy(); // interrupted
+        close();
     }
 
     /**
@@ -300,8 +309,13 @@ public class MajordomoBroker extends Thread {
     /**
      * Disconnect all workers, destroy context.
      */
-    protected void destroy() {
-        ctx.destroy();
+    @Override
+    public void close() {
+        routerSocket.close();
+        pubSocket.close();
+        subSocket.close();
+        dnsSocket.close();
+        ctx.close();
     }
 
     /**
@@ -349,6 +363,7 @@ public class MajordomoBroker extends Thread {
             case READY:
                 if (msg.topic.getScheme() != null) {
                     // register potentially new service
+                    registerNewService(msg.getServiceName());
                     DnsServiceItem ret = dnsCache.computeIfAbsent(msg.getServiceName(), s -> new DnsServiceItem(msg.senderID, msg.getServiceName()));
                     ret.uri.add(msg.topic);
                     ret.updateExpiryTimeStamp();
@@ -442,6 +457,7 @@ public class MajordomoBroker extends Thread {
             worker.service.serviceDescription = Arrays.copyOf(msg.data, msg.data.length);
 
             if (!msg.topic.toString().isBlank() && msg.topic.getScheme() != null) {
+                registerNewService(brokerName);
                 routerSockets.add(msg.topic.toString());
                 DnsServiceItem ret = dnsCache.computeIfAbsent(brokerName, s -> new DnsServiceItem(msg.senderID, brokerName));
                 ret.uri.add(msg.topic);
@@ -466,7 +482,7 @@ public class MajordomoBroker extends Thread {
             }
             break;
         case DISCONNECT:
-            //deleteWorker(worker, false);
+            //deleteWorker(worker, false)
             break;
         case PARTIAL:
         case FINAL:
@@ -622,17 +638,32 @@ public class MajordomoBroker extends Thread {
         // Send heartbeats to idle workers if it's time
         if (System.currentTimeMillis() >= dnsHeartbeatAt || force) {
             final MdpMessage readyMsg = new MdpMessage(null, PROT_CLIENT, READY, brokerName.getBytes(UTF_8), "clientID".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
-            for (String routerAddress : this.getRouterSockets()) {
+            final ArrayList<String> localCopy = new ArrayList<>(getRouterSockets());
+            for (String routerAddress : localCopy) {
                 readyMsg.topic = URI.create(routerAddress);
-                if (dnsAddress != null) {
-                    readyMsg.send(dnsSocket); // register with external DNS
-                }
-                // register with internal DNS
-                DnsServiceItem ret = dnsCache.computeIfAbsent(brokerName, s -> new DnsServiceItem(dnsSocket.getIdentity(), brokerName)); // NOPMD instantiation in loop necessary
-                ret.uri.add(URI.create(routerAddress));
-                ret.updateExpiryTimeStamp();
+                registerWithDnsServices(readyMsg);
             }
+            services.keySet().forEach(this::registerNewService);
         }
+    }
+
+    private void registerNewService(final String serviceName) {
+        final MdpMessage readyMsg = new MdpMessage(null, PROT_CLIENT, READY, brokerName.getBytes(UTF_8), "clientID".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
+        final ArrayList<String> localCopy = new ArrayList<>(getRouterSockets());
+        for (String routerAddress : localCopy) {
+            readyMsg.topic = URI.create(routerAddress + '/' + serviceName);
+            registerWithDnsServices(readyMsg);
+        }
+    }
+
+    private void registerWithDnsServices(final MdpMessage readyMsg) {
+        if (dnsAddress != null) {
+            readyMsg.send(dnsSocket); // register with external DNS
+        }
+        // register with internal DNS
+        DnsServiceItem ret = dnsCache.computeIfAbsent(brokerName, s -> new DnsServiceItem(readyMsg.senderID, brokerName)); // NOPMD instantiation in loop necessary
+        ret.uri.add(readyMsg.topic);
+        ret.updateExpiryTimeStamp();
     }
 
     /**
@@ -659,12 +690,6 @@ public class MajordomoBroker extends Thread {
     protected void workerWaiting(Worker worker) {
         // Queue to broker and service waiting lists
         waiting.addLast(worker);
-        // TODO: evaluate addLast vs. push (addFirst) - latter should be more
-        // beneficial w.r.t. CPU context switches (reuses the same thread/context
-        // frequently
-        // do not know why original implementation wanted to spread across different
-        // workers (load balancing across different machines perhaps?!=)
-        // worker.service.waiting.addLast(worker)
         worker.service.waiting.push(worker);
         worker.updateExpiryTimeStamp();
         dispatch(worker.service);
@@ -716,9 +741,14 @@ public class MajordomoBroker extends Thread {
     }
 
     /* default */ Service getBestMatchingService(final String serviceName) { // NOPMD package private OK
-        final String shortServiceName = StringUtils.removeStart(serviceName, brokerName + '/');
-        final List<String> sortedList = services.keySet().stream().filter(shortServiceName::startsWith).sorted(Comparator.comparingInt(String::length)).collect(Collectors.toList());
-        return sortedList.isEmpty() ? null : services.get(sortedList.get(0));
+        final List<String> sortedList = services.keySet().stream().filter(serviceName::startsWith).sorted(Comparator.comparingInt(String::length)).collect(Collectors.toList());
+        if (!sortedList.isEmpty()) {
+            return services.get(sortedList.get(0));
+        }
+        // assume serviceName is a shorten (e.g. 'mmi.*') form
+        final String longServiceName = brokerName + '/' + serviceName;
+        final List<String> sortedList2nd = services.keySet().stream().filter(longServiceName::startsWith).sorted(Comparator.comparingInt(String::length)).collect(Collectors.toList());
+        return sortedList2nd.isEmpty() ? null : services.get(sortedList2nd.get(0));
     }
 
     /**
@@ -835,7 +865,7 @@ public class MajordomoBroker extends Thread {
      * This defines one DNS service item, idle or active.
      */
     @SuppressWarnings("PMD.CommentDefaultAccessModifier") // needed for utility classes in the same package
-    class DnsServiceItem {
+    public class DnsServiceItem {
         protected final byte[] address; // Address ID frame to route to
         protected final String serviceName;
         protected final List<URI> uri = new NoDuplicatesList<>();
@@ -868,7 +898,11 @@ public class MajordomoBroker extends Thread {
                 webHandler = uri.stream().filter(u -> "http".equalsIgnoreCase(u.getScheme())).findFirst();
             }
             final String wrappedService = webHandler.isEmpty() ? serviceName : wrapInAnchor(serviceName, webHandler.get());
-            return '[' + wrappedService + ": " + uri.stream().map(u -> wrapInAnchor(u.toString(), u)).collect(Collectors.joining(",")) + "]";
+            return '[' + wrappedService + ": " + uri.stream().map(u -> wrapInAnchor(u.toString(), u)).collect(Collectors.joining(", ")) + "]";
+        }
+
+        public List<URI> getUri() {
+            return uri;
         }
 
         @Override
@@ -878,6 +912,7 @@ public class MajordomoBroker extends Thread {
 
         @Override
         public String toString() {
+            @SuppressWarnings("SpellCheckingInspection")
             final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.UK);
             return "DnsServiceItem{address=" + ZData.toString(address) + ", serviceName='" + serviceName + "', uri= '" + uri + "',expiry=" + expiry + " - " + sdf.format(expiry) + '}';
         }

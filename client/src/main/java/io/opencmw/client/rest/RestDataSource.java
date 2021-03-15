@@ -1,6 +1,7 @@
 
 package io.opencmw.client.rest;
 
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 
 import java.io.IOException;
@@ -9,15 +10,9 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -40,8 +35,10 @@ import org.zeromq.ZMsg;
 
 import io.opencmw.MimeType;
 import io.opencmw.client.DataSource;
+import io.opencmw.client.DnsResolver;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.JsonSerialiser;
+import io.opencmw.utils.NoDuplicatesList;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -54,20 +51,27 @@ import okhttp3.sse.EventSources;
 
 @SuppressWarnings({ "PMD.TooManyFields", "PMD.ExcessiveImports" })
 public class RestDataSource extends DataSource implements Runnable {
+    private static final List<String> APPLICABLE_SCHEMES = List.of("http", "https");
+    private static final List<DnsResolver> RESOLVERS = Collections.synchronizedList(new NoDuplicatesList<>());
     public static final Factory FACTORY = new Factory() {
         @Override
-        public boolean matches(final URI endpoint) {
-            return endpoint != null && endpoint.getScheme().toLowerCase(Locale.UK).startsWith("http");
+        public List<String> getApplicableSchemes() {
+            return APPLICABLE_SCHEMES;
         }
 
         @Override
-        public Class<? extends IoSerialiser> getMatchingSerialiserType(final URI endpoint) {
+        public Class<? extends IoSerialiser> getMatchingSerialiserType(final @NotNull URI endpoint) {
             return JsonSerialiser.class;
         }
 
         @Override
-        public DataSource newInstance(final ZContext context, final URI endpoint, final Duration timeout, final String clientId) {
+        public DataSource newInstance(final ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull ExecutorService executorService, final @NotNull String clientId) {
             return new RestDataSource(context, endpoint, timeout, clientId);
+        }
+
+        @Override
+        public List<DnsResolver> getRegisteredDnsResolver() {
+            return RESOLVERS;
         }
     };
     private static final Logger LOGGER = LoggerFactory.getLogger(RestDataSource.class);
@@ -137,25 +141,8 @@ public class RestDataSource extends DataSource implements Runnable {
             timer.scheduleAtFixedRate(wakeupTask, 0, timeOut.toMillis());
         }
 
-        start(); // NOPMD - starts on initialisation
-    }
-
-    /**
-     * Connect or reconnect to broker
-     */
-    private void createPair() {
-        if (internalSocket != null) {
-            internalSocket.close();
-        }
-        if (externalSocket != null) {
-            externalSocket.close();
-        }
-
         internalSocket = ctxCopy.createSocket(SocketType.PAIR);
-        assert internalSocket != null : "internalSocket being initialised";
-        if (!internalSocket.setHWM(0)) {
-            throw new IllegalStateException("could not set HWM on internalSocket");
-        }
+        setDefaultSocketParameters(internalSocket);
         if (!internalSocket.setIdentity(uniqueIdBytes)) {
             throw new IllegalStateException("could not set identity on internalSocket");
         }
@@ -164,15 +151,14 @@ public class RestDataSource extends DataSource implements Runnable {
         }
 
         externalSocket = ctxCopy.createSocket(SocketType.PAIR);
-        assert externalSocket != null : "externalSocket being initialised";
-        if (!externalSocket.setHWM(0)) {
-            throw new IllegalStateException("could not set HWM on externalSocket");
-        }
+        setDefaultSocketParameters(externalSocket);
         if (!externalSocket.connect("inproc://" + uniqueID)) {
             throw new IllegalStateException("could not bind externalSocket to: inproc://" + uniqueID);
         }
 
-        LOGGER.atTrace().addArgument(endpoint).log("(re-)connecting to REST endpoint: '{}'");
+        LOGGER.atTrace().addArgument(endpoint).log("connecting to REST endpoint: '{}'");
+
+        start(); // NOPMD - starts on initialisation
     }
 
     @Override
@@ -228,6 +214,12 @@ public class RestDataSource extends DataSource implements Runnable {
     }
 
     @Override
+    public void close() {
+        internalSocket.close();
+        externalSocket.close();
+    }
+
+    @Override
     protected Factory getFactory() {
         return FACTORY;
     }
@@ -235,7 +227,7 @@ public class RestDataSource extends DataSource implements Runnable {
     /**
      * Gets called whenever data is available on the DataSource's socket.
      * Should then try to receive data and return any results back to the calling event loop.
-     * @return null if there is no more data available, a Zero length Zmsg if there was data which was only used internally
+     * @return null if there is no more data available, a Zero length ZMsg if there was data which was only used internally
      * or a ZMsg with [reqId, endpoint, byte[] data, [byte[] optional RBAC token]]
      */
     @Override
@@ -291,7 +283,6 @@ public class RestDataSource extends DataSource implements Runnable {
                             // exception branch
                             data = EMPTY_FRAME;
                         } else {
-                            // callBack.response.headers().toString().getBytes(StandardCharsets.UTF_8);
                             data = callBack.response.peekBody(Long.MAX_VALUE).bytes();
                             callBack.response.close();
                         }
@@ -322,7 +313,6 @@ public class RestDataSource extends DataSource implements Runnable {
     }
 
     public void start() {
-        createPair();
         new Thread(this).start(); // NOPMD
     }
 

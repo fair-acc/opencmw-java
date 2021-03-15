@@ -1,5 +1,6 @@
 package io.opencmw.server;
 
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static io.opencmw.OpenCmwProtocol.MdpMessage;
 
 import java.lang.management.ManagementFactory;
@@ -65,7 +66,7 @@ public class MajordomoTestClientSubscription<T> extends Thread {
     public void run() {
         try (ZMQ.Socket socket = ctx.createSocket(SocketType.SUB); ZMQ.Poller poller = ctx.createPoller(1)) {
             clientSocket = socket;
-            socket.setHWM(0);
+            setDefaultSocketParameters(clientSocket);
             socket.setIdentity(uniqueIdBytes);
             socket.connect(broker.replace("mds://", "tcp://"));
             poller.register(socket, ZMQ.Poller.POLLIN);

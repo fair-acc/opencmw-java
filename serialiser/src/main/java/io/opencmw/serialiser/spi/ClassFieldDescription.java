@@ -1,12 +1,6 @@
 package io.opencmw.serialiser.spi;
 
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import java.lang.reflect.*;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,7 +21,7 @@ import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.serialiser.annotations.Unit;
 import io.opencmw.serialiser.utils.ClassUtils;
 
-import sun.misc.Unsafe; // NOPMD - there is nothing more suitable under the Sun
+import sun.misc.Unsafe; // NOPMD NOSONAR - there is nothing more suitable under the Sun
 
 /**
  * @author rstein
@@ -109,7 +103,12 @@ public class ClassFieldDescription implements FieldDescription {
             if (field == null) {
                 throw new IllegalArgumentException("field must not be null");
             }
-            fieldAccess = new FieldAccess(field);
+            try {
+                fieldAccess = new FieldAccess(field);
+            } catch (final Exception e) { //NOPMD NOSONAR
+                LOGGER.atError().addArgument(field.getName()).addArgument(parent).log("error initialising field '{}' (parent: {})");
+                throw e;
+            }
             classType = field.getType();
             fieldNameHashCode = field.getName().hashCode();
             fieldName = field.getName().intern();
@@ -680,7 +679,7 @@ public class ClassFieldDescription implements FieldDescription {
 
     protected static void printClassStructure(final ClassFieldDescription field, final boolean fullView, final int recursionLevel) {
         final String enumOrClass = field.isEnum() ? "Enum " : "class ";
-        final String typeCategorgy = (field.isInterface() ? "interface " : (field.isPrimitive() ? "" : enumOrClass)); //NOSONAR //NOPMD
+        final String typeCategory = (field.isInterface() ? "interface " : (field.isPrimitive() ? "" : enumOrClass)); //NOSONAR //NOPMD
         final String typeName = field.getTypeName() + field.getGenericFieldTypeString();
         final String mspace = spaces(recursionLevel * ClassUtils.getIndentationNumberOfSpace());
         final boolean isSerialisable = field.isSerializable();
@@ -688,7 +687,7 @@ public class ClassFieldDescription implements FieldDescription {
         if (isSerialisable || fullView) {
             LOGGER.atInfo().addArgument(mspace).addArgument(isSerialisable ? "  " : "//") //
                     .addArgument(field.getModifierString())
-                    .addArgument(typeCategorgy)
+                    .addArgument(typeCategory)
                     .addArgument(typeName)
                     .addArgument(field.getFieldName())
                     .log("{} {} {} {}{} {}");

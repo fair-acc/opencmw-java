@@ -2,35 +2,34 @@ package io.opencmw.client.cmwlight;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executors;
 import java.util.concurrent.locks.LockSupport;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.zeromq.*;
 
 @Timeout(20)
 class CmwLightDataSourceTest {
-    final static Logger LOGGER = LoggerFactory.getLogger(CmwLightDataSourceTest.class);
     @Test
-    void testCmwLightSubscription() throws CmwLightProtocol.RdaLightException, URISyntaxException {
+    void testCmwLightSubscription() throws CmwLightProtocol.RdaLightException, URISyntaxException, IOException {
         // setup zero mq socket to mock cmw server
-        try (final ZContext context = new ZContext(1)) {
-            ZMQ.Socket socket = context.createSocket(SocketType.DEALER);
+        try (final ZContext context = new ZContext(1); ZMQ.Socket socket = context.createSocket(SocketType.DEALER)) {
             socket.bind("tcp://localhost:7777");
 
-            final CmwLightDataSource client = new CmwLightDataSource(context, new URI("rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1"), "testClientId");
-
+            final CmwLightDataSource client = new CmwLightDataSource(context, new URI("rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1"), Executors.newCachedThreadPool(), "testClientId");
             client.connect();
             client.housekeeping();
+
+            assertDoesNotThrow(() -> client.registerDnsResolver(new DirectoryLightClient("unknownHost:42")));
 
             // check connection request was received
             final CmwLightMessage connectMsg = CmwLightProtocol.parseMsg(ZMsg.recvMsg(socket));
@@ -48,7 +47,7 @@ class CmwLightDataSourceTest {
             Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
                 client.getMessage(); // Make client receive ack and update connection status
                 client.housekeeping(); // allow the subscription to be sent out
-                return client.connectionState.get().equals(CmwLightDataSource.ConnectionState.CONNECTED);
+                return client.getConnectionState().equals(ZMonitor.Event.CONNECTED);
             });
 
             // request subscription
@@ -56,7 +55,7 @@ class CmwLightDataSourceTest {
             final URI endpoint = new URI("rda3://localhost:7777/testdevice/testprop?ctx=FAIR.SELECTOR.ALL&nFilter=int:1");
             client.subscribe(reqId, endpoint, null);
 
-            final CmwLightMessage subMsg = getNextNonHeartbeatMsg(socket, client, false);
+            final CmwLightMessage subMsg = getNextNonHeartbeatMsg(socket, client);
             assertEquals(CmwLightProtocol.MessageType.CLIENT_REQ, subMsg.messageType);
             assertEquals(CmwLightProtocol.RequestType.SUBSCRIBE, subMsg.requestType);
             assertEquals(Map.of("nFilter", 1), subMsg.requestContext.filters);
@@ -89,24 +88,18 @@ class CmwLightDataSourceTest {
                             && Objects.requireNonNull(reply.pollFirst()).getData().length == 0;
                 });
             }
+            client.close();
         }
     }
 
     /*
     / get next message sent from client to server ignoring heartbeats, periodically send heartbeat and perform housekeeping
     */
-    private CmwLightMessage getNextNonHeartbeatMsg(final ZMQ.Socket socket, final CmwLightDataSource client, boolean debug) throws CmwLightProtocol.RdaLightException {
+    private CmwLightMessage getNextNonHeartbeatMsg(final ZMQ.Socket socket, final CmwLightDataSource client) throws CmwLightProtocol.RdaLightException {
         int i = 0;
         while (true) {
             final ZMsg msg = ZMsg.recvMsg(socket, false);
             final CmwLightMessage result = msg == null ? null : CmwLightProtocol.parseMsg(msg);
-            if (debug) {
-                if (result == null) {
-                    System.out.print('.');
-                } else {
-                    System.out.println(result);
-                }
-            }
             if (result != null && result.messageType != CmwLightProtocol.MessageType.CLIENT_HB) {
                 return result;
             }
@@ -126,7 +119,6 @@ class CmwLightDataSourceTest {
         final String refProperty = "MyProperty";
         final String refPath = '/' + refDevice + '/' + refProperty;
         final String testAuthority = "server:1337";
-        final Map<String, Object> filterMap = Map.of("filterA", 3, "filterB", true, "filterC", "foo=bar", "filterD", 1234567890987654321L, "filterE", 1.5, "filterF", -3.5f);
         final String testQuery = "ctx=Test.Context.C=5&filterA=int:3&filterB=bool:true&filterC=foo=bar&filterD=long:1234567890987654321&filterE=double:1.5&filterF=float:-3.5";
         final URI testUri1 = new URI("rda3", testAuthority, refPath, testQuery, null);
         final URI testUri2 = new URI("rda3", null, refPath, testQuery, null);
@@ -140,7 +132,7 @@ class CmwLightDataSourceTest {
         assertEquals(refDevice, parsed2.device);
         assertEquals(refProperty, parsed2.property);
 
-        assertEquals(parsed1, parsed1);
+        assertEquals(parsed1, parsed1); // NOSONAR
         assertNotEquals(parsed1, new Object());
         assertEquals(testUri1, parsed1.toURI());
         assertNotEquals(testUri1, parsed2.toURI()); // since testURI2 has no authority given

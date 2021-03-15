@@ -1,5 +1,6 @@
 package io.opencmw.server;
 
+import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
 import static io.opencmw.OpenCmwProtocol.Command.SUBSCRIBE;
 import static io.opencmw.OpenCmwProtocol.Command.UNSUBSCRIBE;
@@ -119,7 +120,7 @@ public class MajordomoTestClientAsync {
             clientSocket.close();
         }
         clientSocket = ctx.createSocket(SocketType.DEALER);
-        clientSocket.setHWM(0);
+        setDefaultSocketParameters(clientSocket);
         clientSocket.setIdentity("clientV2".getBytes(StandardCharsets.UTF_8));
         clientSocket.connect(broker);
         if (poller != null) {
