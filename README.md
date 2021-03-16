@@ -30,6 +30,41 @@ A schematic outline of the internal [architecture](https://edms.cern.ch/document
 
 ![OpenCMW architectural schematic](./assets/FAIR_microservice_schematic.svg)
 
+### Glossary
+
+*Broker:* Central authority where multiple workers can register their services, allowing clients to perform get, set or subscriptions requests.
+There can be multiple brokers, and a worker can register at more than one broker.
+
+*Worker:* A functional unit which provides one or more services, which it registers at a broker.
+OpenCMW provides base implementations at different abstraction levels (BasicMdpWorker (low-level) and MajordomoWorker) as
+well as different internal and external service workers, e.g. MajordomoRestPlugin or the broker's mmi services.
+Workers communicate with the broker using the OpenCMW worker protocol via inproc or tcp ZeroMQ sockets.
+
+*Service:* A worker can provide a number of services for different endpoints, which it registers at the broker.
+
+*Endpoint:* An address for a service following the URI scheme.
+The authority part is usually left blank to allow a central broker to perform a lookup for the requested service.
+OpenCmw service lookup is performed based on the path of the uri and will find a broker address, which can provide the requested service.
+
+*internal/mmi workers:* Each broker by default starts some lightweight management services as specified by the majodomo mmi extension:
+- BrokerName/mmi.service: endpoints of all services registered at this broker
+- BrokerName/mmi.openapi: openapi descriptions for the services
+- BrokerName/mmi.dns: service lookup
+
+*Context:* Information required for every request and reply, specified by a domain object.
+They (partially) map to the filters used in the EventStore and the query parameters of the communication library.
+
+*Filter:* A special object which allows (partial/wildcard) matching and can be used in the EventStore's filter config and in context objects.
+
+*EventStore:* Based on the disruptor library, the EventStore provides datastructures and setup methods to define processing
+pipelines based on incoming data. Java specific, a special worker allows reclaiming memory from expired events using a special
+SharedPointer implementation.
+
+*EventHandler:* Event handlers are used to define specific processing steps based on ring-buffer events.
+Each event handler runs in its own thread.
+
+*Publisher:* The DataSourcePublisher provides an interface to populate the EventStore with events from OpenCMW, REST services or other sources.
+
 ### Example
 The following provides some flavour of how a simple service can be implemented using OpenCMW with only a few lines of
 custom user-code ([full sample](https://github.com/fair-acc/opencmw-java/tree/createReadme/server-rest/src/test/java/io/opencmw/server/rest/samples/BasicSample.java)):
