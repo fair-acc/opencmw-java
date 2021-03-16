@@ -147,4 +147,24 @@ public class CmwLightExample { // NOPMD is not a utility class but a sample
             return "SnoopAcquisition{TriggerEventName='" + TriggerEventName + '\'' + ", acquisitionStamp=" + acquisitionStamp + ", chainIndex=" + chainIndex + ", chainStartStamp=" + chainStartStamp + ", eventNumber=" + eventNumber + ", eventStamp=" + eventStamp + ", processIndex=" + processIndex + ", processStartStamp=" + processStartStamp + ", sequenceIndex=" + sequenceIndex + ", sequenceStartStamp=" + sequenceStartStamp + ", timingGroupID=" + timingGroupID + '}';
         }
     }
+
+    public static class ChannelConfig {
+        public String[] channelNames;
+        public String[] channelUnits;
+        public float[] channelDataRates;
+        public String[] triggerEvents;
+        public String[] status_labels;
+        public int[] status_severity;
+
+        @Override
+        public String toString() {
+            return "ChannelConfig{" //
+                    + "channelNames=" + Arrays.toString(channelNames) //
+                    + ", channelUnits=" + Arrays.toString(channelUnits) //
+                    + ", channelDataRates=" + Arrays.toString(channelDataRates) //
+                    + ", triggerEvents=" + Arrays.toString(triggerEvents) //
+                    + ", status_labels=" + Arrays.toString(status_labels) //
+                    + ", status_severity=" + Arrays.toString(status_severity) + '}';
+        }
+    }
 }
