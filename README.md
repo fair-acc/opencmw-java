@@ -1,7 +1,7 @@
 <picture>
 <source srcset="assets/OpenCMW_logo_w.svg" media="(prefers-color-scheme: dark)">
 <!--suppress HtmlDeprecatedAttribute -->
-<img align="right" src="assets/OpenCMW_logo_b.svg" alt="OpenCMW Logo" height="75">
+<img align="right" src="assets/OpenCMW_logo_b_bg.svg" alt="OpenCMW Logo" height="75">
 </picture>
 
 [![Gitter](https://badges.gitter.im/fair-acc/opencmw.svg)](https://gitter.im/fair-acc/opencmw?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
