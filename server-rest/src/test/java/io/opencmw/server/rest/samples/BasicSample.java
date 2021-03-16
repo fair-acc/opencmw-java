@@ -51,7 +51,7 @@ public class BasicSample {
 
     @MetaInfo(description = "arbitrary reply domain object", direction = "OUT")
     public static class ReplyData {
-        @MetaInfo(description = " optional 'returnValue' OpenAPI documentation", unit="a string")
+        @MetaInfo(description = " optional 'returnValue' OpenAPI documentation", unit = "a string")
         public String returnValue;
     }
 }
