@@ -1,12 +1,17 @@
 package io.opencmw.client.cmwlight;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
+
+import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executors;
@@ -17,6 +22,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.zeromq.*;
 
+import io.opencmw.QueryParameterParser;
+import io.opencmw.client.DataSource;
+import io.opencmw.serialiser.spi.CmwLightSerialiser;
+
 @Timeout(20)
 class CmwLightDataSourceTest {
     @Test
@@ -25,7 +34,8 @@ class CmwLightDataSourceTest {
         try (final ZContext context = new ZContext(1); ZMQ.Socket socket = context.createSocket(SocketType.DEALER)) {
             socket.bind("tcp://localhost:7777");
 
-            final CmwLightDataSource client = new CmwLightDataSource(context, new URI("rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1"), Executors.newCachedThreadPool(), "testClientId");
+            assertThrows(UnsupportedOperationException.class, () -> CmwLightDataSource.FACTORY.newInstance(context, URI.create("http://server/device/property?query=test"), Duration.ofSeconds(1), Executors.newSingleThreadExecutor(), "testclient"));
+            final CmwLightDataSource client = (CmwLightDataSource) assertDoesNotThrow(() -> CmwLightDataSource.FACTORY.newInstance(context, URI.create("rda3://localhost:7777/testdevice/testprop?ctx=test.selector&nFilter=int:1"), Duration.ofSeconds(1), Executors.newCachedThreadPool(), "testClientId"));
             client.connect();
             client.housekeeping();
 
@@ -114,6 +124,30 @@ class CmwLightDataSourceTest {
     }
 
     @Test
+    void testFactory() {
+        final DataSource.Factory factory = CmwLightDataSource.FACTORY;
+        assertThat(factory.getApplicableSchemes(), equalTo(List.of("rda3")));
+        assertThat(factory.getMatchingSerialiserType(URI.create("")), equalTo(CmwLightSerialiser.class));
+        assertThat(factory.getRegisteredDnsResolver(), empty());
+        assertDoesNotThrow(() -> factory.registerDnsResolver(new DirectoryLightClient("localhost:5021")));
+        assertThat(factory.getRegisteredDnsResolver(), contains(instanceOf(DirectoryLightClient.class)));
+        assertTrue(factory.matches(URI.create("rda3://server/device/property?query=test")));
+        assertFalse(factory.matches(URI.create("tcp://server/device/property?query=test")));
+        assertTrue(factory.matches(URI.create("rda3:/testdevice/property")));
+        assertFalse(factory.matches(URI.create("https://testserver")));
+    }
+
+    @Test
+    void testRequest() {
+        final CmwLightDataSource.Request testRequest = new CmwLightDataSource.Request(CmwLightProtocol.RequestType.GET, "testReqId", URI.create("test"), EMPTY_FRAME, EMPTY_FRAME);
+        assertEquals(CmwLightProtocol.RequestType.GET, testRequest.requestType);
+        assertArrayEquals(EMPTY_FRAME, testRequest.data);
+        assertArrayEquals(EMPTY_FRAME, testRequest.rbacToken);
+        assertEquals(URI.create("test"), testRequest.endpoint);
+        assertEquals("testReqId", testRequest.requestId);
+    }
+
+    @Test
     void testParsedEndpoint() throws URISyntaxException, CmwLightProtocol.RdaLightException {
         final String refDevice = "deviceA";
         final String refProperty = "MyProperty";
@@ -122,6 +156,12 @@ class CmwLightDataSourceTest {
         final String testQuery = "ctx=Test.Context.C=5&filterA=int:3&filterB=bool:true&filterC=foo=bar&filterD=long:1234567890987654321&filterE=double:1.5&filterF=float:-3.5";
         final URI testUri1 = new URI("rda3", testAuthority, refPath, testQuery, null);
         final URI testUri2 = new URI("rda3", null, refPath, testQuery, null);
+
+        final CmwLightDataSource.ParsedEndpoint parsedDefaultCtx = new CmwLightDataSource.ParsedEndpoint(QueryParameterParser.removeQueryParameter(testUri1, "ctx"));
+        assertEquals(testAuthority, parsedDefaultCtx.authority);
+        assertEquals(refDevice, parsedDefaultCtx.device);
+        assertEquals(refProperty, parsedDefaultCtx.property);
+        assertEquals(CmwLightDataSource.ParsedEndpoint.DEFAULT_SELECTOR, parsedDefaultCtx.ctx);
 
         final CmwLightDataSource.ParsedEndpoint parsed1 = new CmwLightDataSource.ParsedEndpoint(testUri1);
         assertEquals(testAuthority, parsed1.authority);
@@ -139,6 +179,8 @@ class CmwLightDataSourceTest {
         assertEquals(parsed1, parsed2);
         assertEquals(parsed1.hashCode(), parsed2.hashCode());
 
+        parsed2.filters.put("illegalFilterItem", URI.create(""));
+        assertThrows(IllegalArgumentException.class, parsed2::toURI);
         // simple test for faulty sub-property definition - fail early
         final URI faultyTestUri = new URI("rda3", "server:1337", "/deviceA/MyProperty/SubProperty", "filterA=short:3", null);
         assertThrows(CmwLightProtocol.RdaLightException.class, () -> new CmwLightDataSource.ParsedEndpoint(faultyTestUri).toURI());

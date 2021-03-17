@@ -44,6 +44,12 @@ import io.opencmw.utils.AnsiDefs;
 public final class OpenCmwProtocol { // NOPMD - nomen est omen
     public static final String COMMAND_MUST_NOT_BE_NULL = "command must not be null";
     public static final byte[] EMPTY_FRAME = {};
+    public static final ZFrame EMPTY_ZFRAME = new ZFrame(EMPTY_FRAME) {
+        @Override
+        public void destroy() {
+            // do not remove the contents of this special ZFrame after sending
+        }
+    };
     public static final byte[] BROKER_SHUTDOWN = "broker shutdown".getBytes(UTF_8);
     public static final URI EMPTY_URI = URI.create("");
     private static final byte[] PROTOCOL_NAME_CLIENT = "MDPC03".getBytes(UTF_8);
