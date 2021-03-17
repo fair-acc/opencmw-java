@@ -337,7 +337,12 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
     @Override
     public void unsubscribe(final String reqId) {
-        subscriptionsByReqId.get(reqId).subscriptionState = SubscriptionState.CANCELED;
+        final Subscription sub = subscriptionsByReqId.get(reqId);
+        if (sub.subscriptionState == SubscriptionState.UNSUBSCRIBED) {
+            subscriptions.remove(sub.id);
+            return;
+        }
+        sub.subscriptionState = SubscriptionState.CANCELED;
     }
 
     @Override
