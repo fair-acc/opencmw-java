@@ -5,7 +5,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.zeromq.ZMonitor.Event;
 
 import static io.opencmw.OpenCmwConstants.*;
-import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -30,6 +29,7 @@ import io.opencmw.OpenCmwProtocol;
 import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
 import io.opencmw.client.DnsResolver;
+import io.opencmw.client.OpenCmwDataSource;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
 import io.opencmw.utils.NoDuplicatesList;
@@ -390,7 +390,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             }
         case EXCEPTION:
             final Request requestForException = pendingRequests.remove(reply.id);
-            return createInternalMsg(requestForException.requestId.getBytes(UTF_8), requestForException.endpoint, null, reply.exceptionMessage.message);
+            return createInternalMsg(requestForException.requestId.getBytes(UTF_8), requestForException.endpoint, null, "EXCEPTION: " + reply.exceptionMessage.message);
         case SUBSCRIBE:
             final long id = reply.id;
             final Subscription sub = subscriptions.get(id);
@@ -426,14 +426,14 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                 LOGGER.atInfo().addArgument(reply.toString()).log("received unsolicited subscription notification error: {}");
                 return new ZMsg();
             }
-            return createInternalMsg(subscriptionForNotifyExc.idString.getBytes(UTF_8), subscriptionForNotifyExc.endpoint, null, reply.exceptionMessage.message);
+            return createInternalMsg(subscriptionForNotifyExc.idString.getBytes(UTF_8), subscriptionForNotifyExc.endpoint, null, "NOTIFICATION_EXCEPTION: " + reply.exceptionMessage.message);
         case SUBSCRIBE_EXCEPTION:
             final Subscription subForSubExc = subscriptions.get(reply.id);
             subForSubExc.subscriptionState = SubscriptionState.UNSUBSCRIBED;
             subForSubExc.timeoutValue = currentTime + subForSubExc.backOff;
             subForSubExc.backOff *= 2;
             LOGGER.atDebug().addArgument(subForSubExc.device).addArgument(subForSubExc.property).log("exception during subscription, retrying: {}/{}");
-            return createInternalMsg(subForSubExc.idString.getBytes(UTF_8), subForSubExc.endpoint, null, reply.exceptionMessage.message);
+            return createInternalMsg(subForSubExc.idString.getBytes(UTF_8), subForSubExc.endpoint, null, "SUBSCRIBE_EXCEPTION: " + reply.exceptionMessage.message);
         // unsupported or non-actionable replies
         case GET:
         case SET:
@@ -443,6 +443,10 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         default:
             return new ZMsg();
         }
+    }
+
+    public static ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception) {
+        return OpenCmwDataSource.createInternalMsg(reqId, endpoint, body, exception, "CmwLightDataSource");
     }
 
     private CmwLightMessage receiveData() {

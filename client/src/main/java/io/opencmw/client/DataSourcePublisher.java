@@ -403,7 +403,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             publishEvent.payload.set(replyDomainObject);
         }
         if (exception != null && !exception.isBlank()) {
-            publishEvent.throwables.add(new Exception(exception));
+            publishEvent.throwables.add(new ProtocolException(exception));
         }
         final EvtTypeFilter evtTypeFilter = publishEvent.getFilter(EvtTypeFilter.class);
         // update other filter in destination ring-buffer

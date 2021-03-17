@@ -393,11 +393,19 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
     }
 
     public static ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception) {
+        return createInternalMsg(reqId, endpoint, body, exception, "OpenCmwDataSource");
+    }
+
+    public static ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception, final String dataSourceName) {
         final ZMsg result = new ZMsg();
         result.add(reqId);
         result.add(endpoint.toString());
         result.add(body == null ? new ZFrame(new byte[0]) : body);
-        result.add(exception == null ? new ZFrame(new byte[0]) : new ZFrame(exception));
+        if (exception == null || exception.isBlank()) {
+            result.add(new ZFrame(new byte[0]));
+        } else {
+            result.add(new ZFrame(dataSourceName + " received exception for device " + endpoint + ":\n" + exception));
+        }
         return result;
     }
 }
