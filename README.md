@@ -26,44 +26,38 @@ and buffering, settings management, Role-Based-Access-Control (RBAC), and other 
 while still being open to expert-level modifications, extensions or improvements.
 
 ### General Schematic
-A schematic outline of the internal [architecture](https://edms.cern.ch/document/2444348/1) ([local copy](assets/F-CS-SIS-en-B_0006_FAIR_Service_Middle_Ware_V1_0.pdf)) is shown below:
+OpenCMW combines [ZeroMQ](https://zeromq.org/)'s [Majordomo](https://rfc.zeromq.org/spec/7/) with LMAX's [disruptor](https://lmax-exchange.github.io/disruptor/) design pattern that both provide a very efficient lock-free mechanisms for distributing, streaming and processing of data objects. A schematic outline of the internal [architecture](https://edms.cern.ch/document/2444348/1) ([local copy](assets/F-CS-SIS-en-B_0006_FAIR_Service_Middle_Ware_V1_0.pdf)) is shown below:
 
 ![OpenCMW architectural schematic](./assets/FAIR_microservice_schematic.svg)
 
 ### Glossary
 
-*Broker:* Central authority where multiple workers can register their services, allowing clients to perform get, set or subscriptions requests.
-There can be multiple brokers, and a worker can register at more than one broker.
+*Majordomo Broker* or *'Broker':* is the central authority where multiple workers can register their services, allowing clients to perform get, set or subscriptions requests.
+There can be multiple brokers for subset of services.
 
-*Worker:* A functional unit which provides one or more services, which it registers at a broker.
-OpenCMW provides base implementations at different abstraction levels (BasicMdpWorker (low-level) and MajordomoWorker) as
-well as different internal and external service workers, e.g. MajordomoRestPlugin or the broker's mmi services.
-Workers communicate with the broker using the OpenCMW worker protocol via inproc or tcp ZeroMQ sockets.
+*Worker:* functional unit which provides one or more services that are registered with a broker. OpenCMW provides base implementations at different abstraction levels ([BasicMdpWorker](server/src/main/java/io/opencmw/server/BasicMdpWorker.java) (low-level) and 
+[MajordomoWorker](server/src/main/java/io/opencmw/server/MajordomoWorker.java)) as well as different internal and external service workers, e.g. MajordomoRestPlugin or the broker's mmi services. Workers communicate with the broker using the OpenCMW worker [protocol](docs/MajordomoProtocol.md) internally or externally via ZeroMQ sockets via `inproc`, `tcp`, `udp` or another suitable low-level network protocol scheme that is supported by ZeroMQ.
 
-*Service:* A worker can provide a number of services for different endpoints, which it registers at the broker.
+*Endpoint:* address for a service following the standardised [URI](https://tools.ietf.org/html/rfc3986) convention of `scheme:[//authority]path[?query][#fragment]`. Services usually omit the authority part and provide only relative paths as this information is managed and added by their broker.
+Each broker acts individually as a DNS for its own services as well as can forward this information to another (for the time being) central DNS Broker.
 
-*Endpoint:* An address for a service following the URI scheme.
-The authority part is usually left blank to allow a central broker to perform a lookup for the requested service.
-OpenCmw service lookup is performed based on the path of the uri and will find a broker address, which can provide the requested service.
+*internal/mmi workers:* each broker by default starts some lightweight management services as specified by the Majodomo [mmi](https://rfc.zeromq.org/spec/8/) extension:
+- `<optional broker name>/mmi.service`: endpoints of all services registered at this broker
+- `<optional broker name>/mmi.openapi`: openapi descriptions for the services
+- `<optional broker name>/mmi.dns`: service lookup
 
-*internal/mmi workers:* Each broker by default starts some lightweight management services as specified by the majodomo mmi extension:
-- BrokerName/mmi.service: endpoints of all services registered at this broker
-- BrokerName/mmi.openapi: openapi descriptions for the services
-- BrokerName/mmi.dns: service lookup
+*Context:* information that (if applicable) is matched to the URI's query parameter and required for every request and reply, specified by a domain object.
+They (partially) map to the filters used in the EventStore and the query parameters of the communication library. The context is used for (partial/wildcard) matching and can be used in the EventStore's filter config.
 
-*Context:* Information required for every request and reply, specified by a domain object.
-They (partially) map to the filters used in the EventStore and the query parameters of the communication library.
+*EventStore:* based on LMAX's [disruptor](https://lmax-exchange.github.io/disruptor/) pattern, the EventStore provides datastructures and setup methods 
+to define processing pipelines based on incoming data. (N.B. Java specific: a special worker allows reclaiming memory from expired events using a special
+SharedPointer implementation.)
 
-*Filter:* A special object which allows (partial/wildcard) matching and can be used in the EventStore's filter config and in context objects.
+*EventHandler:* used to define specific internal processing steps based on EventStore events. The last EventHandler is usually also a Majordomo worker to export the processed information via the network.
 
-*EventStore:* Based on the disruptor library, the EventStore provides datastructures and setup methods to define processing
-pipelines based on incoming data. Java specific, a special worker allows reclaiming memory from expired events using a special
-SharedPointer implementation.
-
-*EventHandler:* Event handlers are used to define specific processing steps based on ring-buffer events.
-Each event handler runs in its own thread.
-
-*Publisher:* The DataSourcePublisher provides an interface to populate the EventStore with events from OpenCMW, REST services or other sources.
+*Publisher:* the [DataSourcePublisher](./client/src/test/java/io/opencmw/client/DataSourceExample.java) provides an interface to populate the EventStore 
+ring-buffer with events from OpenCMW, REST services or other sources. 
+While using disruptor ring-buffers is the preferred and most performing options, the client also supports classic patterns of registering call-back functions or returning `Future<reyly objects>` objects.
 
 ### Example
 The following provides some flavour of how a simple service can be implemented using OpenCMW with only a few lines of
