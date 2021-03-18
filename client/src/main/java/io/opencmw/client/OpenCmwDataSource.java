@@ -366,7 +366,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         case FINAL:
         case W_NOTIFY:
             if (msg.clientRequestID != null && msg.clientRequestID.length > 0) { // for get/set the request id is provided by the server
-                return createInternalMsg(msg.clientRequestID, msg.topic, new ZFrame(msg.data), msg.errors);
+                return createInternalMsg(msg.clientRequestID, msg.topic, new ZFrame(msg.data), msg.errors, OpenCmwDataSource.class);
             }
             // for subscriptions the request id is missing and has to be recovered from the endpoint url
             final Optional<String> reqId = subscriptions.entrySet().stream() //
@@ -374,7 +374,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
                                                    .map(Map.Entry::getKey)
                                                    .findFirst();
             if (reqId.isPresent()) {
-                return createInternalMsg(reqId.get().getBytes(), msg.topic, new ZFrame(msg.data), msg.errors);
+                return createInternalMsg(reqId.get().getBytes(), msg.topic, new ZFrame(msg.data), msg.errors, OpenCmwDataSource.class);
             }
             LOGGER.atWarn().addArgument(msg.topic).log("Could not find subscription for notified request with endpoint: {}");
             return new ZMsg(); // ignore unknown notification
@@ -390,10 +390,6 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
             LOGGER.atDebug().addArgument(msg).log("Ignoring unexpected message: {}");
             return new ZMsg(); // ignore unknown request
         }
-    }
-
-    public static ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception) {
-        return createInternalMsg(reqId, endpoint, body, exception, OpenCmwDataSource.class);
     }
 
     public static ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception, final Class<? extends DataSource> dataSource) {

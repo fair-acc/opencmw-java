@@ -5,6 +5,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.zeromq.ZMonitor.Event;
 
 import static io.opencmw.OpenCmwConstants.*;
+import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -29,7 +30,6 @@ import io.opencmw.OpenCmwProtocol;
 import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
 import io.opencmw.client.DnsResolver;
-import io.opencmw.client.OpenCmwDataSource;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
 import io.opencmw.utils.NoDuplicatesList;
@@ -388,14 +388,14 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         case REPLY:
             Request requestForReply = pendingRequests.remove(reply.id);
             try {
-                return createInternalMsg(requestForReply.requestId.getBytes(UTF_8), new ParsedEndpoint(requestForReply.endpoint, reply.dataContext.cycleName).toURI(), reply.bodyData, null);
+                return createInternalMsg(requestForReply.requestId.getBytes(UTF_8), new ParsedEndpoint(requestForReply.endpoint, reply.dataContext.cycleName).toURI(), reply.bodyData, null, CmwLightDataSource.class);
             } catch (URISyntaxException | CmwLightProtocol.RdaLightException e) {
                 LOGGER.atWarn().addArgument(requestForReply.endpoint).addArgument(reply.dataContext.cycleName).log("Adding reply context to URI results in illegal url {} + {}");
                 return new ZMsg();
             }
         case EXCEPTION:
             final Request requestForException = pendingRequests.remove(reply.id);
-            return createInternalMsg(requestForException.requestId.getBytes(UTF_8), requestForException.endpoint, null, "request exception: " + reply.exceptionMessage.message);
+            return createInternalMsg(requestForException.requestId.getBytes(UTF_8), requestForException.endpoint, null, "request exception: " + reply.exceptionMessage.message, CmwLightDataSource.class);
         case SUBSCRIBE:
             final long id = reply.id;
             final Subscription sub = subscriptions.get(id);
@@ -424,21 +424,21 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                 LOGGER.atWarn().setCause(e).log("Error generating reply context URI");
                 return new ZMsg();
             }
-            return createInternalMsg(subscriptionForNotification.idString.getBytes(UTF_8), endpointForNotificationContext, reply.bodyData, null);
+            return createInternalMsg(subscriptionForNotification.idString.getBytes(UTF_8), endpointForNotificationContext, reply.bodyData, null, CmwLightDataSource.class);
         case NOTIFICATION_EXC:
             final Subscription subscriptionForNotifyExc = replyIdMap.get(reply.id);
             if (subscriptionForNotifyExc == null) {
                 LOGGER.atInfo().addArgument(reply.toString()).log("received unsolicited subscription notification error: {}");
                 return new ZMsg();
             }
-            return createInternalMsg(subscriptionForNotifyExc.idString.getBytes(UTF_8), subscriptionForNotifyExc.endpoint, null, "notification exception: " + reply.exceptionMessage.message);
+            return createInternalMsg(subscriptionForNotifyExc.idString.getBytes(UTF_8), subscriptionForNotifyExc.endpoint, null, "notification exception: " + reply.exceptionMessage.message, CmwLightDataSource.class);
         case SUBSCRIBE_EXCEPTION:
             final Subscription subForSubExc = subscriptions.get(reply.id);
             subForSubExc.subscriptionState = SubscriptionState.UNSUBSCRIBED;
             subForSubExc.timeoutValue = currentTime + subForSubExc.backOff;
             subForSubExc.backOff *= 2;
             LOGGER.atDebug().addArgument(subForSubExc.device).addArgument(subForSubExc.property).log("exception during subscription, retrying: {}/{}");
-            return createInternalMsg(subForSubExc.idString.getBytes(UTF_8), subForSubExc.endpoint, null, "subscribe exception: " + reply.exceptionMessage.message);
+            return createInternalMsg(subForSubExc.idString.getBytes(UTF_8), subForSubExc.endpoint, null, "subscribe exception: " + reply.exceptionMessage.message, CmwLightDataSource.class);
         // unsupported or non-actionable replies
         case GET:
         case SET:
@@ -448,10 +448,6 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         default:
             return new ZMsg();
         }
-    }
-
-    public static ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception) {
-        return OpenCmwDataSource.createInternalMsg(reqId, endpoint, body, exception, CmwLightDataSource.class);
     }
 
     private CmwLightMessage receiveData() {

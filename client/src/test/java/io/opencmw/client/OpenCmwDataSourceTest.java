@@ -324,12 +324,12 @@ class OpenCmwDataSourceTest {
         // test TestObject constructor
         assertDoesNotThrow((ThrowingSupplier<TestObject>) TestObject::new);
         // test createInternalMsg
-        final ZMsg msg1 = assertDoesNotThrow(() -> OpenCmwDataSource.createInternalMsg(new byte[] { 1, 2, 3 }, URI.create("test"), new ZFrame(new byte[] { 42, 23 }), null));
+        final ZMsg msg1 = assertDoesNotThrow(() -> OpenCmwDataSource.createInternalMsg(new byte[] { 1, 2, 3 }, URI.create("test"), new ZFrame(new byte[] { 42, 23 }), null, OpenCmwDataSource.class));
         assertArrayEquals(new byte[] { 1, 2, 3 }, msg1.pop().getData());
         assertEquals("test", msg1.pop().getString(ZMQ.CHARSET));
         assertArrayEquals(new byte[] { 42, 23 }, msg1.pop().getData());
         assertEquals("", msg1.pop().getString(ZMQ.CHARSET));
-        final ZMsg msg2 = assertDoesNotThrow(() -> OpenCmwDataSource.createInternalMsg(new byte[] { 1, 2, 3 }, URI.create("test"), null, "testexception"));
+        final ZMsg msg2 = assertDoesNotThrow(() -> OpenCmwDataSource.createInternalMsg(new byte[] { 1, 2, 3 }, URI.create("test"), null, "testexception", OpenCmwDataSource.class));
         assertArrayEquals(new byte[] { 1, 2, 3 }, msg2.pop().getData());
         assertEquals("test", msg2.pop().getString(ZMQ.CHARSET));
         assertArrayEquals(EMPTY_FRAME, msg2.pop().getData());
