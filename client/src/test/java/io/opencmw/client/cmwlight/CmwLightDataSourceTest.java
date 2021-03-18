@@ -9,7 +9,6 @@ import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -92,12 +91,120 @@ class CmwLightDataSourceTest {
                     final ZMsg reply = client.getMessage(); // Make client receive ack and update connection status
                     client.housekeeping(); // allow the subscription to be sent out
 
-                    return reply.size() == 4 && reply.pollFirst().getString(Charset.defaultCharset()).equals("testId")
-                            && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals(new CmwLightDataSource.ParsedEndpoint(endpoint, cycleName).toURI().toString())
-                            && Objects.requireNonNull(reply.pollFirst()).getString(Charset.defaultCharset()).equals("data")
+                    return reply != null && reply.size() == 4
+                            && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals(reqId)
+                            && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals(new CmwLightDataSource.ParsedEndpoint(endpoint, cycleName).toURI().toString())
+                            && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals("data")
                             && Objects.requireNonNull(reply.pollFirst()).getData().length == 0;
                 });
             }
+
+            // send notification exception
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.notificationExceptionReply(subMsg.sessionId, sourceId, "", "", "testException", 133713371337L, 133713371337L, (byte) 0));
+            // assert that the subscription notify exception was received
+            Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
+                final ZMsg reply = client.getMessage(); // Make client receive ack and update connection status
+                client.housekeeping(); // allow the subscription to be sent out
+
+                return reply != null && reply.size() == 4
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals(reqId)
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals(endpoint.toString())
+                        && Objects.requireNonNull(reply.pollFirst()).getData().length == 0
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).contains("testException");
+            });
+
+            // unsubscribe
+            client.unsubscribe(reqId);
+            // assert that the unsubscribe request was sent
+            final CmwLightMessage unsubscribeMsg = getNextNonHeartbeatMsg(socket, client);
+            assertEquals(CmwLightProtocol.MessageType.CLIENT_REQ, unsubscribeMsg.messageType);
+            assertEquals(CmwLightProtocol.RequestType.UNSUBSCRIBE, unsubscribeMsg.requestType);
+            // confirm the unsubscribe
+            final CmwLightMessage unsubscribeReply = CmwLightMessage.unsubscribeRequest(subMsg.sessionId, sourceId, subMsg.deviceName, subMsg.propertyName, Map.of(CmwLightProtocol.FieldName.SOURCE_ID_TAG.value(), sourceId), CmwLightProtocol.UpdateType.NORMAL);
+            unsubscribeReply.messageType = CmwLightProtocol.MessageType.SERVER_REP;
+            CmwLightProtocol.sendMsg(socket, unsubscribeReply);
+            // assert that the subscription was removed
+            Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
+                client.getMessage(); // Make client receive ack and update connection status
+                client.housekeeping(); // allow the subscription to be sent out
+                return !client.replyIdMap.containsKey(sourceId);
+            });
+
+            // subscription with error
+            final String subErrorReqId = "subErrorReqId";
+            client.subscribe(subErrorReqId, endpoint, null);
+
+            final CmwLightMessage subErrorMsg = getNextNonHeartbeatMsg(socket, client);
+            assertEquals(CmwLightProtocol.MessageType.CLIENT_REQ, subErrorMsg.messageType);
+            assertEquals(CmwLightProtocol.RequestType.SUBSCRIBE, subErrorMsg.requestType);
+            assertEquals(Map.of("nFilter", 1), subErrorMsg.requestContext.filters);
+
+            // send subscription error
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.subscribeExceptionReply(subErrorMsg.sessionId, subErrorMsg.id, subErrorMsg.deviceName, subErrorMsg.propertyName, "testException", 1337L, 1337L, (byte) 0));
+
+            // receive subscription error
+            Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
+                final ZMsg reply = client.getMessage(); // Make client receive ack and update connection status
+                client.housekeeping(); // perform housekeeping duties
+
+                return reply != null && reply.size() == 4
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals(subErrorReqId)
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals(endpoint.toString())
+                        && Objects.requireNonNull(reply.pollFirst()).getData().length == 0
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).contains("testException");
+            });
+
+            // unsubscibe failing subscription
+            client.unsubscribe(subErrorReqId);
+            assertEquals(0, client.subscriptions.size()); // because the subscription was not successfull, it will be deleted without network action
+
+            // get request
+            final String getReqId = "getReqId";
+            client.get(getReqId, endpoint, null, null);
+            // assert that get request was sent
+            final CmwLightMessage getMsg = getNextNonHeartbeatMsg(socket, client);
+            assertEquals(CmwLightProtocol.MessageType.CLIENT_REQ, getMsg.messageType);
+            assertEquals(CmwLightProtocol.RequestType.GET, getMsg.requestType);
+            assertEquals(Map.of("nFilter", 1), getMsg.requestContext.filters);
+            // send get request reply and assert that it was received
+            final String cycleName = "FAIR.SELECTOR.C=1337";
+            final long getSourceId = client.pendingRequests.keySet().stream().findFirst().orElseThrow();
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.getReply(subMsg.sessionId, getSourceId, "", "", new ZFrame("data"),
+                                                     new CmwLightMessage.DataContext(cycleName, 123456789, 123456788, null)));
+            Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
+                final ZMsg reply = client.getMessage(); // Make client receive ack and update connection status
+                client.housekeeping(); // perform housekeeping duties
+
+                return reply != null && reply.size() == 4
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals(getReqId)
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals(new CmwLightDataSource.ParsedEndpoint(endpoint, cycleName).toURI().toString())
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals("data")
+                        && Objects.requireNonNull(reply.pollFirst()).getData().length == 0;
+            });
+
+            // get request with error
+            final String getErrorReqId = "getErrorReqId";
+            client.get(getErrorReqId, endpoint, null, null);
+            // assert that get request was sent
+            final CmwLightMessage getErrorMsg = getNextNonHeartbeatMsg(socket, client);
+            assertEquals(CmwLightProtocol.MessageType.CLIENT_REQ, getErrorMsg.messageType);
+            assertEquals(CmwLightProtocol.RequestType.GET, getErrorMsg.requestType);
+            assertEquals(Map.of("nFilter", 1), getErrorMsg.requestContext.filters);
+            // send get request reply and assert that it was received
+            assertEquals(1, client.pendingRequests.size());
+            final long getErrorSourceId = client.pendingRequests.keySet().stream().findFirst().orElseThrow();
+            CmwLightProtocol.sendMsg(socket, CmwLightMessage.exceptionReply(subMsg.sessionId, getErrorSourceId, "", "", "testException", 133713371337L, 133713371337L, (byte) 0));
+            Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> {
+                final ZMsg reply = client.getMessage(); // Make client receive ack and update connection status
+                client.housekeeping(); // perform housekeeping duties
+
+                return reply != null && reply.size() == 4
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals(getErrorReqId)
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).equals(endpoint.toString())
+                        && Objects.requireNonNull(reply.pollFirst()).getData().length == 0
+                        && Objects.requireNonNull(reply.pollFirst()).getString(ZMQ.CHARSET).contains("testException");
+            });
+
             client.close();
         }
     }
@@ -135,6 +242,12 @@ class CmwLightDataSourceTest {
         assertFalse(factory.matches(URI.create("tcp://server/device/property?query=test")));
         assertTrue(factory.matches(URI.create("rda3:/testdevice/property")));
         assertFalse(factory.matches(URI.create("https://testserver")));
+    }
+
+    @Test
+    void testSubscription() {
+        final CmwLightDataSource.Subscription sub = new CmwLightDataSource.Subscription(URI.create("testuri"), "testdevice", "testproperty", "testselector", Map.of("testFilter", 42));
+        assertEquals("Subscription{property='testproperty', device='testdevice', selector='testselector', filters={testFilter=42}, subscriptionState=UNSUBSCRIBED, backOff=20, id=" + sub.id + ", updateId=-1, timeoutValue=-1}", sub.toString());
     }
 
     @Test

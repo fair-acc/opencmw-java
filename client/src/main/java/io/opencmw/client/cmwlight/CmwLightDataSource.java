@@ -85,8 +85,8 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     protected final URI endpoint;
     private final AtomicInteger reconnectAttempt = new AtomicInteger(0);
     private final ZMonitor socketMonitor;
-    private final Queue<Request> queuedRequests = new LinkedBlockingQueue<>();
-    private final Map<Long, Request> pendingRequests = new HashMap<>();
+    protected final Queue<Request> queuedRequests = new LinkedBlockingQueue<>();
+    protected final Map<Long, Request> pendingRequests = new HashMap<>();
     private final ExecutorService executorService;
     protected long connectionId;
     protected long lastHeartbeatReceived = -1;
@@ -565,7 +565,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         public final String selector;
         public final Map<String, Object> filters;
         public final URI endpoint;
-        private final long id = REQUEST_ID_GENERATOR.incrementAndGet();
+        public final long id = REQUEST_ID_GENERATOR.incrementAndGet();
         public SubscriptionState subscriptionState = SubscriptionState.UNSUBSCRIBED;
         public int backOff = 20;
         public long updateId = -1;
