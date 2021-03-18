@@ -2,6 +2,7 @@ package io.opencmw.rbac;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Objects;
 
 import org.zeromq.ZMQ;
 
@@ -58,9 +59,29 @@ public class RbacToken {
         }
         final String[] component = rbacToken.split("[,=]");
         if (component.length != 3 || !RBAC_TOKEN_PREFIX.equals(component[0])) {
-            // protocol error: sent token with less or more than two commas
-            return new RbacToken(BasicRbacRole.NULL, "");
+            throw new IllegalArgumentException("RBAC token error: sent token with less or more than two delimiter: " + component.length + " token=" + rbacToken);
         }
         return new RbacToken(BasicRbacRole.NULL.getRole(component[1]), component[2]);
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof RbacToken)) {
+            return false;
+        }
+        final RbacToken rbacToken = (RbacToken) o;
+
+        if (!signedHashCode.equals(rbacToken.signedHashCode)) {
+            return false;
+        }
+        return rbacRole.equals(rbacToken.rbacRole);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(rbacRole, signedHashCode);
     }
 }
