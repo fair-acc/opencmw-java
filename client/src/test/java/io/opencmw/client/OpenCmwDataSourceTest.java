@@ -79,7 +79,7 @@ class OpenCmwDataSourceTest {
     }
 
     @Test
-    void testSubscriptionWithListener() {
+    void testSubscriptionWithListener() throws Exception {
         assertNotNull(dataSourcePublisher.getRawDataEventStore());
         final Queue<TestObject> updates = new ArrayBlockingQueue<>(20);
         eventStore.start();
@@ -145,7 +145,7 @@ class OpenCmwDataSourceTest {
     }
 
     @Test
-    void testSubscription() {
+    void testSubscription() throws Exception {
         final Map<String, TestObject> updates = new ConcurrentHashMap<>();
         eventStore.register((event, seq, last) -> {
             LOGGER.atDebug().addArgument(event).log("received event: {}");

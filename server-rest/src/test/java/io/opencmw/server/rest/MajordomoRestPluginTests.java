@@ -53,6 +53,7 @@ import okhttp3.sse.EventSources;
 import zmq.util.Utils;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Timeout(60)
 class MajordomoRestPluginTests {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPluginTests.class);
     private static final Duration STARTUP = Duration.ofSeconds(3);

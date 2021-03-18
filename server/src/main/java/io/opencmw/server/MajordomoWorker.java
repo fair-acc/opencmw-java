@@ -1,11 +1,19 @@
 package io.opencmw.server;
 
-import static io.opencmw.OpenCmwProtocol.Command.W_NOTIFY;
-import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
-import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
+import static io.opencmw.OpenCmwProtocol.Command.SUBSCRIBE;
+import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
+import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
+import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
+
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -38,10 +46,11 @@ import io.opencmw.serialiser.spi.JsonSerialiser;
  * @param <I> generic type for the input domain object
  * @param <O> generic type for the output domain object (also notify)
  */
-@SuppressWarnings({ "PMD.DataClass", "PMD.NPathComplexity" }) // PMD - false positive data class
+@SuppressWarnings({ "PMD.DataClass", "PMD.NPathComplexity", "PMD.ExcessiveImports" }) // PMD - false positive data class
 @MetaInfo(description = "default MajordomoWorker implementation")
 public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoWorker.class);
+    private static final String TAG_NO_MENU = "noMenu";
     private static final int MAX_BUFFER_SIZE = 4000;
     protected final IoBuffer defaultBuffer = new FastByteBuffer(MAX_BUFFER_SIZE, true, null);
     protected final IoBuffer defaultNotifyBuffer = new FastByteBuffer(MAX_BUFFER_SIZE, true, null);
@@ -51,6 +60,7 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
     protected final Class<C> contextClassType;
     protected final Class<I> inputClassType;
     protected final Class<O> outputClassType;
+    protected final I emptyInput;
     protected Handler<C, I, O> handler;
     protected Handler<C, I, O> htmlHandler;
 
@@ -78,6 +88,11 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
         this.contextClassType = contextClassType;
         this.inputClassType = inputClassType;
         this.outputClassType = outputClassType;
+        try {
+            emptyInput = inputClassType.getDeclaredConstructor().newInstance();
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+            throw new IllegalArgumentException("no default constructor for input type " + inputClassType.getName(), e);
+        }
         deserialiser.setAutoMatchSerialiser(false);
         serialiser.setAutoMatchSerialiser(false);
         notifySerialiser.setAutoMatchSerialiser(false);
@@ -95,99 +110,23 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
             LOGGER.atInfo().addArgument("velocity engine not present - omitting setting DefaultHtmlHandler()");
         }
 
-        super.registerHandler(c -> {
-            final URI reqTopic = c.req.topic;
+        super.registerHandler(rawCtx -> {
+            final URI reqTopic = rawCtx.req.topic;
             final String queryString = reqTopic.getQuery();
-            final C requestCtx = QueryParameterParser.parseQueryParameter(contextClassType, c.req.topic.getQuery());
-            final C replyCtx = QueryParameterParser.parseQueryParameter(contextClassType, c.req.topic.getQuery()); // reply is initially a copy of request
+            final C requestCtx = QueryParameterParser.parseQueryParameter(contextClassType, rawCtx.req.topic.getQuery());
+            final C replyCtx = QueryParameterParser.parseQueryParameter(contextClassType, rawCtx.req.topic.getQuery()); // reply is initially a copy of request
             final MimeType requestedMimeType = QueryParameterParser.getMimeType(queryString);
             // no MIME type given -> map default to BINARY
-            c.mimeType = requestedMimeType == MimeType.UNKNOWN ? MimeType.BINARY : requestedMimeType;
+            rawCtx.mimeType = requestedMimeType == MimeType.UNKNOWN ? MimeType.BINARY : requestedMimeType;
 
-            final I input;
-            if (c.req.data.length > 0) {
-                switch (c.mimeType) {
-                case HTML:
-                case JSON:
-                case JSON_LD:
-                    deserialiser.setDataBuffer(FastByteBuffer.wrap(c.req.data));
-                    deserialiser.setMatchedIoSerialiser(JsonSerialiser.class);
-                    input = deserialiser.deserialiseObject(inputClassType);
-                    break;
-                case CMWLIGHT:
-                    deserialiser.setDataBuffer(FastByteBuffer.wrap(c.req.data));
-                    deserialiser.setMatchedIoSerialiser(CmwLightSerialiser.class);
-                    input = deserialiser.deserialiseObject(inputClassType);
-                    break;
-                case BINARY:
-                default:
-                    deserialiser.setDataBuffer(FastByteBuffer.wrap(c.req.data));
-                    deserialiser.setMatchedIoSerialiser(BinarySerialiser.class);
-                    input = deserialiser.deserialiseObject(inputClassType);
-                    break;
-                }
-            } else {
-                // return default input object
-                input = inputClassType.getDeclaredConstructor().newInstance();
-            }
-
+            final I input = deserialiseData(rawCtx, inputClassType);
             final O output = outputClassType.getDeclaredConstructor().newInstance();
 
             // call user-handler
-            handler.handle(c, requestCtx, input, replyCtx, output);
+            handler.handle(rawCtx, requestCtx, input, replyCtx, output);
 
-            final String replyQuery = QueryParameterParser.generateQueryParameter(replyCtx);
-            if (c.rep.topic == null) {
-                c.rep.topic = new URI(reqTopic.getScheme(), reqTopic.getAuthority(), reqTopic.getPath(), replyQuery, reqTopic.getFragment());
-            } else {
-                final String oldQuery = c.rep.topic.getQuery();
-                final String newQuery = oldQuery == null || oldQuery.isBlank() ? replyQuery : (oldQuery + "&" + replyQuery);
-                c.rep.topic = new URI(c.rep.topic.getScheme(), c.rep.topic.getAuthority(), c.rep.topic.getPath(), newQuery, reqTopic.getFragment());
-            }
-            final MimeType replyMimeType = QueryParameterParser.getMimeType(replyQuery);
-            // no MIME type given -> stick with the one specified in the request (if it exists) or keep default: BINARY
-            c.mimeType = replyMimeType == MimeType.UNKNOWN ? c.mimeType : replyMimeType;
-
-            defaultBuffer.reset();
-            switch (c.mimeType) {
-            case HTML:
-                htmlHandler.handle(c, requestCtx, input, replyCtx, output);
-                break;
-            case TEXT:
-            case JSON:
-            case JSON_LD:
-                serialiser.setMatchedIoSerialiser(JsonSerialiser.class);
-                serialiser.getMatchedIoSerialiser().setBuffer(defaultBuffer);
-                serialiser.serialiseObject(output);
-                defaultBuffer.flip();
-                c.rep.data = Arrays.copyOf(defaultBuffer.elements(), defaultBuffer.limit() + 4);
-                break;
-            case CMWLIGHT:
-                serialiser.setMatchedIoSerialiser(CmwLightSerialiser.class);
-                serialiser.getMatchedIoSerialiser().setBuffer(defaultBuffer);
-                serialiser.serialiseObject(output);
-                defaultBuffer.flip();
-                c.rep.data = Arrays.copyOf(defaultBuffer.elements(), defaultBuffer.limit());
-                break;
-            case BINARY:
-                serialiser.setMatchedIoSerialiser(BinarySerialiser.class);
-                serialiser.getMatchedIoSerialiser().setBuffer(defaultBuffer);
-                serialiser.serialiseObject(output);
-                defaultBuffer.flip();
-                c.rep.data = Arrays.copyOf(defaultBuffer.elements(), defaultBuffer.limit());
-                break;
-            default:
-                if (output instanceof BinaryData) {
-                    c.rep.data = ((BinaryData) output).data;
-                }
-                break;
-            }
+            serialiseData(serialiser, defaultBuffer, rawCtx, requestCtx, input, replyCtx, output);
         });
-    }
-
-    @Override
-    public BasicMdpWorker registerHandler(final RequestHandler requestHandler) {
-        throw new UnsupportedOperationException("do not overwrite low-level request handler, use either 'setHandler(...)' or " + BasicMdpWorker.class.getName() + " directly");
     }
 
     public Handler<C, I, O> getHandler() {
@@ -206,18 +145,117 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
         this.htmlHandler = htmlHandler;
     }
 
-    public void notify(final @NotNull C replyCtx, final @NotNull O reply) {
+    public void notify(final @NotNull C replyCtx, final @NotNull O reply) throws Exception { // NOPMD part of message signature
         notify("", replyCtx, reply);
     }
 
-    public void notify(final @NotNull String path, final @NotNull C replyCtx, final @NotNull O reply) {
-        defaultNotifyBuffer.reset();
-        notifySerialiser.serialiseObject(reply);
-        defaultNotifyBuffer.flip();
-        final byte[] data = Arrays.copyOf(defaultNotifyBuffer.elements(), defaultNotifyBuffer.limit());
-        final String query = QueryParameterParser.generateQueryParameter(replyCtx);
-        URI topic = URI.create(serviceName + path + (query.isBlank() ? "" : ('?' + query)));
-        super.notify(new MdpMessage(null, PROT_WORKER, W_NOTIFY, serviceBytes, EMPTY_FRAME, topic, data, "", RBAC));
+    public void notify(final @NotNull String path, final @NotNull C replyCtx, final @NotNull O reply) throws Exception { // NOPMD part of message signature
+        final URI notifyTopic = URI.create(serviceName + path);
+        final List<URI> subTopics = new ArrayList<>(activeSubscriptions); // copy for decoupling/performance reasons
+        final MdpMessage reqCtx = new MdpMessage(null, PROT_CLIENT, SUBSCRIBE, serviceName.getBytes(UTF_8), "notify".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
+        final OpenCmwProtocol.Context rawCtx = new OpenCmwProtocol.Context(reqCtx);
+        final Map<URI, Boolean> published = new HashMap<>(activeSubscriptions.size()); // NOPMD - local use of HashMap
+        for (final URI endpoint : subTopics) {
+            final URI localNotify = QueryParameterParser.appendQueryParameter(notifyTopic, endpoint.getQuery());
+            if (!subscriptionMatcher.test(localNotify, endpoint) || published.get(localNotify) != null) {
+                // already-notified block further processing of message
+                continue;
+            }
+            published.put(localNotify, true);
+
+            final MimeType requestedMimeType = QueryParameterParser.getMimeType(endpoint.getQuery());
+            // no MIME type given -> map default to BINARY
+            rawCtx.mimeType = requestedMimeType == MimeType.UNKNOWN ? MimeType.BINARY : requestedMimeType;
+            rawCtx.req.topic = rawCtx.mimeType == MimeType.HTML ? QueryParameterParser.appendQueryParameter(notifyTopic, TAG_NO_MENU) : notifyTopic;
+            rawCtx.rep.topic = rawCtx.req.topic;
+            serialiseData(notifySerialiser, defaultNotifyBuffer, rawCtx, replyCtx, emptyInput, replyCtx, reply);
+            super.notify(rawCtx.rep);
+        }
+    }
+
+    @Override
+    public BasicMdpWorker registerHandler(final RequestHandler requestHandler) {
+        throw new UnsupportedOperationException("do not overwrite low-level request handler, use either 'setHandler(...)' or " + BasicMdpWorker.class.getName() + " directly");
+    }
+
+    protected I deserialiseData(final OpenCmwProtocol.Context rawCtx, final @NotNull Class<I> inputClassType) throws InstantiationException, IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        final I input;
+        if (rawCtx.req.data.length > 0) {
+            switch (rawCtx.mimeType) {
+            case HTML:
+            case JSON:
+            case JSON_LD:
+                deserialiser.setDataBuffer(FastByteBuffer.wrap(rawCtx.req.data));
+                deserialiser.setMatchedIoSerialiser(JsonSerialiser.class);
+                input = deserialiser.deserialiseObject(inputClassType);
+                break;
+            case CMWLIGHT:
+                deserialiser.setDataBuffer(FastByteBuffer.wrap(rawCtx.req.data));
+                deserialiser.setMatchedIoSerialiser(CmwLightSerialiser.class);
+                input = deserialiser.deserialiseObject(inputClassType);
+                break;
+            case BINARY:
+            default:
+                deserialiser.setDataBuffer(FastByteBuffer.wrap(rawCtx.req.data));
+                deserialiser.setMatchedIoSerialiser(BinarySerialiser.class);
+                input = deserialiser.deserialiseObject(inputClassType);
+                break;
+            }
+        } else {
+            // return default input object
+            input = inputClassType.getDeclaredConstructor().newInstance();
+        }
+        return input;
+    }
+
+    protected void serialiseData(final IoClassSerialiser classSerialiser, final IoBuffer buffer, final OpenCmwProtocol.Context rawCtx, final C requestCtx, final I input, final C replyCtx, final O output) throws Exception { // NOPMD - part of signature
+        final String replyQuery = QueryParameterParser.generateQueryParameter(replyCtx);
+        if (rawCtx.rep.topic == null) {
+            final URI reqTopic = rawCtx.req.topic;
+            rawCtx.rep.topic = new URI(reqTopic.getScheme(), reqTopic.getAuthority(), reqTopic.getPath(), replyQuery, reqTopic.getFragment());
+        } else {
+            final String oldQuery = rawCtx.rep.topic.getQuery();
+            final String newQuery = oldQuery == null || oldQuery.isBlank() ? replyQuery : (oldQuery + "&" + replyQuery);
+            rawCtx.rep.topic = new URI(rawCtx.rep.topic.getScheme(), rawCtx.rep.topic.getAuthority(), rawCtx.rep.topic.getPath(), newQuery, null);
+        }
+        final MimeType replyMimeType = QueryParameterParser.getMimeType(replyQuery);
+        // no MIME type given -> stick with the one specified in the request (if it exists) or keep default: copy of raw binary data
+
+        rawCtx.mimeType = replyMimeType == MimeType.UNKNOWN ? rawCtx.mimeType : replyMimeType;
+        buffer.reset();
+        switch (rawCtx.mimeType) {
+        case HTML:
+            htmlHandler.handle(rawCtx, requestCtx, input, replyCtx, output);
+            break;
+        case TEXT:
+        case JSON:
+        case JSON_LD:
+            classSerialiser.setMatchedIoSerialiser(JsonSerialiser.class);
+            classSerialiser.getMatchedIoSerialiser().setBuffer(buffer);
+            classSerialiser.serialiseObject(output);
+            buffer.flip();
+            rawCtx.rep.data = Arrays.copyOf(buffer.elements(), buffer.limit() + 4);
+            break;
+        case CMWLIGHT:
+            classSerialiser.setMatchedIoSerialiser(CmwLightSerialiser.class);
+            classSerialiser.getMatchedIoSerialiser().setBuffer(buffer);
+            classSerialiser.serialiseObject(output);
+            buffer.flip();
+            rawCtx.rep.data = Arrays.copyOf(buffer.elements(), buffer.limit());
+            break;
+        case BINARY:
+            classSerialiser.setMatchedIoSerialiser(BinarySerialiser.class);
+            classSerialiser.getMatchedIoSerialiser().setBuffer(buffer);
+            classSerialiser.serialiseObject(output);
+            buffer.flip();
+            rawCtx.rep.data = Arrays.copyOf(buffer.elements(), buffer.limit());
+            break;
+        default:
+            if (output instanceof BinaryData) {
+                rawCtx.rep.data = ((BinaryData) output).data;
+            }
+            break;
+        }
     }
 
     public interface Handler<C, I, O> {

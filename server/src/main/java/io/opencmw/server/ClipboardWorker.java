@@ -39,7 +39,7 @@ public class ClipboardWorker extends MajordomoWorker<BasicCtx, BinaryData, Binar
 
     /**
      * additional query tag that provides the source/redirect address for the original source of the binary data
-     * example: '/tree-sub-branch-a/tree-sub-branch-b/../mydata.png?redirect="http://ip:port/path/mydata.png'
+     * example: '/tree-sub-branch-a/tree-sub-branch-b/../myData.png?redirect="http://ip:port/path/mydata.png'
      */
     public static final String REDIRECT_TAG = "redirect";
     private final Cache<String, DataContainer> repository;
@@ -148,7 +148,11 @@ public class ClipboardWorker extends MajordomoWorker<BasicCtx, BinaryData, Binar
 
             // notify others that might be listening always as <serviceName>/resourceName ...
             // N.B. we do not cross-notify for other properties
-            notify(cleanedResourceName, EMPTY_CONTEXT, in);
+            try {
+                notify(cleanedResourceName, EMPTY_CONTEXT, in);
+            } catch (Exception e) { // NOPMD
+                LOGGER.atError().setCause(e).log("could not notify update");
+            }
         }
     }
 

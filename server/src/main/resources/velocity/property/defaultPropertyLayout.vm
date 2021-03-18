@@ -63,7 +63,7 @@
         if (subscribe) {
             // location.reload();
             console.log("SSE update for: " + e.data);
-            document.getElementById('propertyBox').innerHTML = '<embed id="embeddedMainFrame" class="embeddedFrame" src="$requestedURInoFrame"/>';
+            document.getElementById('propertyBox').innerHTML = '<embed id="embeddedMainFrame" class="embeddedFrame" src="' + e.data + '"/>';
         } else {
             console.log("SSE event: "+ e.data);
         }
@@ -161,7 +161,7 @@ Subscribe:
 
 
 <form id="defaultPropertyTopic" method="GET">
-    <div class="wrap-collabsible">
+    <div class="wrap-collapsible">
         <input id="collapsibleReplyTopic" class="toggle" type="checkbox">
         <label for="collapsibleReplyTopic" class="lbl-toggle" title="request context: $requestTopic">Request Context</label>
         <div class="collapsible-content">
@@ -177,7 +177,7 @@ Subscribe:
 
 #if ($request && $requestClassData && $requestClassData.size() != 0 && $request.getClass().getSimpleName() != "NoData")
 <form id="defaultPropertyRequest" method="POST" enctype="multipart/form-data">
-    <div class="wrap-collabsible">
+    <div class="wrap-collapsible">
         <input id="collapsibleRequest" class="toggle" type="checkbox">
         <label for="collapsibleRequest" class="lbl-toggle">Request:</label>
         <div class="collapsible-content">
@@ -191,7 +191,7 @@ Subscribe:
 #end
 
 <form id="defaultPropertyTopic" method="GET" enctype="multipart/form-data">
-    <div class="wrap-collabsible">
+    <div class="wrap-collapsible">
         <input id="collapsibleRequestTopic" class="toggle" type="checkbox">
         <label for="collapsibleRequestTopic" class="lbl-toggle" title="reply context: $replyTopic">Reply Context</label>
         <div class="collapsible-content">
@@ -203,7 +203,7 @@ Subscribe:
 </form>
 
 <form id="defaultPropertyReply" method="POST" enctype="multipart/form-data">
-    <div class="wrap-collabsible">
+    <div class="wrap-collapsible">
         <input id="collapsibleReply" class="toggle" type="checkbox" checked>
         <label for="collapsibleReply" class="lbl-toggle">Reply:</label>
         <div class="collapsible-content">
