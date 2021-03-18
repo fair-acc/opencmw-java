@@ -44,8 +44,7 @@ public class BasicSample {
             // the custom used code:
             this.setHandler((rawCtx, requestContext, requestData, replyContext, replyData) -> {
                 final String name = Objects.requireNonNullElse(requestContext.name, "");
-                LOGGER.atInfo().addArgument(rawCtx.req.command).addArgument(rawCtx.req.topic)
-                        .log("{} request for worker - requested topic '{}'");
+                LOGGER.atInfo().addArgument(rawCtx.req.command).addArgument(rawCtx.req.topic).log("{} request for worker - requested topic '{}'");
                 replyData.returnValue = name.isBlank() ? "Hello World" : "Hello, " + name + "!";
                 replyContext.name = name.isBlank() ? "At" : (name + ", at") + " your service!";
             });
