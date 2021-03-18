@@ -436,7 +436,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     }
 
     protected void notifySubscribedClients(final @NotNull MdpMessage msg) {
-        final Long notifyID = NOTIFY_COUNTER.getAndIncrement();
+        final long notifyID = NOTIFY_COUNTER.getAndIncrement();
         try {
             msg.topic = QueryParameterParser.appendQueryParameter(msg.topic, TAG_NO_MENU + '&' + TAG_NOTIFY_ID + '=' + notifyID);
         } catch (URISyntaxException e) {
@@ -481,7 +481,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 // short-cut for get response from cache after a notify (via subscription ID)
                 reply = new CustomFuture<>();
                 try {
-                    final Long notifyCounter = Long.parseLong(notifyCounterString[0]);
+                    final long notifyCounter = Long.parseLong(notifyCounterString[0]);
                     final MdpMessage replyMsg = subscriptionCache.get(notifyCounter);
                     if (replyMsg == null) {
                         reply.setException(new ProtocolException("cached notification " + TAG_NOTIFY_ID + '=' + notifyCounter + " not available (anymore)"));
