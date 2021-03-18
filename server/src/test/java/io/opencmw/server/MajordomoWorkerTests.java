@@ -260,7 +260,7 @@ class MajordomoWorkerTests {
     }
 
     @Test
-    void testNotifySubscription() {
+    void testNotifySubscription() throws Exception {
         // start low-level subscription
         final AtomicInteger subCounter = new AtomicInteger(0);
         final AtomicBoolean run = new AtomicBoolean(true);
@@ -285,7 +285,7 @@ class MajordomoWorkerTests {
 
                     // very basic check that the correct notifications have been received in order
                     assertEquals("resourceName" + iteration, reply.resourceName, "resourceName field");
-                    assertEquals(1, testValues.size(), "test query parameter number");
+                    assertEquals(1, testValues.size(), "test query parameter number - " + testValues + " - " + rawReply.topic.getQuery());
                     assertEquals("notify" + iteration, testValues.get(0), "test query parameter name");
                 }
                 sub.unsubscribe(TEST_SERVICE_NAME);

@@ -22,6 +22,7 @@ import java.util.concurrent.locks.LockSupport;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.zeromq.ZContext;
@@ -31,6 +32,7 @@ import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.utils.SystemProperties;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Timeout(60)
 class BasicMdpWorkerTest {
     @BeforeAll
     void init() {

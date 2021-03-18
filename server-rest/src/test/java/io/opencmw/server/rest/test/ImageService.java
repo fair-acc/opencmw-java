@@ -54,8 +54,11 @@ public class ImageService extends MajordomoWorker<TestContext, NoData, BinaryDat
                 reply.resourceName = "test.png";
                 reply.data = imageData[selectedImage.get()];
                 replyCtx.contentType = MimeType.PNG;
-                ImageService.this.notify(replyCtx, reply);
-                // System.err.println("notify new image " + replyCtx)
+                try {
+                    ImageService.this.notify(replyCtx, reply);
+                } catch (Exception e) {
+                    LOGGER.atError().setCause(e).log("could not notify update");
+                }
             }
         }, TimeUnit.MILLISECONDS.toMillis(updateInterval), TimeUnit.MILLISECONDS.toMillis(updateInterval));
 

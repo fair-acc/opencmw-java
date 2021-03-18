@@ -92,4 +92,24 @@ class OpenCmwProtocolTests {
             }
         }
     }
+
+    @Test
+    void testContext() {
+        assertDoesNotThrow(() -> new OpenCmwProtocol.Context(TEST_MESSAGE));
+
+        final OpenCmwProtocol.Context testCtx1 = new OpenCmwProtocol.Context(TEST_MESSAGE);
+        final OpenCmwProtocol.Context testCtx2 = new OpenCmwProtocol.Context(new OpenCmwProtocol.MdpMessage(TEST_MESSAGE));
+        assertNotNull(testCtx2.toString());
+        assertEquals(testCtx1, testCtx2);
+        assertEquals(testCtx1.hashCode(), testCtx2.hashCode());
+        assertNotEquals(testCtx1, new Object(), "object type mismatch"); // NOPMD
+
+        testCtx2.rep.topic = URI.create("otherRepTopic");
+        assertNotEquals(testCtx1, testCtx2);
+        assertNotEquals(testCtx1.hashCode(), testCtx2.hashCode());
+
+        testCtx2.req.topic = URI.create("otherReqTopic");
+        assertNotEquals(testCtx1, testCtx2);
+        assertNotEquals(testCtx1.hashCode(), testCtx2.hashCode());
+    }
 }

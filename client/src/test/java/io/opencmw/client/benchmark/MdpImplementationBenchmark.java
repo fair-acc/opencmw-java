@@ -235,14 +235,22 @@ class MdpImplementationBenchmark {
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
             final String reqId = client.subscribe(requestUri, TestObject.class, requestContext, TestContext.class, null);
             LockSupport.parkNanos(Duration.ofMillis(SLEEP_DURATION).toNanos());
-            worker.notify(testContext, testObject); // first notification after subscribe is swallowed
+            try {
+                worker.notify(testContext, testObject); // first notification after subscribe is swallowed
+            } catch (Exception e) {
+                LOGGER.atError().setCause(e).log("could not notify");
+            }
             LockSupport.parkNanos(Duration.ofMillis(SLEEP_DURATION).toNanos());
             receivedCount.set(0);
             // do nothing
             AtomicInteger sendCounter = new AtomicInteger(0);
             final double result = measure(description, () -> {
                 // executed in notification thread
-                worker.notify(testContext, testObject);
+                try {
+                    worker.notify(testContext, testObject);
+                } catch (Exception e) {
+                    LOGGER.atError().setCause(e).log("could not notify");
+                }
                 sendCounter.getAndIncrement(); }, () -> {
                 // executed in client thread
                 final long timeout = System.nanoTime() + TIMEOUT_NANOS;
@@ -279,10 +287,18 @@ class MdpImplementationBenchmark {
                 }
             });
             LockSupport.parkNanos(Duration.ofMillis(SLEEP_DURATION).toNanos());
-            worker.notify(testContext, testObject); // first notification after subscribe is swallowed
+            try {
+                worker.notify(testContext, testObject); // first notification after subscribe is swallowed
+            } catch (Exception e) {
+                LOGGER.atError().setCause(e).log("could not notify");
+            }
             LockSupport.parkNanos(Duration.ofMillis(SLEEP_DURATION).toNanos());
             final double result = measure(description, () -> {
-                worker.notify(testContext, testObject);
+                try {
+                    worker.notify(testContext, testObject);
+                } catch (Exception e) {
+                LOGGER.atError().setCause(e).log("could not notify");
+            }
                 sentNotifications.getAndIncrement(); }, () -> {
                 // executed in client thread
                 final long timeout = System.nanoTime() + TIMEOUT_NANOS;

@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.net.ProtocolException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -67,6 +68,7 @@ import io.opencmw.server.BasicMdpWorker;
 import io.opencmw.server.MajordomoWorker;
 import io.opencmw.server.rest.util.CombinedHandler;
 import io.opencmw.server.rest.util.MessageBundle;
+import io.opencmw.utils.Cache;
 import io.opencmw.utils.CustomFuture;
 
 import com.google.common.io.ByteStreams;
@@ -102,12 +104,19 @@ import com.jsoniter.spi.JsonException;
 public class MajordomoRestPlugin extends BasicMdpWorker {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPlugin.class);
     private static final byte[] RBAC = {}; // TODO: implement RBAC between Majordomo and Worker
+    private static final int LAST_NOTIFY_MAX_HISTORY = 20; // remember last 10 notifications
+    private static final long LAST_NOTIFY_TIMEOUT = 20; // [s] remember last notifications for at most
     private static final String TEMPLATE_EMBEDDED_HTML = "/velocity/property/defaultTextPropertyLayout.vm";
     private static final String TEMPLATE_BAD_REQUEST = "/velocity/errors/badRequest.vm";
     private static final String TAG_MENU_ITEMS = "navContent";
+    private static final String TAG_TEXT_BODY = "textBody";
+    private static final String TAG_NO_MENU = "noMenu";
+    private static final String TAG_NOTIFY_ID = "notifyID";
     private static final AtomicLong REQUEST_COUNTER = new AtomicLong();
+    private static final AtomicLong NOTIFY_COUNTER = new AtomicLong();
     protected final ZMQ.Socket subSocket;
     protected final Map<String, AtomicInteger> subscriptionCount = new ConcurrentHashMap<>();
+    protected final Map<Long, MdpMessage> subscriptionCache; // <notify_counter, last message>
     protected static final byte[] REST_SUB_ID = "REST_SUBSCRIPTION".getBytes(UTF_8);
     protected final ConcurrentMap<String, OpenApiDocumentation> registeredEndpoints = new ConcurrentHashMap<>();
     private final BlockingArrayQueue<MdpMessage> requestQueue = new BlockingArrayQueue<>();
@@ -132,6 +141,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         subSocket.connect(INTERNAL_ADDRESS_PUBLISHER);
         subSocket.subscribe(INTERNAL_SERVICE_NAMES);
         subscriptionCount.computeIfAbsent(INTERNAL_SERVICE_NAMES, s -> new AtomicInteger()).incrementAndGet();
+        subscriptionCache = Cache.<Long, MdpMessage>builder().withLimit(LAST_NOTIFY_MAX_HISTORY).withTimeout(LAST_NOTIFY_TIMEOUT, TimeUnit.SECONDS).build();
 
         newSseClientHandler = (client, state) -> {
             final String queryString = client.ctx.queryString() == null ? "" : ("?" + client.ctx.queryString());
@@ -239,12 +249,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 handler.rep = null; // NOPMD needs to be 'null' to suppress message being further processed
                 return;
             case W_NOTIFY:
-                final String serviceName = handler.req.getSenderName();
-                final String topicName = handler.req.topic.toString();
-                final long eventTimeStamp = System.currentTimeMillis();
-                final String notifyMessage = "new '" + topicName + "' @" + eventTimeStamp;
-                final Queue<SseClient> sseClients = RestServer.getEventClients(serviceName);
-                sseClients.forEach((final SseClient client) -> client.sendEvent(notifyMessage));
+                notifySubscribedClients(handler.req);
                 return;
             case GET_REQUEST:
             case SET_REQUEST:
@@ -315,7 +320,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                                     registerEndPoint(StringUtils.split(newServiceName, "/", 2)[1]);
                                 }
                             }
-                            notifySubscribedClients(brokerMsg.topic);
+                            notifySubscribedClients(brokerMsg);
                         }
                     }
                 }
@@ -430,15 +435,22 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         return reply;
     }
 
-    protected void notifySubscribedClients(final @NotNull URI topic) {
-        final String topicString = topic.toString();
-        final String notifyPath = prefixPath(topic.getPath());
-        // TODO: upgrade to path & query matching - for the time being only path @see also CombinedHandler
+    protected void notifySubscribedClients(final @NotNull MdpMessage msg) {
+        final long notifyID = NOTIFY_COUNTER.getAndIncrement();
+        try {
+            msg.topic = QueryParameterParser.appendQueryParameter(msg.topic, TAG_NO_MENU + '&' + TAG_NOTIFY_ID + '=' + notifyID);
+        } catch (URISyntaxException e) {
+            LOGGER.atWarn().setCause(e).addArgument(TAG_NOTIFY_ID).addArgument(msg.topic).log("could not append {} to {}");
+            return;
+        }
+        subscriptionCache.put(notifyID, msg);
+        final String notifyPath = prefixPath(msg.topic.getPath());
         final Queue<SseClient> clients = RestServer.getEventClients(notifyPath);
         final Predicate<SseClient> filter = c -> {
             final String clientPath = StringUtils.stripEnd(c.ctx.path(), "/");
             return clientPath.length() >= notifyPath.length() && clientPath.startsWith(notifyPath);
         };
+        final String topicString = msg.topic.toString();
         clients.stream().filter(filter).forEach(s -> s.sendEvent(topicString));
     }
 
@@ -453,7 +465,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             final Map<String, String[]> parameterMap = restCtx.req.getParameterMap();
 
             final String[] mimeType = parameterMap.get("contentType");
-            final URI topic = mimeType == null || mimeType.length == 0 ? RestServer.appendUri(URI.create(restCtx.fullUrl()), "contentType=" + acceptMimeType.toString()) : URI.create(restCtx.fullUrl());
+            URI topic = mimeType == null || mimeType.length == 0 ? RestServer.appendUri(URI.create(restCtx.fullUrl()), "contentType=" + acceptMimeType.toString()) : URI.create(restCtx.fullUrl());
 
             OpenCmwProtocol.Command cmd = getCommand(restCtx);
             final byte[] requestData;
@@ -462,9 +474,29 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             } else {
                 requestData = EMPTY_FRAME;
             }
-            final MdpMessage requestMsg = new MdpMessage(null, PROT_CLIENT, cmd, service.getBytes(UTF_8), EMPTY_FRAME, topic, requestData, "", RBAC);
 
-            CustomFuture<MdpMessage> reply = dispatchRequest(requestMsg);
+            final CustomFuture<MdpMessage> reply;
+            final String[] notifyCounterString = parameterMap.get(TAG_NOTIFY_ID);
+            if (cmd == GET_REQUEST && notifyCounterString != null && notifyCounterString.length == 1) {
+                // short-cut for get response from cache after a notify (via subscription ID)
+                reply = new CustomFuture<>();
+                try {
+                    final long notifyCounter = Long.parseLong(notifyCounterString[0]);
+                    final MdpMessage replyMsg = subscriptionCache.get(notifyCounter);
+                    if (replyMsg == null) {
+                        reply.setException(new ProtocolException("cached notification " + TAG_NOTIFY_ID + '=' + notifyCounter + " not available (anymore)"));
+                    } else {
+                        reply.setReply(replyMsg);
+                        topic = replyMsg.topic;
+                    }
+                } catch (NumberFormatException e) {
+                    throwHtmlException(restHandler, restCtx, service, acceptMimeType, e);
+                }
+            } else {
+                final MdpMessage requestMsg = new MdpMessage(null, PROT_CLIENT, cmd, service.getBytes(UTF_8), EMPTY_FRAME, topic, requestData, "", RBAC);
+                reply = dispatchRequest(requestMsg);
+            }
+
             try {
                 final MdpMessage replyMessage = reply.get(); //TODO: add max time-out -- only if not long-polling (to be checked)
                 MimeType replyMimeType = QueryParameterParser.getMimeType(replyMessage.topic.getQuery());
@@ -477,12 +509,12 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                         final String path = replyMessage.topic.getPath() + StringUtils.replace(queryString, "&noMenu", "");
                         restCtx.redirect(path);
                     } else {
-                        final boolean noMenu = queryString.contains("noMenu");
+                        final boolean noMenu = queryString.contains(TAG_NO_MENU);
                         Map<String, Object> dataMap = MessageBundle.baseModel(restCtx);
 
                         dataMap.put(TAG_MENU_ITEMS, menuMap);
-                        dataMap.put("textBody", new String(replyMessage.data, UTF_8));
-                        dataMap.put("noMenu", noMenu);
+                        dataMap.put(TAG_TEXT_BODY, new String(replyMessage.data, UTF_8));
+                        dataMap.put(TAG_NO_MENU, noMenu);
                         restCtx.render(TEMPLATE_EMBEDDED_HTML, dataMap);
                     }
                     break;
@@ -499,20 +531,24 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 }
 
             } catch (Exception e) { // NOPMD - exception is rethrown
-                switch (acceptMimeType) {
-                case HTML:
-                case TEXT:
-                    Map<String, Object> dataMap = MessageBundle.baseModel(restCtx);
-                    dataMap.put(TAG_MENU_ITEMS, menuMap);
-                    dataMap.put("service", restHandler);
-                    dataMap.put("exceptionText", e);
-                    restCtx.render(TEMPLATE_BAD_REQUEST, dataMap);
-                    return;
-                default:
-                }
-                throw new BadRequestResponse(MajordomoRestPlugin.class.getName() + ": could not process service '" + service + "' - exception:\n" + e.getMessage()); // NOPMD original exception forwarded within the text, BadRequestResponse does not support exception forwarding
+                throwHtmlException(restHandler, restCtx, service, acceptMimeType, e);
             }
         }, newSseClientHandler);
+    }
+
+    private void throwHtmlException(final String restHandler, final Context restCtx, final String service, final MimeType acceptMimeType, final Exception e) {
+        switch (acceptMimeType) {
+        case HTML:
+        case TEXT:
+            Map<String, Object> dataMap = MessageBundle.baseModel(restCtx);
+            dataMap.put(TAG_MENU_ITEMS, menuMap);
+            dataMap.put("service", restHandler);
+            dataMap.put("exceptionText", e);
+            restCtx.render(TEMPLATE_BAD_REQUEST, dataMap);
+            return;
+        default:
+        }
+        throw new BadRequestResponse(MajordomoRestPlugin.class.getName() + ": could not process service '" + service + "' - exception:\n" + e.getMessage()); // NOPMD original exception forwarded within the text, BadRequestResponse does not support exception forwarding
     }
 
     private byte[] getFormDataAsJson(final Context restCtx) {

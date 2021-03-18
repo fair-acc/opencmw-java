@@ -24,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.zeromq.util.ZData;
 
 import io.opencmw.OpenCmwConstants;
@@ -40,6 +41,7 @@ import zmq.util.Utils;
  *
  * @author rstein
  */
+@Timeout(60)
 class DnsDataSourceTests {
     private final static int TIMEOUT_STARTUP = 5; // [s]
     private final static int TIMEOUT = 1000; // [ms]
@@ -240,7 +242,11 @@ class DnsDataSourceTests {
         timer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
-                worker.notify(noData, domainData);
+                try {
+                    worker.notify(noData, domainData);
+                } catch (Exception e) {
+                    fail("exception in notify");
+                }
             }
         }, 0, 100);
         broker.addInternalService(worker);

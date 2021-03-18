@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.zeromq.SocketType;
 import org.zeromq.Utils;
 import org.zeromq.ZMQ;
@@ -35,6 +36,7 @@ import org.zeromq.util.ZData;
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacToken;
 
+@Timeout(60)
 class MajordomoBrokerTests {
     private static final byte[] DEFAULT_RBAC_TOKEN = new RbacToken(BasicRbacRole.ADMIN, "HASHCODE").getBytes();
     private static final String DEFAULT_BROKER_NAME = "TestMdpBroker";

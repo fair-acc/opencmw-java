@@ -58,13 +58,6 @@ public interface RbacRole<T extends RbacRole<T>> extends Comparable<T> {
 
     @Override
     default int compareTo(@NotNull RbacRole otherRole) {
-        System.err.println("T = " + otherRole);
-        if (getPriority() > otherRole.getPriority()) {
-            return 1;
-        }
-        if (getPriority() == otherRole.getPriority()) {
-            return 0;
-        }
-        return 1;
+        return Integer.compare(getPriority(), otherRole.getPriority());
     }
 }

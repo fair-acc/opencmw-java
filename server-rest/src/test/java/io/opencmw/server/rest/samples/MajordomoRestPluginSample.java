@@ -21,7 +21,7 @@ public class MajordomoRestPluginSample {
 
     public static void launchBroker() throws IOException {
         primaryBroker = new MajordomoBroker("PrimaryBroker", null, BasicRbacRole.values());
-        final URI brokerRouterAddress = primaryBroker.bind(URI.create("tcp://*:" + Utils.findOpenPort()));
+        final URI brokerRouterAddress = primaryBroker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         primaryBroker.bind(URI.create("mds://*:" + Utils.findOpenPort()));
         restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "*:8080", BasicRbacRole.ADMIN);
         primaryBroker.start();

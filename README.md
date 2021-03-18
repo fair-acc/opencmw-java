@@ -72,9 +72,29 @@ public static class HelloWorldWorker extends MajordomoWorker<BasicRequestCtx, No
         // the custom used code:
         this.setHandler((rawCtx, requestContext, requestData, replyContext, replyData) -> {
             final String name = Objects.requireNonNullElse(requestContext.name, "");
+            LOGGER.atInfo().addArgument(rawCtx.req.command).addArgument(rawCtx.req.topic)
+                    .log("{} request for worker - requested topic '{}'");
             replyData.returnValue = name.isBlank() ? "Hello World" : "Hello, " + name + "!";
             replyContext.name = name.isBlank() ? "At" : (name + ", at") + " your service!";
         });
+
+        // simple asynchronous notify example - (real-world use-cases would use another updater than Timer)
+        new Timer(true).scheduleAtFixedRate(new TimerTask() {
+            private final BasicRequestCtx notifyContext = new BasicRequestCtx(); // re-use to avoid gc
+            private final ReplyData notifyData = new ReplyData(); // re-use to avoid gc
+            private int i;
+            @Override
+            public void run() {
+                notifyContext.name = "update context #" + i;
+                notifyData.returnValue = "arbitrary data - update iteration #" + i++;
+                try {
+                    HelloWorldWorker.this.notify(notifyContext, notifyData);
+                } catch (Exception e) {
+                    LOGGER.atError().setCause(e).log("could not notify update");
+                    // further handle exception if necessary
+                }
+            }
+        }, TimeUnit.SECONDS.toMillis(1), TimeUnit.SECONDS.toMillis(2));
     }
 }
 
@@ -86,7 +106,7 @@ public static class BasicRequestCtx {
 
 @MetaInfo(description = "arbitrary reply domain object", direction = "OUT")
 public static class ReplyData {
-    @MetaInfo(description = " optional 'returnValue' OpenAPI documentation", unit="a string")
+    @MetaInfo(description = " optional 'returnValue' OpenAPI documentation", unit = "a string")
     public String returnValue;
 }
 ```
