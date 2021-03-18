@@ -20,12 +20,12 @@ import io.opencmw.serialiser.spi.FastByteBuffer;
 
 /**
  * Small sample to test subscription using the CmwLightClient without the DataSourcePublisher.
- * Most of the times this is not what you want to use, see DataSourceExample instead.
+ * Most of the times this is not what you want to use, see {@link CmwLightEventStoreSample} for an event store based
+ * or {@link CmwLightViaPublisherExample} for an event-listener/future based example instead.
  * The program needs the location of a cmw nameserver (host:port) as a command line argument.
  */
 public class CmwLightExample { // NOPMD is not a utility class but a sample
     private final static String DEVICE = "GSCD002";
-    // private final static String PROPERTY = "SnoopTriggerEvents";
     private final static String PROPERTY = "AcquisitionDAQ";
     private final static String SELECTOR = "FAIR.SELECTOR.ALL";
 
@@ -34,25 +34,26 @@ public class CmwLightExample { // NOPMD is not a utility class but a sample
             System.out.println("no directory server supplied");
             return;
         }
-        subscribeAcqFromDigitizer(args[0]);
+        final DirectoryLightClient directoryClient = new DirectoryLightClient(args[0]);
+        checkDeviceOnDirectoryServer(directoryClient);
+        subscribeAcqFromDigitizer(directoryClient);
     }
 
-    public static void subscribeAcqFromDigitizer(final String nameserver) throws DirectoryLightClient.DirectoryClientException, URISyntaxException, UnknownHostException {
-        // mini DirectoryLightClient tests
-        final DirectoryLightClient directoryClient = new DirectoryLightClient(nameserver);
+    public static void checkDeviceOnDirectoryServer(final DirectoryLightClient directoryClient) throws UnknownHostException, DirectoryLightClient.DirectoryClientException {
         final URI queryDevice = URI.create("rda3:/" + DEVICE);
         System.out.println("resolve name " + queryDevice + " to: " + directoryClient.resolveNames(List.of(queryDevice)));
         DirectoryLightClient.Device device = directoryClient.getDeviceInfo(Collections.singletonList(DEVICE)).get(0);
         System.out.println(device);
         final String address = device.servers.stream().findFirst().orElseThrow().get("Address:").replace("tcp://", "rda3://");
         System.out.println("connect client to " + address);
-        // mini DirectoryLightClient tests -- done
+    }
 
+    public static void subscribeAcqFromDigitizer(final DirectoryLightClient nameserver) throws URISyntaxException {
         // without DNS resolver:
         // final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), URI.create(address + '/' + DEVICE), Executors.newCachedThreadPool(), "testclient")
         // with DNS resolver:
         final CmwLightDataSource client = new CmwLightDataSource(new ZContext(1), URI.create("rda3:/" + DEVICE), Executors.newCachedThreadPool(), "testclient");
-        client.getFactory().registerDnsResolver(new DirectoryLightClient(nameserver)); // direct DNS registration - can be done also via DefaultDataSource
+        client.getFactory().registerDnsResolver(nameserver); // direct DNS registration - can be done also via DefaultDataSource
 
         final ZMQ.Poller poller = client.getContext().createPoller(1);
         poller.register(client.getSocket(), ZMQ.Poller.POLLIN);
