@@ -85,8 +85,8 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     protected final URI endpoint;
     private final AtomicInteger reconnectAttempt = new AtomicInteger(0);
     private final ZMonitor socketMonitor;
-    private final Queue<Request> queuedRequests = new LinkedBlockingQueue<>();
-    private final Map<Long, Request> pendingRequests = new HashMap<>();
+    protected final Queue<Request> queuedRequests = new LinkedBlockingQueue<>();
+    protected final Map<Long, Request> pendingRequests = new HashMap<>();
     private final ExecutorService executorService;
     protected long connectionId;
     protected long lastHeartbeatReceived = -1;
@@ -337,7 +337,12 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
     @Override
     public void unsubscribe(final String reqId) {
-        subscriptionsByReqId.get(reqId).subscriptionState = SubscriptionState.CANCELED;
+        final Subscription sub = subscriptionsByReqId.get(reqId);
+        if (sub.subscriptionState == SubscriptionState.UNSUBSCRIBED) {
+            subscriptions.remove(sub.id);
+            return;
+        }
+        sub.subscriptionState = SubscriptionState.CANCELED;
     }
 
     @Override
@@ -383,14 +388,14 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         case REPLY:
             Request requestForReply = pendingRequests.remove(reply.id);
             try {
-                return createInternalMsg(requestForReply.requestId.getBytes(UTF_8), new ParsedEndpoint(requestForReply.endpoint, reply.dataContext.cycleName).toURI(), reply.bodyData, null);
+                return createInternalMsg(requestForReply.requestId.getBytes(UTF_8), new ParsedEndpoint(requestForReply.endpoint, reply.dataContext.cycleName).toURI(), reply.bodyData, null, CmwLightDataSource.class);
             } catch (URISyntaxException | CmwLightProtocol.RdaLightException e) {
                 LOGGER.atWarn().addArgument(requestForReply.endpoint).addArgument(reply.dataContext.cycleName).log("Adding reply context to URI results in illegal url {} + {}");
                 return new ZMsg();
             }
         case EXCEPTION:
             final Request requestForException = pendingRequests.remove(reply.id);
-            return createInternalMsg(requestForException.requestId.getBytes(UTF_8), requestForException.endpoint, null, reply.exceptionMessage.message);
+            return createInternalMsg(requestForException.requestId.getBytes(UTF_8), requestForException.endpoint, null, "request exception: " + reply.exceptionMessage.message, CmwLightDataSource.class);
         case SUBSCRIBE:
             final long id = reply.id;
             final Subscription sub = subscriptions.get(id);
@@ -419,21 +424,21 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                 LOGGER.atWarn().setCause(e).log("Error generating reply context URI");
                 return new ZMsg();
             }
-            return createInternalMsg(subscriptionForNotification.idString.getBytes(UTF_8), endpointForNotificationContext, reply.bodyData, null);
+            return createInternalMsg(subscriptionForNotification.idString.getBytes(UTF_8), endpointForNotificationContext, reply.bodyData, null, CmwLightDataSource.class);
         case NOTIFICATION_EXC:
             final Subscription subscriptionForNotifyExc = replyIdMap.get(reply.id);
             if (subscriptionForNotifyExc == null) {
                 LOGGER.atInfo().addArgument(reply.toString()).log("received unsolicited subscription notification error: {}");
                 return new ZMsg();
             }
-            return createInternalMsg(subscriptionForNotifyExc.idString.getBytes(UTF_8), subscriptionForNotifyExc.endpoint, null, reply.exceptionMessage.message);
+            return createInternalMsg(subscriptionForNotifyExc.idString.getBytes(UTF_8), subscriptionForNotifyExc.endpoint, null, "notification exception: " + reply.exceptionMessage.message, CmwLightDataSource.class);
         case SUBSCRIBE_EXCEPTION:
             final Subscription subForSubExc = subscriptions.get(reply.id);
             subForSubExc.subscriptionState = SubscriptionState.UNSUBSCRIBED;
             subForSubExc.timeoutValue = currentTime + subForSubExc.backOff;
             subForSubExc.backOff *= 2;
             LOGGER.atDebug().addArgument(subForSubExc.device).addArgument(subForSubExc.property).log("exception during subscription, retrying: {}/{}");
-            return createInternalMsg(subForSubExc.idString.getBytes(UTF_8), subForSubExc.endpoint, null, reply.exceptionMessage.message);
+            return createInternalMsg(subForSubExc.idString.getBytes(UTF_8), subForSubExc.endpoint, null, "subscribe exception: " + reply.exceptionMessage.message, CmwLightDataSource.class);
         // unsupported or non-actionable replies
         case GET:
         case SET:
@@ -556,7 +561,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         public final String selector;
         public final Map<String, Object> filters;
         public final URI endpoint;
-        private final long id = REQUEST_ID_GENERATOR.incrementAndGet();
+        public final long id = REQUEST_ID_GENERATOR.incrementAndGet();
         public SubscriptionState subscriptionState = SubscriptionState.UNSUBSCRIBED;
         public int backOff = 20;
         public long updateId = -1;
@@ -581,9 +586,9 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         public final byte[] data;
         public final long id;
         public final CmwLightProtocol.RequestType requestType;
-        private final String requestId;
-        private final URI endpoint;
-        private final byte[] rbacToken;
+        public final String requestId;
+        public final URI endpoint;
+        public final byte[] rbacToken;
 
         public Request(final CmwLightProtocol.RequestType requestType,
                 final String requestId,

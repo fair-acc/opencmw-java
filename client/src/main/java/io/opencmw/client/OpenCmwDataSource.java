@@ -5,14 +5,14 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.zeromq.ZMonitor.Event;
 
 import static io.opencmw.OpenCmwConstants.*;
+import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
 import static io.opencmw.OpenCmwProtocol.Command.SET_REQUEST;
 import static io.opencmw.OpenCmwProtocol.Command.SUBSCRIBE;
 import static io.opencmw.OpenCmwProtocol.Command.UNSUBSCRIBE;
-import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
-import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
-import static io.opencmw.OpenCmwProtocol.MdpMessage;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
+import static io.opencmw.utils.AnsiDefs.ANSI_RED;
+import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
 
 import java.io.IOException;
 import java.net.URI;
@@ -366,7 +366,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         case FINAL:
         case W_NOTIFY:
             if (msg.clientRequestID != null && msg.clientRequestID.length > 0) { // for get/set the request id is provided by the server
-                return createInternalMsg(msg.clientRequestID, msg.topic, new ZFrame(msg.data), msg.errors);
+                return createInternalMsg(msg.clientRequestID, msg.topic, new ZFrame(msg.data), msg.errors, OpenCmwDataSource.class);
             }
             // for subscriptions the request id is missing and has to be recovered from the endpoint url
             final Optional<String> reqId = subscriptions.entrySet().stream() //
@@ -374,7 +374,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
                                                    .map(Map.Entry::getKey)
                                                    .findFirst();
             if (reqId.isPresent()) {
-                return createInternalMsg(reqId.get().getBytes(), msg.topic, new ZFrame(msg.data), msg.errors);
+                return createInternalMsg(reqId.get().getBytes(), msg.topic, new ZFrame(msg.data), msg.errors, OpenCmwDataSource.class);
             }
             LOGGER.atWarn().addArgument(msg.topic).log("Could not find subscription for notified request with endpoint: {}");
             return new ZMsg(); // ignore unknown notification
@@ -392,12 +392,16 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         }
     }
 
-    public static ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception) {
+    public static ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception, final Class<? extends DataSource> dataSource) {
         final ZMsg result = new ZMsg();
         result.add(reqId);
         result.add(endpoint.toString());
-        result.add(body == null ? new ZFrame(new byte[0]) : body);
-        result.add(exception == null ? new ZFrame(new byte[0]) : new ZFrame(exception));
+        result.add(body == null ? EMPTY_ZFRAME : body);
+        if (exception == null || exception.isBlank()) {
+            result.add(EMPTY_ZFRAME);
+        } else {
+            result.add(new ZFrame(ANSI_RED + dataSource.getSimpleName() + " received exception for device " + endpoint + ":\n" + exception + ANSI_RESET));
+        }
         return result;
     }
 }

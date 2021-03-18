@@ -3,6 +3,8 @@ package io.opencmw.client;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
+import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
+
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
@@ -28,6 +30,9 @@ import org.junit.jupiter.api.function.ThrowingSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.Utils;
+import org.zeromq.ZFrame;
+import org.zeromq.ZMQ;
+import org.zeromq.ZMsg;
 
 import io.opencmw.EventStore;
 import io.opencmw.Filter;
@@ -316,7 +321,19 @@ class OpenCmwDataSourceTest {
 
     @Test
     void testMiscellaneous() {
+        // test TestObject constructor
         assertDoesNotThrow((ThrowingSupplier<TestObject>) TestObject::new);
+        // test createInternalMsg
+        final ZMsg msg1 = assertDoesNotThrow(() -> OpenCmwDataSource.createInternalMsg(new byte[] { 1, 2, 3 }, URI.create("test"), new ZFrame(new byte[] { 42, 23 }), null, OpenCmwDataSource.class));
+        assertArrayEquals(new byte[] { 1, 2, 3 }, msg1.pop().getData());
+        assertEquals("test", msg1.pop().getString(ZMQ.CHARSET));
+        assertArrayEquals(new byte[] { 42, 23 }, msg1.pop().getData());
+        assertEquals("", msg1.pop().getString(ZMQ.CHARSET));
+        final ZMsg msg2 = assertDoesNotThrow(() -> OpenCmwDataSource.createInternalMsg(new byte[] { 1, 2, 3 }, URI.create("test"), null, "testexception", OpenCmwDataSource.class));
+        assertArrayEquals(new byte[] { 1, 2, 3 }, msg2.pop().getData());
+        assertEquals("test", msg2.pop().getString(ZMQ.CHARSET));
+        assertArrayEquals(EMPTY_FRAME, msg2.pop().getData());
+        assertThat(msg2.pop().getString(ZMQ.CHARSET), Matchers.containsString("testexception"));
     }
 
     public static class TestObject {
