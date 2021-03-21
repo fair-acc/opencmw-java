@@ -10,8 +10,11 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -48,7 +51,6 @@ public class OpenCmwDnsResolver implements DnsResolver, AutoCloseable {
         this.timeOut = timeOut;
         dataSource = new DataSourcePublisher(context, null, null, null, OpenCmwDnsResolver.class.getName());
         dataSource.start();
-        LockSupport.parkNanos(Duration.ofMillis(1000).toNanos()); // wait until DNS client has been initialised
     }
 
     @Override
@@ -77,7 +79,7 @@ public class OpenCmwDnsResolver implements DnsResolver, AutoCloseable {
 
     @Override
     public void close() {
-        dataSource.close();
+        dataSource.stop();
         if (ownsCtx) {
             context.close();
         }

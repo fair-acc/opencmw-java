@@ -20,19 +20,22 @@ import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.zeromq.SocketType;
-import org.zeromq.Utils;
-import org.zeromq.ZMQ;
-import org.zeromq.ZMsg;
+import org.zeromq.*;
 import org.zeromq.util.ZData;
 
+import io.opencmw.MimeType;
+import io.opencmw.domain.BinaryData;
+import io.opencmw.domain.NoData;
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacToken;
 
@@ -291,6 +294,68 @@ class MajordomoBrokerTests {
         assertEquals(10, counter.get(), "received expected number of replies");
 
         broker.stopBroker();
+    }
+
+    @RepeatedTest(10)
+    @Timeout(10)
+    void testStartupCycleBrokerOnly() {
+        final MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
+        broker.start();
+        await().alias("wait for broker to start").atMost(1, TimeUnit.SECONDS).until(broker::isRunning, equalTo(true));
+        broker.stopBroker();
+        await().alias("wait for broker to stop").atMost(1, TimeUnit.SECONDS).until(broker::isRunning, equalTo(false));
+    }
+
+    @RepeatedTest(3)
+    @Timeout(10)
+    void testStartupCycleBrokerWithBasicServices() throws IOException {
+        final MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
+        final URI brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
+        final URI brokerPubAddress = broker.bind(URI.create("mds://*:" + Utils.findOpenPort()));
+        List<BasicMdpWorker> workers = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            BasicMdpWorker instrumentedWorker = new BasicMdpWorker(broker.getContext(), "testService" + i);
+            instrumentedWorker.registerHandler(ctx -> ctx.rep.data = ctx.req.data); //  output = input : echo service is complex :-)
+            broker.addInternalService(instrumentedWorker);
+            workers.add(instrumentedWorker);
+        }
+        broker.start();
+        await().alias("wait for broker to start").atMost(1, TimeUnit.SECONDS).until(broker::isRunning, equalTo(true));
+        await().alias("wait for service to start").atMost(1, TimeUnit.SECONDS).until(workers.get(0)::isRunning, equalTo(true));
+        MajordomoTestClientSync client = new MajordomoTestClientSync(brokerAddress, "clientName");
+        for (int i = 0; i < 3; i++) {
+            final BinaryData testData = new BinaryData("testName", MimeType.BINARY, "testString".getBytes(UTF_8));
+            assertEquals(testData, client.send(GET_REQUEST, "testService" + i, testData, BinaryData.class));
+        }
+        broker.stopBroker();
+        await().alias("wait for broker to stop").atMost(1, TimeUnit.SECONDS).until(broker::isRunning, equalTo(false));
+        await().alias("wait for service to stop").atMost(1, TimeUnit.SECONDS).until(workers.get(0)::isRunning, equalTo(false));
+    }
+
+    @RepeatedTest(3)
+    @Timeout(10)
+    void testStartupCycleBrokerWithNormalServices() throws IOException {
+        final MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
+        final URI brokerAddress = broker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
+        final URI brokerPubAddress = broker.bind(URI.create("mds://*:" + Utils.findOpenPort()));
+        List<BasicMdpWorker> workers = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            MajordomoWorker<NoData, BinaryData, BinaryData> instrumentedWorker = new MajordomoWorker<>(broker.getContext(), "testService" + i, NoData.class, BinaryData.class, BinaryData.class);
+            instrumentedWorker.setHandler((rawCtx, reqCtx, req, repCtx, rep) -> req.moveTo(rep)); //  output = input : echo service is complex :-)
+            broker.addInternalService(instrumentedWorker);
+            workers.add(instrumentedWorker);
+        }
+        broker.start();
+        await().alias("wait for broker to start").atMost(1, TimeUnit.SECONDS).until(broker::isRunning, equalTo(true));
+        await().alias("wait for service to start").atMost(1, TimeUnit.SECONDS).until(workers.get(0)::isRunning, equalTo(true));
+        MajordomoTestClientSync client = new MajordomoTestClientSync(brokerAddress, "clientName");
+        for (int i = 0; i < 3; i++) {
+            final BinaryData testData = new BinaryData("testName", MimeType.BINARY, "testString".getBytes(UTF_8));
+            assertEquals(testData, client.send(GET_REQUEST, "testService" + i, testData, BinaryData.class));
+        }
+        broker.stopBroker();
+        await().alias("wait for broker to stop").atMost(1, TimeUnit.SECONDS).until(broker::isRunning, equalTo(false));
+        await().alias("wait for service to stop").atMost(1, TimeUnit.SECONDS).until(workers.get(0)::isRunning, equalTo(false));
     }
 
     @Test

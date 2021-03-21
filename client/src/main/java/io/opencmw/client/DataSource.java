@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jetbrains.annotations.NotNull;
 import org.zeromq.ZContext;
@@ -23,6 +24,7 @@ import io.opencmw.utils.NoDuplicatesList;
  */
 public abstract class DataSource implements AutoCloseable {
     private static final List<Factory> IMPLEMENTATIONS = Collections.synchronizedList(new NoDuplicatesList<>());
+    public final AtomicBoolean closed = new AtomicBoolean(false);
 
     private DataSource() {
         // prevent implementers from implementing default constructor
@@ -36,6 +38,13 @@ public abstract class DataSource implements AutoCloseable {
         if (!getFactory().matches(endpoint)) {
             throw new UnsupportedOperationException(this.getClass().getName() + " DataSource Implementation does not support endpoint: " + endpoint);
         }
+    }
+
+    /**
+     * @return {@code true} if this DataSource and its resources have been closed
+     */
+    public boolean isClosed() {
+        return closed.get();
     }
 
     /**

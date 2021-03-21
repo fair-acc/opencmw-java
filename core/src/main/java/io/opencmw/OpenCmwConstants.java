@@ -144,6 +144,7 @@ public final class OpenCmwConstants {
         socket.setHeartbeatTtl(heartBeatInterval * liveness);
         socket.setHeartbeatTimeout(heartBeatInterval * liveness);
         socket.setHeartbeatIvl(heartBeatInterval);
+        socket.setLinger(heartBeatInterval);
     }
 
     public static URI stripPathTrailingSlash(final @NotNull URI address) {

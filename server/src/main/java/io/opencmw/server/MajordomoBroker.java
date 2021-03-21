@@ -174,6 +174,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         final URI adjustedAddressPublic = resolveHost(endpointAdjusted, getLocalHostName());
         routerSockets.add(adjustedAddressPublic.toString());
         LOGGER.atDebug().addArgument(adjustedAddressPublic).log("Majordomo broker/0.1 is active at '{}'");
+        sendDnsHeartbeats(true);
         return adjustedAddressPublic;
     }
 
@@ -230,10 +231,8 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
             items.register(dnsSocket, ZMQ.Poller.POLLIN);
             items.register(pubSocket, ZMQ.Poller.POLLIN);
             items.register(subSocket, ZMQ.Poller.POLLIN);
-            while (run.get() && !Thread.currentThread().isInterrupted() && !ctx.isClosed() && items.poll(heartBeatInterval) != -1) {
-                if (ctx.isClosed()) {
-                    break;
-                }
+            int pollerReturn;
+            do {
                 int loopCount = 0;
                 boolean receivedMsg = true;
                 while (run.get() && !Thread.currentThread().isInterrupted() && receivedMsg) {
@@ -261,15 +260,18 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
                     }
                     loopCount++;
                 }
+                pollerReturn = items.poll(heartBeatInterval);
+            } while (-1 != pollerReturn && !ctx.isClosed() && run.get() && !Thread.currentThread().isInterrupted());
+            if (run.get()) {
+                LOGGER.atError().addArgument(Thread.interrupted()).addArgument(ctx.isClosed()).addArgument(pollerReturn).addArgument(getName()).log("broker abnormally terminated (int={},ctx={},poll={}) - abort run() = '{}'");
+            } else {
+                LOGGER.atDebug().addArgument(getName()).log("shutting down broker '{}'");
             }
         }
         Worker[] deleteList = workers.values().toArray(new Worker[0]);
         for (Worker worker : deleteList) {
             deleteWorker(worker, true);
         }
-
-        // wait for workers to shut-down
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
         running.set(false);
     }
 
@@ -280,11 +282,17 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         run.set(false);
         if (running.get()) {
             try {
-                this.join(heartBeatInterval);
+                this.join(2 * heartBeatInterval); // extra margin since the poller is running also at exactly 'heartbeatInterval'
             } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
                 throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
             }
         }
+        if (running.get()) {
+            LOGGER.atWarn().addArgument(getName()).log("'{}' broker did not shut down as requested, going to forcefully interrupt");
+            interrupt();
+        }
+        // wait for workers to shut-down
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(heartBeatInterval));
         close();
     }
 
@@ -311,11 +319,15 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
      */
     @Override
     public void close() {
-        routerSocket.close();
-        pubSocket.close();
-        subSocket.close();
-        dnsSocket.close();
-        ctx.close();
+        try {
+            routerSocket.close();
+            pubSocket.close();
+            subSocket.close();
+            dnsSocket.close();
+            ctx.close();
+        } catch (Exception e) { // NOPMD
+            LOGGER.atError().setCause(e).addArgument(MajordomoBroker.class.getSimpleName()).addArgument(getName()).log("error closing {} resources for {}");
+        }
     }
 
     /**

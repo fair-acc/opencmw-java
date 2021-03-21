@@ -158,6 +158,10 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
         return uniqueID;
     }
 
+    public boolean isRunning() {
+        return running.get();
+    }
+
     /**
    * Sends pre-defined message to subscriber (provided there is any that matches the published topic)
      * @param notifyMessage the message that is supposed to be broadcast
@@ -198,7 +202,8 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
         // N.B. poll(..) returns '-1' when thread is interrupted
         final MdpMessage heartbeatMsg = new MdpMessage(null, PROT_WORKER, W_HEARTBEAT, serviceBytes, EMPTY_FRAME, EMPTY_URI, EMPTY_FRAME, "", RBAC);
         running.set(true);
-        while (shallRun.get() && !Thread.currentThread().isInterrupted() && poller.poll(heartBeatInterval) != -1) {
+        int pollerReturn;
+        do {
             boolean dataReceived = true;
             while (dataReceived) {
                 // handle message from or to broker
@@ -227,10 +232,14 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
                 heartbeatMsg.send(workerSocket);
                 heartbeatAt = System.currentTimeMillis() + heartBeatInterval;
             }
+            pollerReturn = poller.poll(heartBeatInterval);
+        } while (-1 != pollerReturn && !ctx.isClosed() && shallRun.get() && !Thread.currentThread().isInterrupted());
+        if (shallRun.get()) {
+            LOGGER.atError().addArgument(Thread.interrupted()).addArgument(ctx.isClosed()).addArgument(pollerReturn).addArgument(getName()).log("abnormally terminated (int={},ctx={},poll={}) - abort run() - service = {}");
+        } else {
+            LOGGER.atInfo().addArgument(getName()).log("shutting down '{}'");
         }
         running.set(false);
-        shallRun.set(false);
-        LOGGER.atInfo().addArgument(getName()).log("'{}' shut-down");
     }
 
     public void setReconnectDelay(final int reconnect, @NotNull final TimeUnit timeUnit) {
@@ -243,7 +252,7 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
         }
         shallRun.set(false);
         try {
-            join(heartBeatInterval);
+            join(2 * heartBeatInterval); // extra margin since the poller is running also at exactly 'heartbeatInterval'
         } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
             throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
         }
@@ -260,12 +269,16 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
                 throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
             }
         }
-        pubSocket.close();
-        workerSocket.close();
-        notifyListenerSocket.close();
-        notifySocket.close();
-        if (ownsContext) {
-            ctx.close();
+        try {
+            pubSocket.close();
+            workerSocket.close();
+            notifyListenerSocket.close();
+            notifySocket.close();
+            if (ownsContext) {
+                ctx.close();
+            }
+        } catch (Exception e) { // NOPMD
+            LOGGER.atError().setCause(e).addArgument(MajordomoBroker.class.getSimpleName()).addArgument(getName()).log("error closing {} resources for {}");
         }
     }
 
