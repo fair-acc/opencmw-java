@@ -14,6 +14,8 @@ import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.function.ThrowingSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.Utils;
+import org.zeromq.ZContext;
 import org.zeromq.ZFrame;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
@@ -100,6 +103,7 @@ class OpenCmwDataSourceTest {
                 public void dataUpdate(final TestObject updatedObject, final TestContext contextObject) {
                     assertEquals(new TestContext("FAIR.SELECTOR.C=2"), contextObject);
                     updates.add(updatedObject);
+                    System.err.println("update");
                 }
 
                 @Override
@@ -334,6 +338,38 @@ class OpenCmwDataSourceTest {
         assertEquals("test", msg2.pop().getString(ZMQ.CHARSET));
         assertArrayEquals(EMPTY_FRAME, msg2.pop().getData());
         assertThat(msg2.pop().getString(ZMQ.CHARSET), Matchers.containsString("testexception"));
+    }
+
+    @Test
+    @SuppressWarnings({ "EmptyTryBlock" })
+    void testConstructor() {
+        final ExecutorService executors = Executors.newCachedThreadPool();
+        final String clientID = "test-client";
+        try (ZContext ctx = new ZContext()) {
+            assertDoesNotThrow(() -> {
+                try (DataSource source = new OpenCmwDataSource(ctx, URI.create("mdp:/device/property"), Duration.ofMillis(100), executors, clientID)) {
+                    assertNotNull(source.toString());
+                }
+            });
+            assertThrows(NullPointerException.class, () -> {
+                try (DataSource source = new OpenCmwDataSource(ctx, URI.create(""), Duration.ofMillis(100), executors, clientID)) {
+                }
+            });
+            assertThrows(UnsupportedOperationException.class, () -> {
+                try (DataSource source = new OpenCmwDataSource(ctx, URI.create("mdr:/device/property"), Duration.ofMillis(100), executors, clientID)) {
+                }
+            });
+            assertThrows(UnsupportedOperationException.class, () -> {
+                try (DataSource source = new OpenCmwDataSource(ctx, URI.create("xyz:/device/property"), Duration.ofMillis(100), executors, clientID)) {
+                }
+            });
+        }
+        ZContext ctx = new ZContext();
+        ctx.close();
+        assertDoesNotThrow(() -> {
+            try (DataSource source = new OpenCmwDataSource(ctx, URI.create("mdp:/device/property"), Duration.ofMillis(100), executors, clientID)) {
+            }
+        });
     }
 
     public static class TestObject {

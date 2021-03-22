@@ -6,10 +6,7 @@ import static org.zeromq.ZMonitor.Event;
 
 import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.OpenCmwProtocol.*;
-import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
-import static io.opencmw.OpenCmwProtocol.Command.SET_REQUEST;
-import static io.opencmw.OpenCmwProtocol.Command.SUBSCRIBE;
-import static io.opencmw.OpenCmwProtocol.Command.UNSUBSCRIBE;
+import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
@@ -17,9 +14,13 @@ import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -113,11 +114,12 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
     public OpenCmwDataSource(final @NotNull ZContext context, final @NotNull URI endpoint, final @NotNull Duration timeout, final @NotNull ExecutorService executorService, final String clientId) {
         super(endpoint);
         this.context = context;
-        this.endpoint = Objects.requireNonNull(endpoint, "endpoint is null");
+        this.endpoint = endpoint;
         this.timeout = timeout;
         this.executorService = executorService;
         this.clientId = clientId;
         this.sourceName = OpenCmwDataSource.class.getSimpleName() + "(ID: " + INSTANCE_COUNT.getAndIncrement() + ", endpoint: " + endpoint + ", clientId: " + clientId + ")";
+        //this.serverUri = URI.create(endpoint.getScheme() + "://" + endpoint.getAuthority() + '/'); // cannot fail without 'endpoint' having failed first due to URI syntax failure
         try {
             this.serverUri = new URI(endpoint.getScheme(), endpoint.getAuthority(), "/", null, null);
         } catch (URISyntaxException e) {
@@ -132,7 +134,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
             this.socket = context.createSocket(SocketType.SUB);
             break;
         case MDR:
-            throw new UnsupportedOperationException("RADIO-DISH pattern is not yet implemented");
+            throw new UnsupportedOperationException("RADIO-DISH pattern is not yet implemented"); // well yes, but not released by the JeroMQ folks
             //this.socket = context.createSocket(SocketType.DISH)
         default:
             throw new UnsupportedOperationException("Unsupported protocol type " + endpoint.getScheme());
@@ -164,23 +166,9 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         URI address = endpoint;
         if (address.getAuthority() == null) {
             // need to resolve authority if unknown
-            //here: implemented first available DNS resolver, could also be round-robin or rotation if there are several resolver registered
-            final Optional<DnsResolver> resolver = getFactory().getRegisteredDnsResolver().stream().findFirst();
-            if (resolver.isEmpty()) {
-                LOGGER.atWarn().addArgument(endpoint).log("cannot resolve {} without a registered DNS resolver");
-                return EMPTY_URI;
-            }
-            try {
-                // resolve address
-                address = new URI(address.getScheme(), null, '/' + getDeviceName(address), null, null);
-                final Map<URI, List<URI>> candidates = resolver.get().resolveNames(List.of(address));
-                if (Objects.requireNonNull(candidates.get(address), "candidates did not contain '" + address + "':" + candidates).isEmpty()) {
-                    throw new UnknownHostException("DNS resolver could not resolve " + endpoint + " - unknown service - candidates" + candidates + " - " + address);
-                }
-                address = candidates.get(address).get(0); // take first matching - may upgrade in the future if there are more than one option
-            } catch (URISyntaxException | UnknownHostException e) {
-                LOGGER.atWarn().addArgument(address).addArgument(e.getMessage()).log("cannot resolve {} - error message: {}"); // NOPMD the original exception is retained
-                return EMPTY_URI;
+            address = resolveAddress(endpoint);
+            if (address == EMPTY_URI) {
+                return address;
             }
         }
 
@@ -197,9 +185,9 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
             connectionState.set(Event.CONNECTED);
             return connectedAddress;
         case MDR:
-            throw new UnsupportedOperationException("RADIO-DISH pattern is not yet implemented"); // well yes, but not released by the JeroMQ folks
         default:
         }
+        // cannot be reached normally due to checks in constructor
         throw new UnsupportedOperationException("Unsupported protocol type " + endpoint.getScheme());
     }
 
