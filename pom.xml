@@ -184,6 +184,10 @@
                     <forkCount>1</forkCount>
                     <rerunFailingTestsCount>2</rerunFailingTestsCount>
                     <runOrder>random</runOrder>
+                    <parallelTestsTimeoutInSeconds>30</parallelTestsTimeoutInSeconds>
+                    <parallelTestsTimeoutForcedInSeconds>45</parallelTestsTimeoutForcedInSeconds>
+                    <forkedProcessTimeoutInSeconds>360</forkedProcessTimeoutInSeconds>
+                    <forkedProcessExitTimeoutInSeconds>400</forkedProcessExitTimeoutInSeconds>
                 </configuration>
             </plugin>
             <plugin>
