@@ -6,16 +6,12 @@ import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.*;
 
-import static io.opencmw.OpenCmwConstants.SCHEME_TCP;
-import static io.opencmw.OpenCmwConstants.replaceScheme;
-import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
+import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
-import static io.opencmw.server.MmiServiceHelper.INTERNAL_SERVICE_DNS;
-import static io.opencmw.server.MmiServiceHelper.INTERNAL_SERVICE_ECHO;
-import static io.opencmw.server.MmiServiceHelper.INTERNAL_SERVICE_NAMES;
+import static io.opencmw.server.MmiServiceHelper.*;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 
 import java.io.IOException;
@@ -30,10 +26,14 @@ import java.util.concurrent.locks.LockSupport;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.zeromq.*;
+import org.zeromq.SocketType;
+import org.zeromq.Utils;
+import org.zeromq.ZMQ;
+import org.zeromq.ZMsg;
 import org.zeromq.util.ZData;
 
 import io.opencmw.MimeType;
+import io.opencmw.OpenCmwConstants;
 import io.opencmw.domain.BinaryData;
 import io.opencmw.domain.NoData;
 import io.opencmw.rbac.BasicRbacRole;
@@ -260,6 +260,30 @@ class MajordomoBrokerTests {
     }
 
     @Test
+    void testDNS() throws IOException {
+        System.setProperty(OpenCmwConstants.HEARTBEAT, "100"); // to reduce waiting time for changes
+        System.setProperty(DNS_TIMEOUT, "1"); // to reduce waiting time for changes
+        final MajordomoBroker primaryBroker = new MajordomoBroker(DEFAULT_BROKER_NAME + "1", null);
+        final URI brokerAddress = primaryBroker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
+        primaryBroker.start();
+        final MajordomoBroker secondaryBroker = new MajordomoBroker(DEFAULT_BROKER_NAME + "2", brokerAddress);
+        secondaryBroker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
+        secondaryBroker.start();
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200)); // two hearbeats
+        assertTrue(primaryBroker.getDnsCache().containsKey(DEFAULT_BROKER_NAME + "1"));
+        assertTrue(primaryBroker.getDnsCache().containsKey(DEFAULT_BROKER_NAME + "2"));
+        LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(4)); // (3+1) x DNS time-out
+        assertTrue(primaryBroker.getDnsCache().containsKey(DEFAULT_BROKER_NAME + "1"));
+        assertTrue(primaryBroker.getDnsCache().containsKey(DEFAULT_BROKER_NAME + "2"));
+        secondaryBroker.stopBroker();
+        LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(4)); // (3+1) x DNS time-out
+        assertTrue(primaryBroker.getDnsCache().containsKey(DEFAULT_BROKER_NAME + "1"));
+        assertFalse(primaryBroker.getDnsCache().containsKey(DEFAULT_BROKER_NAME + "2"));
+        secondaryBroker.stopBroker();
+        primaryBroker.stopBroker();
+    }
+
+    @Test
     void basicASynchronousRequestReplyTest() throws IOException {
         MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
@@ -452,11 +476,20 @@ class MajordomoBrokerTests {
 
     @Test
     void testMisc() {
+        System.setProperty(OpenCmwConstants.HEARTBEAT, "100"); // to reduce waiting time for changes
         final MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         assertDoesNotThrow(() -> broker.new Client(null, "testClient", "testClient".getBytes(UTF_8)));
         final MajordomoBroker.Client testClient = broker.new Client(null, "testClient", "testClient".getBytes(UTF_8));
         final MdpMessage testMsg = new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_ECHO.getBytes(UTF_8), EMPTY_FRAME, URI.create(INTERNAL_SERVICE_ECHO), DEFAULT_REQUEST_MESSAGE_BYTES, "", new byte[0]);
         assertDoesNotThrow(() -> testClient.offerToQueue(testMsg));
         assertEquals(testMsg, testClient.pop());
+        assertNotNull(broker.getInternalRouterSocket());
+        assertNotNull(broker.getServices());
+        assertFalse(broker.isRunning());
+        broker.start();
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
+        assertTrue(broker.isRunning());
+        broker.stopBroker();
+        assertFalse(broker.isRunning());
     }
 }
