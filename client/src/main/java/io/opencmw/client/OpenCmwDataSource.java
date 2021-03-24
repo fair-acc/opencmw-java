@@ -137,7 +137,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
             throw new UnsupportedOperationException("RADIO-DISH pattern is not yet implemented"); // well yes, but not released by the JeroMQ folks
             //this.socket = context.createSocket(SocketType.DISH)
         default:
-            throw new UnsupportedOperationException("Unsupported protocol type " + endpoint.getScheme());
+            throw new UnsupportedOperationException("Unsupported protocol type " + endpoint.getScheme()); // can only be reached if someone fiddles with the factory method
         }
         setDefaultSocketParameters(socket);
 

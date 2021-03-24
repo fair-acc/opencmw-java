@@ -346,7 +346,7 @@ class OpenCmwDataSourceTest {
         final ExecutorService executors = Executors.newCachedThreadPool();
         final String clientID = "test-client";
         try (ZContext ctx = new ZContext()) {
-            assertDoesNotThrow(() -> {
+            assertDoesNotThrow(() -> { // connect to non resolvable device -> source will retry to connect
                 try (DataSource source = new OpenCmwDataSource(ctx, URI.create("mdp:/device/property"), Duration.ofMillis(100), executors, clientID)) {
                     assertNotNull(source.toString());
                 }

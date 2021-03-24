@@ -157,7 +157,7 @@ public abstract class DataSource implements AutoCloseable {
             if (list.isEmpty()) {
                 throw new IllegalArgumentException("resolver schemes not compatible with this DataSource: " + resolver);
             }
-            getRegisteredDnsResolver().add(resolver);
+            getRegisteredDnsResolver().add(0, resolver); // add new resolvers in the beginning of the list to have higher priority
         }
     }
 
