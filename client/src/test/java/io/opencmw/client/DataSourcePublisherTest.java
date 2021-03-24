@@ -367,7 +367,8 @@ class DataSourcePublisherTest {
         final DataSourcePublisher dataSourcePublisher = new DataSourcePublisher(null, eventStore, null, null, "testGetPublisher");
 
         eventStore.start();
-        new Thread(dataSourcePublisher).start();
+        assertDoesNotThrow(dataSourcePublisher::start);
+        assertDoesNotThrow(dataSourcePublisher::start); // second invocation is being blocked
 
         final Future<TestObject> future;
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {

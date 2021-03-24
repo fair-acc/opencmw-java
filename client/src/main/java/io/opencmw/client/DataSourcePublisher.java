@@ -167,19 +167,21 @@ public class DataSourcePublisher implements Runnable, Closeable {
         shallRun.set(false);
         Thread thread = threadReference.get();
         if (thread != null) {
-            thread.interrupt();
             try {
-                thread.join(heartbeatInterval);
+                thread.join(2 * heartbeatInterval); // extra margin since the poller is running also at exactly 'heartbeatInterval'
             } catch (InterruptedException e) { // NOPMD NOSONAR - re-throwing with different type
                 throw new IllegalStateException(thread.getName() + " did not shut down in " + heartbeatInterval + " ms", e);
             }
         }
         thread = threadReference.get();
         if (running.get() && thread != null) {
+            LOGGER.atWarn().addArgument(thread.getName()).log("'{}' did not shut down as requested, going to forcefully interrupt");
             thread.interrupt();
         }
-        poller.close();
-        sourceSocket.close();
+        if (!context.isClosed()) {
+            poller.close();
+            sourceSocket.close();
+        }
     }
 
     public void start() {
@@ -188,7 +190,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             LOGGER.atWarn().addArgument(thread.getName()).log("Thread '{}' already running");
             return;
         }
-        final String threadName = "DataSourceProducerThread-" + clientId;
+        final String threadName = DataSourcePublisher.class.getSimpleName() + "Thread-" + clientId;
         thread = new Thread(null, this, threadName, 0); // NOPMD - not a webapp
         threadReference.set(thread);
         thread.setDaemon(true);
@@ -209,12 +211,10 @@ public class DataSourcePublisher implements Runnable, Closeable {
         rawDataEventStore.start();
         // event loop polling all data sources and performing regular housekeeping jobs
         long nextHousekeeping = System.currentTimeMillis(); // immediately perform first housekeeping
-        long timeOut = 0L;
-        while (!Thread.interrupted() && shallRun.get() && !context.isClosed() && (timeOut <= 0 || -1 != poller.poll(timeOut))) {
-            if (context.isClosed()) {
-                break;
-            }
-            boolean dataAvailable = true;
+        long timeOut;
+        int pollerReturn;
+        do {
+            boolean dataAvailable = !context.isClosed();
             while (dataAvailable && System.currentTimeMillis() < nextHousekeeping && shallRun.get()) {
                 dataAvailable = handleDataSourceSockets(); // get data from clients
                 dataAvailable |= handleControlSocket(); // check specifically for control socket
@@ -222,18 +222,23 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
             nextHousekeeping = clientMap.values().stream().mapToLong(DataSource::housekeeping).min().orElse(System.currentTimeMillis() + heartbeatInterval);
             timeOut = nextHousekeeping - System.currentTimeMillis();
-        }
+            // remove closed client sockets from poller
+            clientMap.values().stream().filter(DataSource::isClosed).forEach(s -> poller.unregister(s.getSocket()));
+            pollerReturn = poller.poll(timeOut);
+        } while ((timeOut <= 0 || -1 != pollerReturn) && !Thread.interrupted() && shallRun.get() && !context.isClosed());
         if (shallRun.get()) {
-            LOGGER.atError().addArgument(clientMap.values()).log("poller returned negative value - abort run() - clients = {}");
+            LOGGER.atError().addArgument(Thread.interrupted()).addArgument(context.isClosed()).addArgument(pollerReturn).addArgument(clientMap.values()).log("abnormally terminated (int={},ctx={},poll={}) - abort run() - clients = {}");
         } else {
-            LOGGER.atDebug().log("Shutting down DataSourcePublisher");
+            LOGGER.atDebug().log("shutting down DataSourcePublisher");
         }
         rawDataEventStore.stop();
         for (DataSource dataSource : clientMap.values()) {
             try {
+                poller.unregister(dataSource.getSocket());
                 dataSource.close();
             } catch (Exception e) { // NOPMD
                 // shut-down close
+                LOGGER.atError().setCause(e).addArgument(dataSource.toString()).log("data source {} did not close properly");
             }
         }
         running.set(false);
@@ -484,7 +489,11 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
         @Override
         public void close() {
-            clientSocket.close();
+            try {
+                clientSocket.close();
+            } catch (Exception e) { // NOPMD
+                LOGGER.atError().setCause(e).addArgument(DataSourcePublisher.class.getSimpleName()).addArgument(clientId).log("error closing {} resources for clientID: '{}'");
+            }
         }
 
         private IoClassSerialiser getSerialiser() {

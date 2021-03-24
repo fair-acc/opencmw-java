@@ -221,6 +221,9 @@ class DnsDataSourceTests {
 
     @AfterAll
     static void finish() {
+        // delete previous resolvers
+        DataSource.getFactory(URI.create("mdp:/mmi.dns")).getRegisteredDnsResolver().clear();
+        openCmwResolver.close();
         brokerC.stopBroker();
         brokerB.stopBroker();
         dnsBroker.stopBroker();
@@ -244,7 +247,7 @@ class DnsDataSourceTests {
             public void run() {
                 try {
                     worker.notify(noData, domainData);
-                } catch (Exception e) {
+                } catch (Exception e) { // NOPMD
                     fail("exception in notify");
                 }
             }

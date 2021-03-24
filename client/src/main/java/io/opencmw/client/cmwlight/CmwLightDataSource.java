@@ -5,6 +5,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.zeromq.ZMonitor.Event;
 
 import static io.opencmw.OpenCmwConstants.*;
+import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
 import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
 
 import java.io.IOException;
@@ -13,7 +14,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,9 +30,14 @@ import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zeromq.*;
+import org.zeromq.SocketType;
+import org.zeromq.ZContext;
+import org.zeromq.ZFrame;
+import org.zeromq.ZMQ;
+import org.zeromq.ZMQException;
+import org.zeromq.ZMonitor;
+import org.zeromq.ZMsg;
 
-import io.opencmw.OpenCmwProtocol;
 import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
 import io.opencmw.client.DnsResolver;
@@ -92,7 +103,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     protected long lastHeartbeatReceived = -1;
     protected long lastHeartbeatSent = -1;
     protected int backOff = 20;
-    private URI connectedAddress = OpenCmwProtocol.EMPTY_URI;
+    private URI connectedAddress = EMPTY_URI;
     static { // register default data sources
         DataSource.register(CmwLightDataSource.FACTORY);
     }
@@ -128,24 +139,8 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         URI resolveAddress = endpoint;
         if (resolveAddress.getAuthority() == null || resolveAddress.getPort() == -1) {
             // need to resolve authority if unknown
-            // here: implemented first available DNS resolver, could also be round-robin or rotation if there are several resolver registered
-            final Optional<DnsResolver> resolver = getFactory().getRegisteredDnsResolver().stream().findFirst();
-            if (resolver.isEmpty()) {
-                LOGGER.atWarn().addArgument(endpoint).log("cannot resolve {} without a registered DNS resolver");
-                backOff = backOff * 2;
-                connectionState.set(Event.CLOSED);
-                return;
-            }
-            try {
-                // resolve address
-                resolveAddress = new URI(resolveAddress.getScheme(), null, '/' + getDeviceName(endpoint), null, null);
-                final Map<URI, List<URI>> candidates = resolver.get().resolveNames(List.of(resolveAddress));
-                if (Objects.requireNonNull(candidates.get(resolveAddress), "candidates did not contain '" + resolveAddress + "':" + candidates).isEmpty()) {
-                    throw new UnknownHostException("DNS resolver could not resolve " + endpoint + " - unknown service - candidates" + candidates + " - " + resolveAddress);
-                }
-                resolveAddress = candidates.get(resolveAddress).get(0); // take first matching - may upgrade in the future if there are more than one option
-            } catch (URISyntaxException | UnknownHostException e) { // NOPMD - directory client must be refactored anyway
-                LOGGER.atError().setCause(e).addArgument(e.getMessage()).log("Error resolving device from nameserver, using address from endpoint. Error was: {}");
+            resolveAddress = resolveAddress(endpoint);
+            if (resolveAddress == EMPTY_URI) {
                 backOff = backOff * 2;
                 connectionState.set(Event.CLOSED);
                 return;
@@ -162,7 +157,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             LOGGER.atDebug().addArgument(resolveAddress).addArgument(resolveAddress).addArgument(identity).log("connecting to: '{}'->'{}' with identity {}");
             if (!socket.connect(resolveAddress.toString())) {
                 LOGGER.atError().addArgument(endpoint).addArgument(resolveAddress.toString()).log("could not connect requested URI '{}' to '{}'");
-                connectedAddress = OpenCmwProtocol.EMPTY_URI;
+                connectedAddress = EMPTY_URI;
             }
             connectedAddress = resolveAddress;
             CmwLightProtocol.sendMsg(socket, CmwLightMessage.connect(CmwLightProtocol.VERSION));
@@ -353,7 +348,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     private void disconnect() {
         LOGGER.atDebug().addArgument(connectedAddress).log("disconnecting {}");
         connectionState.set(Event.CLOSED);
-        if (connectedAddress != OpenCmwProtocol.EMPTY_URI) {
+        if (!connectedAddress.equals(EMPTY_URI)) {
             try {
                 socket.disconnect(connectedAddress.toString());
             } catch (ZMQException e) {

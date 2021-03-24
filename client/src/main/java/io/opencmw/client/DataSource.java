@@ -1,14 +1,24 @@
 package io.opencmw.client;
 
+import static io.opencmw.OpenCmwConstants.getDeviceName;
+import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
+
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ.Socket;
 import org.zeromq.ZMsg;
@@ -22,7 +32,9 @@ import io.opencmw.utils.NoDuplicatesList;
  * it is eligible for a given address.
  */
 public abstract class DataSource implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DataSource.class);
     private static final List<Factory> IMPLEMENTATIONS = Collections.synchronizedList(new NoDuplicatesList<>());
+    public final AtomicBoolean closed = new AtomicBoolean(false);
 
     private DataSource() {
         // prevent implementers from implementing default constructor
@@ -36,6 +48,13 @@ public abstract class DataSource implements AutoCloseable {
         if (!getFactory().matches(endpoint)) {
             throw new UnsupportedOperationException(this.getClass().getName() + " DataSource Implementation does not support endpoint: " + endpoint);
         }
+    }
+
+    /**
+     * @return {@code true} if this DataSource and its resources have been closed
+     */
+    public boolean isClosed() {
+        return closed.get();
     }
 
     /**
@@ -138,7 +157,28 @@ public abstract class DataSource implements AutoCloseable {
             if (list.isEmpty()) {
                 throw new IllegalArgumentException("resolver schemes not compatible with this DataSource: " + resolver);
             }
-            getRegisteredDnsResolver().add(resolver);
+            getRegisteredDnsResolver().add(0, resolver); // add new resolvers in the beginning of the list to have higher priority
+        }
+    }
+
+    protected URI resolveAddress(final @NotNull URI address) {
+        // here: implemented first available DNS resolver, could also be round-robin or rotation if there are several resolver registered
+        final Optional<DnsResolver> resolver = getFactory().getRegisteredDnsResolver().stream().findFirst();
+        if (resolver.isEmpty()) {
+            LOGGER.atWarn().addArgument(address).log("cannot resolve {} without a registered DNS resolver");
+            return EMPTY_URI;
+        }
+        try {
+            // resolve address
+            final URI resolveAddress = new URI(address.getScheme(), null, '/' + getDeviceName(address), null, null);
+            final Map<URI, List<URI>> candidates = resolver.get().resolveNames(List.of(resolveAddress));
+            if (Objects.requireNonNull(candidates.get(resolveAddress), "candidates did not contain '" + resolveAddress + "':" + candidates).isEmpty()) {
+                throw new UnknownHostException("DNS resolver could not resolve " + address + " - unknown service - candidates" + candidates + " - " + resolveAddress);
+            }
+            return candidates.get(resolveAddress).get(0); // take first matching - may upgrade in the future if there are more than one option
+        } catch (URISyntaxException | UnknownHostException e) {
+            LOGGER.atWarn().addArgument(address).addArgument(e.getMessage()).log("cannot resolve {} - error message: {}"); // NOPMD the original exception is retained
+            return EMPTY_URI;
         }
     }
 }

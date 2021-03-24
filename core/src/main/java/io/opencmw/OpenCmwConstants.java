@@ -50,6 +50,8 @@ public final class OpenCmwConstants {
     public static final int HIGH_WATER_MARK_DEFAULT = 0; //
     public static final String CLIENT_TIMEOUT = "OpenCMW.clientTimeOut"; // [s]
     public static final long CLIENT_TIMEOUT_DEFAULT = 0L; // [s]
+    public static final String DNS_TIMEOUT = "OpenCMW.dnsTimeOut"; // [s]
+    public static final long DNS_TIMEOUT_DEFAULT = 10L; // [s]
     public static final String ADDRESS_GIVEN = "address given: ";
     public static final String RECONNECT_THRESHOLD1 = "OpenCMW.reconnectThreshold1"; // []
     public static final int DEFAULT_RECONNECT_THRESHOLD1 = 3; // []
@@ -144,6 +146,7 @@ public final class OpenCmwConstants {
         socket.setHeartbeatTtl(heartBeatInterval * liveness);
         socket.setHeartbeatTimeout(heartBeatInterval * liveness);
         socket.setHeartbeatIvl(heartBeatInterval);
+        socket.setLinger(heartBeatInterval);
     }
 
     public static URI stripPathTrailingSlash(final @NotNull URI address) {

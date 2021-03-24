@@ -101,7 +101,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     protected final long heartBeatExpiry = heartBeatInterval * heartBeatLiveness;
     private final Map<String, DnsServiceItem> dnsCache = new ConcurrentHashMap<>(); // <server name, DnsServiceItem>
     protected final long clientTimeOut = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase(CLIENT_TIMEOUT, CLIENT_TIMEOUT_DEFAULT)); // [s]
-    protected final long dnsTimeOut = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase("OpenCMW.dnsTimeOut", 10)); // [ms] time when
+    protected final long dnsTimeOut = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase(DNS_TIMEOUT, DNS_TIMEOUT_DEFAULT)); // [ms] time when
     protected long heartbeatAt = System.currentTimeMillis() + heartBeatInterval; // When to send HEARTBEAT
     protected long dnsHeartbeatAt = System.currentTimeMillis() + dnsTimeOut; // When to send a DNS HEARTBEAT
 
@@ -139,7 +139,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
 
         dnsSocket = ctx.createSocket(SocketType.DEALER);
         setDefaultSocketParameters(dnsSocket);
-        if (this.dnsAddress == null) {
+        if (this.dnsAddress == null || this.dnsAddress.toString().isEmpty()) {
             dnsSocket.connect(INTERNAL_ADDRESS_BROKER);
         } else {
             dnsSocket.connect(this.dnsAddress.toString());
@@ -174,6 +174,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         final URI adjustedAddressPublic = resolveHost(endpointAdjusted, getLocalHostName());
         routerSockets.add(adjustedAddressPublic.toString());
         LOGGER.atDebug().addArgument(adjustedAddressPublic).log("Majordomo broker/0.1 is active at '{}'");
+        sendDnsHeartbeats(true);
         return adjustedAddressPublic;
     }
 
@@ -230,10 +231,8 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
             items.register(dnsSocket, ZMQ.Poller.POLLIN);
             items.register(pubSocket, ZMQ.Poller.POLLIN);
             items.register(subSocket, ZMQ.Poller.POLLIN);
-            while (run.get() && !Thread.currentThread().isInterrupted() && !ctx.isClosed() && items.poll(heartBeatInterval) != -1) {
-                if (ctx.isClosed()) {
-                    break;
-                }
+            int pollerReturn;
+            do {
                 int loopCount = 0;
                 boolean receivedMsg = true;
                 while (run.get() && !Thread.currentThread().isInterrupted() && receivedMsg) {
@@ -255,21 +254,23 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
                         // iteration
                         purgeWorkers();
                         purgeClients();
-                        purgeDnsServices();
                         sendHeartbeats();
-                        sendDnsHeartbeats(false);
+                        purgeDnsServices();
                     }
                     loopCount++;
                 }
+                pollerReturn = items.poll(heartBeatInterval);
+            } while (-1 != pollerReturn && !ctx.isClosed() && run.get() && !Thread.currentThread().isInterrupted());
+            if (run.get()) {
+                LOGGER.atError().addArgument(Thread.interrupted()).addArgument(ctx.isClosed()).addArgument(pollerReturn).addArgument(getName()).log("broker abnormally terminated (int={},ctx={},poll={}) - abort run() = '{}'");
+            } else {
+                LOGGER.atDebug().addArgument(getName()).log("shutting down broker '{}'");
             }
         }
         Worker[] deleteList = workers.values().toArray(new Worker[0]);
         for (Worker worker : deleteList) {
             deleteWorker(worker, true);
         }
-
-        // wait for workers to shut-down
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
         running.set(false);
     }
 
@@ -278,13 +279,19 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
      */
     public void stopBroker() {
         run.set(false);
-        if (running.get()) {
+        if (isRunning()) {
             try {
-                this.join(heartBeatInterval);
+                this.join(2 * heartBeatInterval); // extra margin since the poller is running also at exactly 'heartbeatInterval'
             } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
                 throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
             }
         }
+        if (isRunning()) {
+            LOGGER.atWarn().addArgument(getName()).log("'{}' broker did not shut down as requested, going to forcefully interrupt");
+            interrupt();
+        }
+        // wait for workers to shut-down
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(heartBeatInterval));
         close();
     }
 
@@ -311,11 +318,15 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
      */
     @Override
     public void close() {
-        routerSocket.close();
-        pubSocket.close();
-        subSocket.close();
-        dnsSocket.close();
-        ctx.close();
+        try {
+            routerSocket.close();
+            pubSocket.close();
+            subSocket.close();
+            dnsSocket.close();
+            ctx.close();
+        } catch (Exception e) { // NOPMD
+            LOGGER.atError().setCause(e).addArgument(MajordomoBroker.class.getSimpleName()).addArgument(getName()).log("error closing {} resources for {}");
+        }
     }
 
     /**
@@ -412,11 +423,8 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
      */
     protected void processClients() {
         // round-robin
-        clients.forEach((name, client) -> {
+        clients.values().stream().filter(client -> !client.requests.isEmpty()).forEach(client -> {
             final MdpMessage clientMessage = client.pop();
-            if (clientMessage == null) {
-                return;
-            }
 
             // dispatch client message to worker queue
             // old : final Service service = services.get(clientMessage.getServiceName())
@@ -543,16 +551,17 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     }
 
     /**
-     * Look for &amp; kill expired workers. Workers are oldest to most recent, so
-     * we stop at the first alive worker.
+     * Look for &amp; kill expired dns services.
      */
     protected void purgeDnsServices() {
         if (System.currentTimeMillis() >= dnsHeartbeatAt) {
+            sendDnsHeartbeats(false);
             List<DnsServiceItem> cachedList = new ArrayList<>(dnsCache.values());
             final MdpMessage challengeMessage = new MdpMessage(null, PROT_CLIENT, W_HEARTBEAT, EMPTY_FRAME, "dnsChallenge".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
             for (DnsServiceItem registeredService : cachedList) {
-                if (registeredService.serviceName.equalsIgnoreCase(brokerName)) {
+                if (registeredService.serviceName.equalsIgnoreCase(brokerName)) { // update self
                     registeredService.updateExpiryTimeStamp();
+                    continue;
                 }
                 // challenge remote broker with a HEARTBEAT
                 challengeMessage.senderID = registeredService.address;

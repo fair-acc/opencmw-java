@@ -15,6 +15,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
@@ -23,10 +25,30 @@ import org.zeromq.*;
 
 import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
+import io.opencmw.client.DnsResolver;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
 
 @Timeout(20)
 class CmwLightDataSourceTest {
+    private static final DnsResolver MOCK_CMWLIGHT_RESOLVER = new DnsResolver() {
+        final private Map<URI, List<URI>> hosts = Map.of(URI.create("rda3:/testService"), List.of(URI.create("rda3://localhost:7777/testService")));
+
+        @Override
+        public List<String> getApplicableSchemes() {
+            return CmwLightDataSource.FACTORY.getApplicableSchemes();
+        }
+
+        @Override
+        public Map<URI, List<URI>> resolveNames(final List<URI> devicesToResolve) {
+            return devicesToResolve.stream().filter(hosts::containsKey).collect(Collectors.toMap(Function.identity(), hosts::get));
+        }
+
+        @Override
+        public void close() throws Exception {
+            // nothing to do here
+        }
+    };
+
     @Test
     void testCmwLightSubscription() throws CmwLightProtocol.RdaLightException, URISyntaxException, IOException {
         // setup zero mq socket to mock cmw server
@@ -242,6 +264,17 @@ class CmwLightDataSourceTest {
         assertFalse(factory.matches(URI.create("tcp://server/device/property?query=test")));
         assertTrue(factory.matches(URI.create("rda3:/testdevice/property")));
         assertFalse(factory.matches(URI.create("https://testserver")));
+    }
+
+    @Test
+    void testResolver() {
+        final DataSource.Factory factory = CmwLightDataSource.FACTORY;
+        factory.registerDnsResolver(MOCK_CMWLIGHT_RESOLVER);
+        try (final ZContext context = new ZContext(1)) {
+            assertDoesNotThrow(() -> factory.newInstance(context, URI.create("rda3:/testService"), Duration.ofSeconds(1), Executors.newCachedThreadPool(), "testOpenCmwDataSource"));
+            assertThrows(NullPointerException.class, () -> factory.newInstance(context, URI.create("rda3:/unknownService"), Duration.ofSeconds(1), Executors.newCachedThreadPool(), "testOpenCmwDataSource"));
+        }
+        factory.getRegisteredDnsResolver().remove(MOCK_CMWLIGHT_RESOLVER);
     }
 
     @Test
