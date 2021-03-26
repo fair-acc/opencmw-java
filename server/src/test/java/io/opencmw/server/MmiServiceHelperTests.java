@@ -21,10 +21,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import org.zeromq.Utils;
 import org.zeromq.util.ZData;
 
@@ -40,6 +37,7 @@ class MmiServiceHelperTests {
     private URI brokerAddress;
 
     @BeforeAll
+    @Timeout(10)
     void startBroker() throws IOException {
         broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
@@ -48,6 +46,7 @@ class MmiServiceHelperTests {
     }
 
     @AfterAll
+    @Timeout(10)
     void stopBroker() {
         broker.stopBroker();
     }

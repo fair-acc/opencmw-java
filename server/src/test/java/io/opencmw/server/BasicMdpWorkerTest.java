@@ -35,6 +35,7 @@ import io.opencmw.utils.SystemProperties;
 @Timeout(60)
 class BasicMdpWorkerTest {
     @BeforeAll
+    @Timeout(10)
     void init() {
         System.getProperties().setProperty("OpenCMW.heartBeat", "50");
         assertEquals(50, SystemProperties.getValueIgnoreCase("OpenCMW.heartBeat", 2500), "reduced heart-beat interval");

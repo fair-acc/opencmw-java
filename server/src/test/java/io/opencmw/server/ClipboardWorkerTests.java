@@ -12,10 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +34,7 @@ class ClipboardWorkerTests {
     private URI extBrokerPublisherAddress;
 
     @BeforeAll
+    @Timeout(10)
     void init() throws IOException {
         broker = new MajordomoBroker("TestMdpBroker", null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that
@@ -56,6 +54,7 @@ class ClipboardWorkerTests {
     }
 
     @AfterAll
+    @Timeout(10)
     void finish() {
         broker.stopBroker();
     }

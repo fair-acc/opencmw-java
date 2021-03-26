@@ -67,6 +67,7 @@ class MajordomoRestPluginTests {
     private static OkHttpClient okHttp;
 
     @BeforeAll
+    @Timeout(10)
     static void init() throws IOException {
         okHttp = getUnsafeOkHttpClient(); // N.B. ignore SSL certificates
         primaryBroker = new MajordomoBroker(PRIMARY_BROKER, null, BasicRbacRole.values());
@@ -101,6 +102,7 @@ class MajordomoRestPluginTests {
     }
 
     @AfterAll
+    @Timeout(10)
     static void finish() {
         secondaryBroker.stopBroker();
         primaryBroker.stopBroker();

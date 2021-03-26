@@ -262,6 +262,7 @@ class DataSourcePublisherTest {
     }
 
     @BeforeAll
+    @Timeout(10)
     static void registerDataSource() {
         DataSource.register(TestDataSource.FACTORY);
     }

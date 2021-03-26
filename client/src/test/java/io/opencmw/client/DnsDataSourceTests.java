@@ -199,6 +199,7 @@ class DnsDataSourceTests {
     }
 
     @BeforeAll
+    @Timeout(10)
     static void init() throws IOException {
         System.setProperty(OpenCmwConstants.HEARTBEAT, "100"); // to reduce waiting time for changes
         dnsBroker = getTestBroker("dnsBroker", "deviceA/property", null);
@@ -220,6 +221,7 @@ class DnsDataSourceTests {
     }
 
     @AfterAll
+    @Timeout(10)
     static void finish() {
         // delete previous resolvers
         DataSource.getFactory(URI.create("mdp:/mmi.dns")).getRegisteredDnsResolver().clear();
