@@ -2,7 +2,7 @@ module io.opencmw.client {
     requires disruptor;
     requires io.opencmw;
     requires io.opencmw.serialiser;
-    requires it.unimi.dsi.fastutil;
+    requires it.unimi.dsi.fastutil.core;
     requires java.management;
     requires jeromq;
     requires kotlin.stdlib;
