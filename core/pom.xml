@@ -45,7 +45,11 @@
             <artifactId>commons-lang3</artifactId>
             <version>${version.commons-lang3}</version>
         </dependency>
-
+        <dependency>
+            <groupId>com.offbytwo</groupId>
+            <artifactId>docopt</artifactId>
+            <version>${version.docopt}</version>
+        </dependency>
     </dependencies>
 
 </project>

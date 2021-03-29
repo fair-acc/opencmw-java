@@ -44,7 +44,6 @@ import io.opencmw.client.DnsResolver;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.CmwLightSerialiser;
 import io.opencmw.utils.NoDuplicatesList;
-import io.opencmw.utils.SystemProperties;
 
 /**
  * A lightweight implementation of the CMW RDA3 client part.
@@ -87,9 +86,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     protected final ZMQ.Socket socket;
     protected final AtomicReference<Event> connectionState = new AtomicReference<>(Event.CLOSED);
     protected final String sessionId;
-    protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
-    protected final int heartbeatAllowedMisses = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable number of heartbeats which can be missed before resetting the connection
-    protected final long subscriptionTimeout = SystemProperties.getValueIgnoreCase(SUBSCRIPTION_TIMEOUT, SUBSCRIPTION_TIMEOUT_DEFAULT); // maximum time after which a connection should be reconnected
+    protected final long heartbeatAllowedMisses = HEARTBEAT_LIVENESS; // [counts] 3-5 is reasonable number of heartbeats which can be missed before resetting the connection
     protected final Map<Long, Subscription> subscriptions = new HashMap<>(); // all subscriptions added to the server
     protected final Map<String, Subscription> subscriptionsByReqId = new HashMap<>(); // all subscriptions added to the server
     protected final Map<Long, Subscription> replyIdMap = new HashMap<>(); // all acknowledged subscriptions by their reply id
@@ -255,13 +252,13 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             }
             return lastHeartbeatSent + backOff;
         case CONNECT_RETRIED:
-            if (currentTime > lastHeartbeatSent + heartbeatInterval * heartbeatAllowedMisses) { // connect timed out -> increase back of and retry
+            if (currentTime > lastHeartbeatSent + HEARTBEAT_INTERVAL * heartbeatAllowedMisses) { // connect timed out -> increase back of and retry
                 backOff = backOff * 2;
                 lastHeartbeatSent = currentTime;
                 LOGGER.atTrace().addArgument(connectedAddress).addArgument(backOff).log("Connection timed out for {}, retrying in {} ms");
                 disconnect();
             }
-            return lastHeartbeatSent + heartbeatInterval * heartbeatAllowedMisses;
+            return lastHeartbeatSent + HEARTBEAT_INTERVAL * heartbeatAllowedMisses;
         case CONNECTED:
             reconnectAttempt.set(0);
             Request request;
@@ -271,22 +268,22 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                     LOGGER.atWarn().addArgument(endpoint).log("could not send request for host {}");
                 }
             }
-            if (currentTime > lastHeartbeatSent + heartbeatInterval) { // check for heartbeat interval
+            if (currentTime > lastHeartbeatSent + HEARTBEAT_INTERVAL) { // check for heartbeat interval
                 // send Heartbeats
                 sendHeartBeat();
                 lastHeartbeatSent = currentTime;
                 // check if heartbeat was received
-                if (lastHeartbeatReceived + heartbeatInterval * heartbeatAllowedMisses < currentTime) {
+                if (lastHeartbeatReceived + HEARTBEAT_INTERVAL * heartbeatAllowedMisses < currentTime) {
                     LOGGER.atDebug().addArgument(backOff).log("Connection timed out, reconnecting in {} ms");
                     disconnect();
-                    return heartbeatInterval;
+                    return HEARTBEAT_INTERVAL;
                 }
                 // check timeouts of connection/subscription requests
                 for (Subscription sub : subscriptions.values()) {
                     updateSubscription(currentTime, sub);
                 }
             }
-            return lastHeartbeatSent + heartbeatInterval;
+            return lastHeartbeatSent + HEARTBEAT_INTERVAL;
         default:
             throw new IllegalStateException("unexpected connection state: " + connectionState.get());
         }
@@ -493,7 +490,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                                                      new CmwLightMessage.RequestContext(sub.selector, sub.filters, null),
                                                      CmwLightProtocol.UpdateType.IMMEDIATE_UPDATE));
             sub.subscriptionState = SubscriptionState.SUBSCRIBING;
-            sub.timeoutValue = System.currentTimeMillis() + subscriptionTimeout;
+            sub.timeoutValue = System.currentTimeMillis() + SUBSCRIPTION_TIMEOUT;
         } catch (CmwLightProtocol.RdaLightException e) {
             LOGGER.atDebug().setCause(e).log("Error subscribing to property:");
             sub.timeoutValue = System.currentTimeMillis() + sub.backOff;
