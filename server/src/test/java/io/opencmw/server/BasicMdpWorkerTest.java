@@ -7,6 +7,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 
+import static io.opencmw.OpenCmwConstants.HEARTBEAT_INTERVAL;
 import static io.opencmw.OpenCmwProtocol.Command.W_NOTIFY;
 import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
@@ -100,7 +101,7 @@ class BasicMdpWorkerTest {
         assertTrue(worker.notifyRaw(msg)); // is unfiltered: no subscription -> true
 
         // wait for five heartbeats -> checks poller, heartbeat and reconnect features (to some extend)
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(5L * worker.heartBeatInterval));
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(5L * HEARTBEAT_INTERVAL));
 
         new Thread(() -> {
             run.set(true);

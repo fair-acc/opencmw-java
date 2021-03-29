@@ -1,4 +1,6 @@
 open module io.opencmw {
+    uses io.opencmw.utils.Settings;
+    requires com.google.auto.service;
     requires disruptor;
     requires org.slf4j;
     requires jeromq;
@@ -6,6 +8,7 @@ open module io.opencmw {
     requires org.apache.commons.lang3;
     requires org.jetbrains.annotations;
     requires jsoniter;
+    requires docopt;
 
     exports io.opencmw;
     exports io.opencmw.domain;

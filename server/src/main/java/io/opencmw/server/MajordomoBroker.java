@@ -6,11 +6,8 @@ import static org.zeromq.ZMQ.Socket;
 import static org.zeromq.util.ZData.strhex;
 
 import static io.opencmw.OpenCmwConstants.*;
-import static io.opencmw.OpenCmwProtocol.BROKER_SHUTDOWN;
+import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
-import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
-import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
-import static io.opencmw.OpenCmwProtocol.MdpMessage;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
@@ -42,7 +39,6 @@ import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.rbac.RbacToken;
 import io.opencmw.utils.NoDuplicatesList;
-import io.opencmw.utils.SystemProperties;
 
 /**
  * Majordomo Protocol broker -- a minimal implementation of http://rfc.zeromq.org/spec:7 and spec:8 and following the OpenCMW specification
@@ -96,14 +92,9 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     private final AtomicBoolean run = new AtomicBoolean(false); // NOPMD - nomen est omen
     private final AtomicBoolean running = new AtomicBoolean(false); // NOPMD - nomen est omen
     protected final Deque<Worker> waiting = new ArrayDeque<>(); // idle workers
-    protected final int heartBeatLiveness = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable
-    protected final long heartBeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms]
-    protected final long heartBeatExpiry = heartBeatInterval * heartBeatLiveness;
     private final Map<String, DnsServiceItem> dnsCache = new ConcurrentHashMap<>(); // <server name, DnsServiceItem>
-    protected final long clientTimeOut = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase(CLIENT_TIMEOUT, CLIENT_TIMEOUT_DEFAULT)); // [s]
-    protected final long dnsTimeOut = TimeUnit.SECONDS.toMillis(SystemProperties.getValueIgnoreCase(DNS_TIMEOUT, DNS_TIMEOUT_DEFAULT)); // [ms] time when
-    protected long heartbeatAt = System.currentTimeMillis() + heartBeatInterval; // When to send HEARTBEAT
-    protected long dnsHeartbeatAt = System.currentTimeMillis() + dnsTimeOut; // When to send a DNS HEARTBEAT
+    protected long heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL; // When to send HEARTBEAT
+    protected long dnsHeartbeatAt = System.currentTimeMillis() + DNS_TIMEOUT; // When to send a DNS HEARTBEAT
 
     /**
      * Initialize broker state.
@@ -118,7 +109,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         this.dnsAddress = dnsAddress == null || dnsAddress.toString().isBlank() ? null : replaceScheme(dnsAddress, SCHEME_TCP); // NOPMD - uninitialised/unknown dns defaults to null
         this.setName(MajordomoBroker.class.getSimpleName() + "(" + brokerName + ")#" + BROKER_COUNTER.getAndIncrement());
 
-        ctx = new ZContext(SystemProperties.getValueIgnoreCase(N_IO_THREADS, N_IO_THREADS_DEFAULT));
+        ctx = new ZContext(N_IO_THREADS);
 
         // initialise RBAC role-based priority queues
         this.rbacRoles = Collections.unmodifiableSortedSet(new TreeSet<>(Set.of(rbacRoles)));
@@ -259,7 +250,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
                     }
                     loopCount++;
                 }
-                pollerReturn = items.poll(heartBeatInterval);
+                pollerReturn = items.poll(HEARTBEAT_INTERVAL);
             } while (-1 != pollerReturn && !ctx.isClosed() && run.get() && !Thread.currentThread().isInterrupted());
             if (run.get()) {
                 LOGGER.atError().addArgument(Thread.interrupted()).addArgument(ctx.isClosed()).addArgument(pollerReturn).addArgument(getName()).log("broker abnormally terminated (int={},ctx={},poll={}) - abort run() = '{}'");
@@ -281,9 +272,9 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         run.set(false);
         if (isRunning()) {
             try {
-                this.join(2 * heartBeatInterval); // extra margin since the poller is running also at exactly 'heartbeatInterval'
+                this.join(2L * HEARTBEAT_INTERVAL); // extra margin since the poller is running also at exactly 'heartbeatInterval'
             } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
-                throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
+                throw new IllegalStateException(this.getName() + " did not shut down in " + HEARTBEAT_INTERVAL + " ms", e);
             }
         }
         if (isRunning()) {
@@ -291,7 +282,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
             interrupt();
         }
         // wait for workers to shut-down
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(heartBeatInterval));
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(HEARTBEAT_INTERVAL));
         close();
     }
 
@@ -535,7 +526,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
      * Look for &amp; kill expired clients.
      */
     protected void purgeClients() {
-        if (clientTimeOut <= 0) {
+        if (CLIENT_TIMEOUT <= 0) {
             return;
         }
         for (String clientName : clients.keySet()) { // NOSONAR NOPMD copy because
@@ -574,7 +565,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
                     dnsCache.remove(registeredService.serviceName);
                 }
             }
-            dnsHeartbeatAt = System.currentTimeMillis() + dnsTimeOut;
+            dnsHeartbeatAt = System.currentTimeMillis() + DNS_TIMEOUT;
         }
     }
 
@@ -687,7 +678,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
                 heartbeatMsg.serviceNameBytes = worker.service.nameBytes;
                 heartbeatMsg.send(worker.socket);
             }
-            heartbeatAt = System.currentTimeMillis() + heartBeatInterval;
+            heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
         }
     }
 
@@ -826,7 +817,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         protected final byte[] nameBytes; // client name as byte array
         protected final String nameHex; // client name as hex String
         private final Deque<MdpMessage> requests = new ArrayDeque<>(); // List of client requests
-        protected long expiry = System.currentTimeMillis() + clientTimeOut; // Expires at unless heartbeat
+        protected long expiry = System.currentTimeMillis() + CLIENT_TIMEOUT; // Expires at unless heartbeat
 
         protected Client(final Socket socket, final String name, final byte[] nameBytes) {
             this.socket = socket;
@@ -836,7 +827,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         }
 
         protected void offerToQueue(final MdpMessage msg) {
-            expiry = System.currentTimeMillis() + clientTimeOut;
+            expiry = System.currentTimeMillis() + CLIENT_TIMEOUT;
             requests.offer(msg);
         }
 
@@ -866,7 +857,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         }
 
         private void updateExpiryTimeStamp() {
-            expiry = System.currentTimeMillis() + heartBeatExpiry;
+            expiry = System.currentTimeMillis() + (long) HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS;
         }
     }
 
@@ -927,7 +918,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         }
 
         private void updateExpiryTimeStamp() {
-            expiry = System.currentTimeMillis() + dnsTimeOut * heartBeatLiveness;
+            expiry = System.currentTimeMillis() + (long) DNS_TIMEOUT * HEARTBEAT_LIVENESS;
         }
     }
 }

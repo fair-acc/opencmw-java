@@ -53,7 +53,6 @@ import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.FastByteBuffer;
 import io.opencmw.utils.CustomFuture;
 import io.opencmw.utils.SharedPointer;
-import io.opencmw.utils.SystemProperties;
 
 /**
  * Publishes events from different sources into a common {@link EventStore} and takes care of setting the appropriate
@@ -104,7 +103,6 @@ public class DataSourcePublisher implements Runnable, Closeable {
         DataSource.register(OpenCmwDataSource.FACTORY);
     }
 
-    protected final long heartbeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms] time between to heartbeats in ms
     protected final String inprocCtrl = "inproc://dsPublisher#" + INSTANCE_COUNT.incrementAndGet();
     protected final Map<String, ThePromisedFuture<?, ?>> requests = new ConcurrentHashMap<>(); // <requestId, future for the get request>
     protected final Map<String, DataSource> clientMap = new ConcurrentHashMap<>(); // scheme://authority -> DataSource
@@ -129,7 +127,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     public DataSourcePublisher(final ZContext ctx, final EventStore publicationTarget, final RbacProvider rbacProvider, final ExecutorService executorService, final String... clientId) {
-        this.context = Objects.requireNonNullElse(ctx, new ZContext(SystemProperties.getValueIgnoreCase(N_IO_THREADS, N_IO_THREADS_DEFAULT)));
+        this.context = Objects.requireNonNullElse(ctx, new ZContext(N_IO_THREADS));
         this.executor = Objects.requireNonNullElse(executorService, Executors.newCachedThreadPool());
         poller = context.createPoller(1);
         // control socket for adding subscriptions / triggering requests from other threads
@@ -168,9 +166,9 @@ public class DataSourcePublisher implements Runnable, Closeable {
         Thread thread = threadReference.get();
         if (thread != null) {
             try {
-                thread.join(2 * heartbeatInterval); // extra margin since the poller is running also at exactly 'heartbeatInterval'
+                thread.join(2L * HEARTBEAT_INTERVAL); // extra margin since the poller is running also at exactly 'heartbeatInterval'
             } catch (InterruptedException e) { // NOPMD NOSONAR - re-throwing with different type
-                throw new IllegalStateException(thread.getName() + " did not shut down in " + heartbeatInterval + " ms", e);
+                throw new IllegalStateException(thread.getName() + " did not shut down in " + HEARTBEAT_INTERVAL + " ms", e);
             }
         }
         thread = threadReference.get();
@@ -220,7 +218,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
                 dataAvailable |= handleControlSocket(); // check specifically for control socket
             }
 
-            nextHousekeeping = clientMap.values().stream().mapToLong(DataSource::housekeeping).min().orElse(System.currentTimeMillis() + heartbeatInterval);
+            nextHousekeeping = clientMap.values().stream().mapToLong(DataSource::housekeeping).min().orElse(System.currentTimeMillis() + HEARTBEAT_INTERVAL);
             timeOut = nextHousekeeping - System.currentTimeMillis();
             // remove closed client sockets from poller
             clientMap.values().stream().filter(DataSource::isClosed).forEach(s -> poller.unregister(s.getSocket()));

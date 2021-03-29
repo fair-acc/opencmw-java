@@ -1,23 +1,48 @@
 package io.opencmw;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
+import static io.opencmw.utils.SystemProperties.parseOptions;
 
 import java.net.URI;
 
+import org.docopt.DocoptExitException;
 import org.junit.jupiter.api.Test;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
+import io.opencmw.serialiser.spi.Field;
 import io.opencmw.utils.SystemProperties;
 
 class OpenCmwConstantsTest {
+    private static final String testOption_heartbeat = OpenCmwConstants.class.getSimpleName() + ".HEARTBEAT_INTERVAL";
+    private static final String testOption_liveness = OpenCmwConstants.class.getSimpleName() + ".HEARTBEAT_LIVENESS";
+    @Test
+    void testCommandLineOptions() {
+        Field.getField(SystemProperties.class, "WITH_EXIT").setBoolean(null, false); // needed only for testing purposes
+        OpenCmwConstants.init(); // needed to execute once -- other class member function invocation work as well
+
+        assertEquals(1001, Integer.parseInt(parseOptions(new String[] { "--" + testOption_heartbeat + "=1001" }).get(testOption_heartbeat).toString()));
+        assertEquals(1001, HEARTBEAT_INTERVAL);
+        assertEquals(1001, SystemProperties.getIntValueIgnoreCase(testOption_heartbeat));
+
+        assertEquals(1002, Integer.parseInt(parseOptions(new String[] { "--" + testOption_heartbeat + "=1002" }).get(testOption_heartbeat).toString()));
+        assertEquals(1002, HEARTBEAT_INTERVAL);
+        assertEquals(1002, SystemProperties.getIntValueIgnoreCase(testOption_heartbeat));
+
+        try {
+            parseOptions(new String[] { "-help" });
+            fail();
+        } catch (DocoptExitException e) {
+            assertTrue(e.getMessage().contains("--" + testOption_heartbeat));
+        }
+
+        Field.getField(SystemProperties.class, "WITH_EXIT").setBoolean(null, true); // needed only for testing purposes
+    }
+
     @Test
     void testReplaceScheme() {
         assertEquals(URI.create("tcp://host:20"), replaceScheme(URI.create("mdp://host:20"), SCHEME_TCP));
@@ -71,11 +96,10 @@ class OpenCmwConstantsTest {
     void testMisc() {
         try (ZContext ctx = new ZContext(); ZMQ.Socket socket = ctx.createSocket(SocketType.DEALER)) {
             assertDoesNotThrow(() -> setDefaultSocketParameters(socket));
-            final int hwm = SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT);
-            final int heartBeatInterval = (int) SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT);
-            final int liveness = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT);
-            assertEquals(hwm, socket.getRcvHWM(), "receive high-water mark");
-            assertEquals(hwm, socket.getSndHWM(), "send high-water mark");
+            final int heartBeatInterval = SystemProperties.getIntValueIgnoreCase(testOption_heartbeat);
+            final int liveness = SystemProperties.getIntValueIgnoreCase(testOption_liveness);
+            assertEquals(HIGH_WATER_MARK, socket.getRcvHWM(), "receive high-water mark");
+            assertEquals(HIGH_WATER_MARK, socket.getSndHWM(), "send high-water mark");
             assertArrayEquals(PROT_CLIENT.getData(), socket.getHeartbeatContext(), "heart-beat payload message");
             assertEquals(heartBeatInterval * liveness, socket.getHeartbeatTtl(), "time-out for remote socket [ms]");
             assertEquals(heartBeatInterval * liveness, socket.getHeartbeatTimeout(), "time-out for local socket [ms]");

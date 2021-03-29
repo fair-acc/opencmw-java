@@ -6,6 +6,7 @@ import static io.javalin.apibuilder.ApiBuilder.get;
 import static io.javalin.apibuilder.ApiBuilder.post;
 import static io.javalin.plugin.openapi.dsl.DocumentedContentKt.anyOf;
 import static io.javalin.plugin.openapi.dsl.DocumentedContentKt.documentedContent;
+import static io.opencmw.OpenCmwConstants.HEARTBEAT_LIVENESS;
 import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
 import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
 import static io.opencmw.OpenCmwProtocol.Command.READY;
@@ -309,7 +310,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                         final MdpMessage brokerMsg = receive(subSocket, false);
                         if (brokerMsg != null) {
                             dataReceived = true;
-                            liveness = heartBeatLiveness;
+                            liveness = HEARTBEAT_LIVENESS;
 
                             // handle subscription message
                             if (brokerMsg.data != null && brokerMsg.getServiceName().startsWith(INTERNAL_SERVICE_NAMES)) {
