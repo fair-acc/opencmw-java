@@ -38,6 +38,7 @@ import io.opencmw.domain.BinaryData;
 import io.opencmw.domain.NoData;
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacToken;
+import io.opencmw.serialiser.spi.Field;
 
 @Timeout(60)
 class MajordomoBrokerTests {
@@ -261,8 +262,8 @@ class MajordomoBrokerTests {
 
     @Test
     void testDNS() throws IOException {
-        System.setProperty(OpenCmwConstants.HEARTBEAT, "100"); // to reduce waiting time for changes
-        System.setProperty(DNS_TIMEOUT, "1"); // to reduce waiting time for changes
+        Field.getField(OpenCmwConstants.class, "HEARTBEAT_INTERVAL").setInt(null, 100); // to reduce waiting time for changes
+        Field.getField(OpenCmwConstants.class, "DNS_TIMEOUT").setInt(null, 2); // to reduce waiting time for changes
         final MajordomoBroker primaryBroker = new MajordomoBroker(DEFAULT_BROKER_NAME + "1", null);
         final URI brokerAddress = primaryBroker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         primaryBroker.start();
@@ -476,7 +477,7 @@ class MajordomoBrokerTests {
 
     @Test
     void testMisc() {
-        System.setProperty(OpenCmwConstants.HEARTBEAT, "100"); // to reduce waiting time for changes
+        Field.getField(OpenCmwConstants.class, "HEARTBEAT_INTERVAL").setInt(null, 100); // to reduce waiting time for changes
         final MajordomoBroker broker = new MajordomoBroker(DEFAULT_BROKER_NAME, null, BasicRbacRole.values());
         assertDoesNotThrow(() -> broker.new Client(null, "testClient", "testClient".getBytes(UTF_8)));
         final MajordomoBroker.Client testClient = broker.new Client(null, "testClient", "testClient".getBytes(UTF_8));

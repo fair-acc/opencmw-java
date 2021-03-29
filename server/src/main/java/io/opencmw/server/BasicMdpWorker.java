@@ -4,7 +4,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.OpenCmwProtocol.*;
-import static io.opencmw.OpenCmwProtocol.Command.*;
+import static io.opencmw.OpenCmwProtocol.Command.FINAL;
+import static io.opencmw.OpenCmwProtocol.Command.READY;
+import static io.opencmw.OpenCmwProtocol.Command.W_HEARTBEAT;
+import static io.opencmw.OpenCmwProtocol.Command.W_NOTIFY;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_WORKER;
 import static io.opencmw.server.MajordomoBroker.SUFFIX_ROUTER;
@@ -17,14 +20,7 @@ import java.io.StringWriter;
 import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,7 +40,6 @@ import io.opencmw.filter.SubscriptionMatcher;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.serialiser.utils.ClassUtils;
-import io.opencmw.utils.SystemProperties;
 
 /**
  * Majordomo Protocol Client API, Java version Implements the OpenCmwProtocol/Worker spec at
@@ -92,10 +87,8 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
     protected final List<URI> activeSubscriptions = Collections.synchronizedList(new ArrayList<>());
     protected ZMQ.Socket workerSocket; // Socket to broker
     protected ZMQ.Socket pubSocket; // Socket to broker
-    protected final int heartBeatLiveness = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT); // [counts] 3-5 is reasonable
-    protected final long heartBeatInterval = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT); // [ms]
     protected long heartbeatAt; // When to send HEARTBEAT
-    protected int liveness; // How many attempts left
+    protected long liveness; // How many attempts left
     protected long reconnect = 2500L; // Reconnect delay, msecs
     protected RequestHandler requestHandler;
     protected ZMQ.Poller poller;
@@ -230,9 +223,9 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
             // Send HEARTBEAT if it's time
             if (System.currentTimeMillis() > heartbeatAt && !ctx.isClosed()) {
                 heartbeatMsg.send(workerSocket);
-                heartbeatAt = System.currentTimeMillis() + heartBeatInterval;
+                heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
             }
-            pollerReturn = poller.poll(heartBeatInterval);
+            pollerReturn = poller.poll(HEARTBEAT_INTERVAL);
         } while (-1 != pollerReturn && !ctx.isClosed() && shallRun.get() && !Thread.currentThread().isInterrupted());
         if (shallRun.get()) {
             LOGGER.atError().addArgument(Thread.interrupted()).addArgument(ctx.isClosed()).addArgument(pollerReturn).addArgument(getName()).log("abnormally terminated (int={},ctx={},poll={}) - abort run() - service = {}");
@@ -252,9 +245,9 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
         }
         shallRun.set(false);
         try {
-            join(2 * heartBeatInterval); // extra margin since the poller is running also at exactly 'heartbeatInterval'
+            join(2L * HEARTBEAT_INTERVAL); // extra margin since the poller is running also at exactly 'heartbeatInterval'
         } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
-            throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
+            throw new IllegalStateException(this.getName() + " did not shut down in " + HEARTBEAT_INTERVAL + " ms", e);
         }
         close();
     }
@@ -264,9 +257,9 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
         if (running.get()) {
             LOGGER.atWarn().addArgument(serviceName).log("trying to shut-down service '{}' while not fully finished");
             try {
-                join(heartBeatInterval);
+                join(HEARTBEAT_INTERVAL);
             } catch (InterruptedException e) { // NOPMD NOSONAR -- re-throwing with different type
-                throw new IllegalStateException(this.getName() + " did not shut down in " + heartBeatInterval + " ms", e);
+                throw new IllegalStateException(this.getName() + " did not shut down in " + HEARTBEAT_INTERVAL + " ms", e);
             }
         }
         try {
@@ -287,7 +280,7 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
             return Collections.emptyList();
         }
 
-        liveness = heartBeatLiveness;
+        liveness = HEARTBEAT_LIVENESS;
 
         switch (request.command) {
         case GET_REQUEST:
@@ -416,8 +409,8 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
         poller.register(notifyListenerSocket, ZMQ.Poller.POLLIN);
 
         // If liveness hits zero, queue is considered disconnected
-        liveness = heartBeatLiveness;
-        heartbeatAt = System.currentTimeMillis() + heartBeatInterval;
+        liveness = HEARTBEAT_LIVENESS;
+        heartbeatAt = System.currentTimeMillis() + HEARTBEAT_INTERVAL;
     }
 
     public interface RequestHandler {

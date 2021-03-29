@@ -29,6 +29,7 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <version.slf4j>2.0.0-alpha0</version.slf4j>
+        <version.auto-service>1.0-rc7</version.auto-service>
         <version.jetbrains.annotations>20.1.0</version.jetbrains.annotations>
         <version.jeromq>0.5.2</version.jeromq>
         <versions.lmax.disruptor>3.4.2</versions.lmax.disruptor>
@@ -46,6 +47,7 @@
         <version.micrometer>1.6.5</version.micrometer>
         <version.velocity>2.3</version.velocity>
         <version.chartfx>11.2.5</version.chartfx>
+        <version.docopt>0.6.0.20150202</version.docopt>
     </properties>
 
     <licenses>
@@ -103,6 +105,13 @@
                 <configuration>
                     <source>${maven.compiler.source}</source>
                     <target>${maven.compiler.target}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>com.google.auto.service</groupId>
+                            <artifactId>auto-service</artifactId>
+                            <version>${version.auto-service}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>
@@ -229,6 +238,12 @@
             <artifactId>annotations</artifactId>
             <version>${version.jetbrains.annotations}</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service-annotations</artifactId>
+            <version>${version.auto-service}</version>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

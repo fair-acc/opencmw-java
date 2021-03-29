@@ -2,7 +2,12 @@ package io.opencmw;
 
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 
-import java.net.*;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -10,7 +15,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.zeromq.ZMQ;
 
+import io.opencmw.serialiser.annotations.MetaInfo;
+import io.opencmw.utils.Settings;
 import io.opencmw.utils.SystemProperties;
+
+import com.google.auto.service.AutoService;
 
 /**
  * OpenCMW global constant definitions:
@@ -18,7 +27,7 @@ import io.opencmw.utils.SystemProperties;
  * <p>
  * The broker, client and worker are controlled by the following environment variables:
  * <ul>
- * <li> 'OpenCMW.heartBeat' [ms]: default (2500 ms) heart-beat time-out [ms]</li>
+ * <li> 'OpenCMW.heartBeat' [ms]: default (1000 ms) heart-beat time-out [ms]</li>
  * <li> 'OpenCMW.heartBeatLiveness' []: default (3) heart-beat liveness - 3-5 is reasonable
  * <small>N.B. heartbeat expires when last heartbeat message is more than HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS ms ago.
  * this implies also, that worker must either return their message within 'HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS ms'
@@ -30,7 +39,9 @@ import io.opencmw.utils.SystemProperties;
  * <small>N.B. if registered, a HEARTBEAT challenge will be send that needs to be replied with a READY command/re-registering</small></li>
  * </ul>
  */
-public final class OpenCmwConstants {
+@SuppressWarnings("PMD.UseUtilityClass")
+@AutoService(Settings.class)
+public final class OpenCmwConstants implements Settings {
     public static final String WILDCARD = "*";
     public static final String SCHEME_INPROC = "inproc";
     public static final String SCHEME_HTTP = "http";
@@ -38,28 +49,47 @@ public final class OpenCmwConstants {
     public static final String SCHEME_MDP = "mdp";
     public static final String SCHEME_MDS = "mds";
     public static final String SCHEME_TCP = "tcp";
-    public static final String HEARTBEAT = "OpenCMW.heartBeat";
-    public static final long HEARTBEAT_DEFAULT = 1000L;
-    public static final String HEARTBEAT_LIVENESS = "OpenCMW.heartBeatLiveness";
-    public static final int HEARTBEAT_LIVENESS_DEFAULT = 3;
-    public static final String SUBSCRIPTION_TIMEOUT = "OpenCMW.subscriptionTimeOut";
-    public static final long SUBSCRIPTION_TIMEOUT_DEFAULT = 1000L;
-    public static final String N_IO_THREADS = "OpenCMW.nIoThreads";
-    public static final int N_IO_THREADS_DEFAULT = 1; //
-    public static final String HIGH_WATER_MARK = "OpenCMW.hwm";
-    public static final int HIGH_WATER_MARK_DEFAULT = 0; //
-    public static final String CLIENT_TIMEOUT = "OpenCMW.clientTimeOut"; // [s]
-    public static final long CLIENT_TIMEOUT_DEFAULT = 0L; // [s]
-    public static final String DNS_TIMEOUT = "OpenCMW.dnsTimeOut"; // [s]
-    public static final long DNS_TIMEOUT_DEFAULT = 10L; // [s]
     public static final String ADDRESS_GIVEN = "address given: ";
-    public static final String RECONNECT_THRESHOLD1 = "OpenCMW.reconnectThreshold1"; // []
-    public static final int DEFAULT_RECONNECT_THRESHOLD1 = 3; // []
-    public static final String RECONNECT_THRESHOLD2 = "OpenCMW.reconnectThreshold2"; // []
-    public static final int DEFAULT_RECONNECT_THRESHOLD2 = 6; // []
+    /** heart-beat interval in milli-seconds */
+    @MetaInfo(unit = "ms", description = "heart-beat interval in milli-seconds")
+    public static final Integer HEARTBEAT_INTERVAL = 1000;
+    /** heart-beat liveness - 3-5 is reasonable
+     * N.B. heartbeat expires when last heartbeat message is more than 'heartBeat' * 'heartBeatLiveness' ms ago.*/
+    @MetaInfo(unit = "int", description = "heart-beat liveness (3-5 is reasonable)\nN.B. heartbeat expires when last heartbeat message is more than 'heartBeat' * 'heartBeatLiveness' ms ago.")
+    public static final Integer HEARTBEAT_LIVENESS = 3;
+    /** subscription time-out in milli-seconds */
+    @MetaInfo(unit = "ms", description = "subscription time-out in milli-seconds")
+    public static final Integer SUBSCRIPTION_TIMEOUT = 1000;
+    /** number IO threads dedicated to network IO (ZeroMQ recommendation: 1 thread per 1 GBit/s) */
+    @MetaInfo(unit = "int", description = "number IO threads dedicated to network IO (ZeroMQ recommendation: 1 thread per 1 GBit/s)")
+    public static final Integer N_IO_THREADS = 1;
+    /** high-water-mark ie. the number of message frames stored per socket before being dropped */
+    private static final String HWM_DESCRIPTION = //
+            "high-water-mark ie. the number of message frames stored per socket before being dropped\n"
+            + "N.B. '0' implies that the number of frames is only limited by the available memory.\n"
+            + "This is a ZeroMQ tuning parameter. A typical OpenCMW message consists of at least 8-9 frames";
+    //** time-out in seconds after which unanswered client messages are being deleted */
+    @MetaInfo(unit = "<int>", description = HWM_DESCRIPTION)
+    public static final Integer HIGH_WATER_MARK = 0;
+    /** time-out in seconds after which unanswered client messages are being deleted */
+    @MetaInfo(unit = "s", description = "time-out in seconds after which unanswered client messages are being deleted\nN.B. '0' or negative disables this time-out.")
+    public static final Integer CLIENT_TIMEOUT = 0; // [s]
+    /** DNS time-out in seconds after which an unresponsive client is dropped from the DNS table */
+    @MetaInfo(unit = "s", description = "DNS time-out in seconds after which an unresponsive client is dropped from the DNS table\nN.B. if registered, a heart-beat challenge will be send that needs to be replied with a READY command")
+    public static final Integer DNS_TIMEOUT = 10;
+    /** after n1 failed attempts the retry-'heartBeat interval is increased  10-fold */
+    @MetaInfo(unit = "n1", description = "after <n1> failed attempts the retry-'heartBeat interval is increased  10-fold")
+    public static final Integer RECONNECT_THRESHOLD1 = 3;
+    /** after n2 failed attempts the retry-'heartBeat interval is increased 100-fold */
+    @MetaInfo(unit = "n2", description = "after <n2> failed attempts the retry-'heartBeat interval is increased 100-fold")
+    public static final Integer RECONNECT_THRESHOLD2 = 6;
 
-    private OpenCmwConstants() {
-        // this is a utility class
+    static { // init properties with default values given in the description text above
+        init();
+    }
+
+    public static void init() {
+        SystemProperties.addCommandOptions(OpenCmwConstants.class);
     }
 
     public static String getDeviceName(final @NotNull URI endpoint) {
@@ -139,14 +169,12 @@ public final class OpenCmwConstants {
     }
 
     public static void setDefaultSocketParameters(final @NotNull ZMQ.Socket socket) {
-        final int heartBeatInterval = (int) SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT);
-        final int liveness = SystemProperties.getValueIgnoreCase(HEARTBEAT_LIVENESS, HEARTBEAT_LIVENESS_DEFAULT);
-        socket.setHWM(SystemProperties.getValueIgnoreCase(HIGH_WATER_MARK, HIGH_WATER_MARK_DEFAULT));
+        socket.setHWM(HIGH_WATER_MARK);
         socket.setHeartbeatContext(PROT_CLIENT.getData());
-        socket.setHeartbeatTtl(heartBeatInterval * liveness);
-        socket.setHeartbeatTimeout(heartBeatInterval * liveness);
-        socket.setHeartbeatIvl(heartBeatInterval);
-        socket.setLinger(heartBeatInterval);
+        socket.setHeartbeatTtl(HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS);
+        socket.setHeartbeatTimeout(HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS);
+        socket.setHeartbeatIvl(HEARTBEAT_INTERVAL);
+        socket.setLinger(HEARTBEAT_INTERVAL);
     }
 
     public static URI stripPathTrailingSlash(final @NotNull URI address) {

@@ -28,7 +28,6 @@ import org.zeromq.ZContext;
 
 import io.opencmw.OpenCmwConstants;
 import io.opencmw.domain.BinaryData;
-import io.opencmw.utils.SystemProperties;
 
 public class OpenCmwDnsResolver implements DnsResolver, AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(OpenCmwDnsResolver.class);
@@ -60,12 +59,11 @@ public class OpenCmwDnsResolver implements DnsResolver, AutoCloseable {
 
     @Override
     public Map<URI, List<URI>> resolveNames(final List<URI> devicesToResolve) throws UnknownHostException {
-        final int liveness = SystemProperties.getValueIgnoreCase(OpenCmwConstants.HEARTBEAT_LIVENESS, OpenCmwConstants.HEARTBEAT_LIVENESS_DEFAULT);
         try (DataSourcePublisher.Client client = dataSource.getClient()) {
             final String query = devicesToResolve.stream().map(URI::toString).collect(Collectors.joining(","));
             final URI queryURI = URI.create(dnsServer + "/mmi.dns?" + query);
             final Future<BinaryData> reply4 = client.get(queryURI, null, BinaryData.class);
-            for (int attempt = 0; attempt < liveness; attempt++) {
+            for (int attempt = 0; attempt < OpenCmwConstants.HEARTBEAT_LIVENESS; attempt++) {
                 try {
                     return parseDnsReply(Objects.requireNonNull(reply4.get(timeOut.toMillis(), TimeUnit.MILLISECONDS).data, "reply data is null"));
                 } catch (InterruptedException | ExecutionException | TimeoutException | NullPointerException e) { // NOPMD NOSONAR - fail only after three attempts
@@ -74,7 +72,7 @@ public class OpenCmwDnsResolver implements DnsResolver, AutoCloseable {
                 }
             }
         }
-        throw new UnknownHostException("cannot resolve URI - dnsServer: " + dnsServer + " (timeout reached: " + (timeOut.toMillis() * liveness) + " ms) - URI list: " + devicesToResolve);
+        throw new UnknownHostException("cannot resolve URI - dnsServer: " + dnsServer + " (timeout reached: " + (timeOut.toMillis() * OpenCmwConstants.HEARTBEAT_LIVENESS) + " ms) - URI list: " + devicesToResolve);
     }
 
     @Override

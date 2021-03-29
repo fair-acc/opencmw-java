@@ -5,8 +5,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.zeromq.ZMonitor.Event;
 
 import static io.opencmw.OpenCmwConstants.*;
-import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.Command.*;
+import static io.opencmw.OpenCmwProtocol.*;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
@@ -42,7 +42,6 @@ import io.opencmw.filter.SubscriptionMatcher;
 import io.opencmw.serialiser.IoSerialiser;
 import io.opencmw.serialiser.spi.BinarySerialiser;
 import io.opencmw.utils.NoDuplicatesList;
-import io.opencmw.utils.SystemProperties;
 
 /**
  * Client implementation for the OpenCMW protocol.
@@ -145,10 +144,8 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         socketMonitor.add(Event.CLOSED, Event.CONNECTED, Event.DISCONNECTED);
         socketMonitor.start();
 
-        final long basicHeartBeat = SystemProperties.getValueIgnoreCase(HEARTBEAT, HEARTBEAT_DEFAULT);
-        final long clientTimeOut = SystemProperties.getValueIgnoreCase(CLIENT_TIMEOUT, CLIENT_TIMEOUT_DEFAULT); // [s] N.B. '0' means disabled
         // take the minimum of the (albeit worker) heartbeat, client (if defined) or locally prescribed timeout
-        heartbeatInterval = clientTimeOut == 0 ? Math.min(basicHeartBeat, timeout.toMillis()) : Math.min(Math.min(basicHeartBeat, timeout.toMillis()), TimeUnit.SECONDS.toMicros(clientTimeOut));
+        heartbeatInterval = CLIENT_TIMEOUT == 0 ? Math.min(HEARTBEAT_INTERVAL, timeout.toMillis()) : Math.min(Math.min(HEARTBEAT_INTERVAL, timeout.toMillis()), TimeUnit.SECONDS.toMicros(CLIENT_TIMEOUT));
 
         nextReconnectAttemptTimeStamp = System.currentTimeMillis() + timeout.toMillis();
         final URI reply = connect();
@@ -266,9 +263,9 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
                 dnsWorkerResult.cancel(true);
             }
             dnsWorkerResult = executorService.submit(this::reconnect); // <--- actual reconnect
-            if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD1, DEFAULT_RECONNECT_THRESHOLD1)) {
+            if (reconnectAttempt.getAndIncrement() < RECONNECT_THRESHOLD1) {
                 nextReconnectAttemptTimeStamp = now + timeout.toMillis();
-            } else if (reconnectAttempt.getAndIncrement() < SystemProperties.getValueIgnoreCase(RECONNECT_THRESHOLD2, DEFAULT_RECONNECT_THRESHOLD2)) {
+            } else if (reconnectAttempt.getAndIncrement() < RECONNECT_THRESHOLD2) {
                 nextReconnectAttemptTimeStamp = now + 10 * timeout.toMillis();
             } else {
                 nextReconnectAttemptTimeStamp = now + 100 * timeout.toMillis();

@@ -1,5 +1,6 @@
 package io.opencmw.server.rest;
 
+import static io.opencmw.OpenCmwConstants.HEARTBEAT_LIVENESS;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static io.javalin.apibuilder.ApiBuilder.get;
@@ -309,7 +310,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                         final MdpMessage brokerMsg = receive(subSocket, false);
                         if (brokerMsg != null) {
                             dataReceived = true;
-                            liveness = heartBeatLiveness;
+                            liveness = HEARTBEAT_LIVENESS;
 
                             // handle subscription message
                             if (brokerMsg.data != null && brokerMsg.getServiceName().startsWith(INTERNAL_SERVICE_NAMES)) {

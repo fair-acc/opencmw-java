@@ -1,5 +1,6 @@
 package io.opencmw.server;
 
+import static io.opencmw.OpenCmwConstants.HEARTBEAT_INTERVAL;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static org.awaitility.Awaitility.await;
@@ -100,7 +101,7 @@ class BasicMdpWorkerTest {
         assertTrue(worker.notifyRaw(msg)); // is unfiltered: no subscription -> true
 
         // wait for five heartbeats -> checks poller, heartbeat and reconnect features (to some extend)
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(5L * worker.heartBeatInterval));
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(5L * HEARTBEAT_INTERVAL));
 
         new Thread(() -> {
             run.set(true);
