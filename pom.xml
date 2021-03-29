@@ -35,7 +35,7 @@
         <version.javalin>3.13.4</version.javalin>
         <version.jetty>9.4.35.v20201120</version.jetty> <!-- N.B. needs to be synchronised/tested with Javalin version -->
         <version.jsoniter>0.9.23</version.jsoniter>
-        <version.fastutil>8.5.2</version.fastutil>
+        <version.fastutil>8.5.4</version.fastutil>
         <version.javassist>3.27.0-GA</version.javassist>
         <version.okHttp3>4.9.1</version.okHttp3>
         <version.commons-lang3>3.12.0</version.commons-lang3>
