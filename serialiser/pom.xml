@@ -26,7 +26,7 @@
         <!-- serialiser dependencies -->
         <dependency> <!-- somehow needed for running the tests. -->
             <groupId>it.unimi.dsi</groupId>
-            <artifactId>fastutil</artifactId>
+            <artifactId>fastutil-core</artifactId>
             <version>${version.fastutil}</version>
         </dependency>
         <dependency>

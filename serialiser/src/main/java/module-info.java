@@ -3,8 +3,8 @@ module io.opencmw.serialiser {
     requires org.slf4j;
     requires jsoniter;
     requires jdk.unsupported;
-    requires it.unimi.dsi.fastutil;
     requires org.jetbrains.annotations;
+    requires it.unimi.dsi.fastutil.core;
 
     exports io.opencmw.serialiser;
     exports io.opencmw.serialiser.annotations;
