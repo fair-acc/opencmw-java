@@ -31,6 +31,7 @@ import io.opencmw.OpenCmwConstants;
 import io.opencmw.domain.BinaryData;
 import io.opencmw.domain.NoData;
 import io.opencmw.rbac.BasicRbacRole;
+import io.opencmw.serialiser.spi.Field;
 import io.opencmw.server.MajordomoBroker;
 import io.opencmw.server.MajordomoWorker;
 
@@ -145,9 +146,6 @@ class DnsDataSourceTests {
 
     @Test
     void testWithWorkerStartStopping() throws IOException {
-        DataSource.getFactory(URI.create("mdp:/mmi.dns")).registerDnsResolver(new OpenCmwDnsResolver(dnsBrokerAddress));
-        System.setProperty(OpenCmwConstants.RECONNECT_THRESHOLD1, "10000"); // to reduce waiting time for reconnects
-        System.setProperty(OpenCmwConstants.RECONNECT_THRESHOLD2, "1000"); // to reduce waiting time for reconnects
 
         try (DataSourcePublisher dataSource = new DataSourcePublisher(null, null, "test-client");
                 DataSourcePublisher.Client client = dataSource.getClient()) {
@@ -201,7 +199,7 @@ class DnsDataSourceTests {
     @BeforeAll
     @Timeout(10)
     static void init() throws IOException {
-        System.setProperty(OpenCmwConstants.HEARTBEAT, "100"); // to reduce waiting time for changes
+        Field.getField(OpenCmwConstants.class, "HEARTBEAT_INTERVAL").setInt(null, 100); // to reduce waiting time for changes
         dnsBroker = getTestBroker("dnsBroker", "deviceA/property", null);
         dnsBrokerAddress = dnsBroker.bind(URI.create("mdp://*:" + Utils.findOpenPort()));
         openCmwResolver = new OpenCmwDnsResolver(dnsBroker.getContext(), dnsBrokerAddress, Duration.ofMillis(TIMEOUT));
@@ -250,7 +248,7 @@ class DnsDataSourceTests {
                 try {
                     worker.notify(noData, domainData);
                 } catch (Exception e) { // NOPMD
-                    fail("exception in notify");
+                    fail("exception in notify"); // NOSONAR this additional assertion is important because it is tracked
                 }
             }
         }, 0, 100);
