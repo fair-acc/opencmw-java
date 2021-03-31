@@ -6,8 +6,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,8 +23,6 @@ import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.serialiser.annotations.Unit;
 import io.opencmw.serialiser.utils.ClassUtils;
 
-import sun.misc.Unsafe; // NOPMD NOSONAR - there is nothing more suitable under the Sun
-
 /**
  * @author rstein
  */
@@ -30,7 +30,7 @@ import sun.misc.Unsafe; // NOPMD NOSONAR - there is nothing more suitable under 
 public class ClassFieldDescription implements FieldDescription {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClassFieldDescription.class);
     private final int hierarchyDepth;
-    private final FieldAccess fieldAccess;
+    private final Field field;
     private final String fieldName;
     private final int fieldNameHashCode;
     private final String fieldNameRelative;
@@ -100,15 +100,7 @@ public class ClassFieldDescription implements FieldDescription {
         this.parent = parent;
 
         if (referenceClass == null) {
-            if (field == null) {
-                throw new IllegalArgumentException("field must not be null");
-            }
-            try {
-                fieldAccess = new FieldAccess(field);
-            } catch (final Exception e) { //NOPMD NOSONAR
-                LOGGER.atError().addArgument(field.getName()).addArgument(parent).log("error initialising field '{}' (parent: {})");
-                throw e;
-            }
+            this.field = Objects.requireNonNull(field, "field must not be null");
             classType = field.getType();
             fieldNameHashCode = field.getName().hashCode();
             fieldName = field.getName().intern();
@@ -117,7 +109,7 @@ public class ClassFieldDescription implements FieldDescription {
             modifierID = field.getModifiers();
             dataType = DataType.fromClassType(classType);
         } else {
-            fieldAccess = null; // it's a root, no field definition available
+            this.field = null; // NOPMD it's a root, no field definition available
             classType = referenceClass;
             fieldNameHashCode = classType.getName().hashCode();
             fieldName = classType.getName().intern();
@@ -175,17 +167,8 @@ public class ClassFieldDescription implements FieldDescription {
      * @param fullScan {@code true} if the class field should be serialised according to {@link java.io.Serializable}
      *        (ie. object's non-static and non-transient fields); {@code false} otherwise.
      */
-    public ClassFieldDescription(final Field field, final ClassFieldDescription parent, final int recursionLevel,
-            final boolean fullScan) {
+    public ClassFieldDescription(@NotNull final Field field, final ClassFieldDescription parent, final int recursionLevel, final boolean fullScan) {
         this(null, field, parent, recursionLevel);
-        if (field == null) {
-            throw new IllegalArgumentException("field must not be null");
-        }
-
-        if (serializable) {
-            // enable access by default (saves performance later on)
-            field.setAccessible(true); // NOSONAR NOPMD
-        }
 
         // add child to parent if it serializable or if a full scan is requested
         if (this.parent != null && (serializable || fullScan)) {
@@ -242,6 +225,7 @@ public class ClassFieldDescription implements FieldDescription {
     public FieldDescription findChildField(final int fieldNameHashCode, final String fieldName) {
         for (final FieldDescription child : children) {
             final String name = child.getFieldName();
+            //noinspection StringEquality
             if (name == fieldName) { //NOSONAR NOPMD early return if the same String object reference
                 return child;
             }
@@ -270,7 +254,7 @@ public class ClassFieldDescription implements FieldDescription {
     public List<Type> getActualTypeArguments() {
         if (genericTypeList == null) {
             genericTypeList = new ArrayList<>();
-            if ((fieldAccess == null) || (getGenericType() == null) || !(getGenericType() instanceof ParameterizedType)) {
+            if ((field == null) || (getGenericType() == null) || !(getGenericType() instanceof ParameterizedType)) {
                 return genericTypeList;
             }
             genericTypeList.addAll(Arrays.asList(((ParameterizedType) getGenericType()).getActualTypeArguments()));
@@ -311,10 +295,17 @@ public class ClassFieldDescription implements FieldDescription {
     }
 
     /**
+     * @return possible Enum definitions, see also 'isEnum()'
+     */
+    public List<?> getEnumConstants() {
+        return enumDefinitions;
+    }
+
+    /**
      * @return the underlying Field type or {@code null} if it's a root node
      */
-    public FieldAccess getField() {
-        return fieldAccess;
+    public Field getField() {
+        return field;
     }
 
     @Override
@@ -401,12 +392,12 @@ public class ClassFieldDescription implements FieldDescription {
 
     public Type getGenericType() {
         if (genericType == null) {
-            genericType = fieldAccess == null ? new Type() {
+            genericType = field == null ? new Type() {
                 @Override
                 public String getTypeName() {
                     return "unknown type";
                 }
-            } : fieldAccess.field.getGenericType();
+            } : field.getGenericType();
         }
         return genericType;
     }
@@ -512,13 +503,6 @@ public class ClassFieldDescription implements FieldDescription {
      */
     public boolean isEnum() {
         return isEnumType;
-    }
-
-    /**
-     * @return possible Enum definitions, see also 'isEnum()'
-     */
-    public List<?> getEnumConstants() {
-        return enumDefinitions;
     }
 
     /**
@@ -656,11 +640,11 @@ public class ClassFieldDescription implements FieldDescription {
         }
 
         // loop over member fields and inner classes
-        for (final Field pfield : classType.getDeclaredFields()) {
+        Arrays.stream(classType.getDeclaredFields()).map(Field::new).forEach(pfield -> {
             final FieldDescription localParent = parent.getParent();
             if ((localParent != null && pfield.getType().equals(localParent.getType()) && recursionLevel >= ClassUtils.getMaxRecursionDepth()) || pfield.getName().startsWith("this$")) {
                 // inner classes contain parent as part of declared fields
-                continue;
+                return;
             }
             final ClassFieldDescription field = new ClassFieldDescription(pfield, parent, recursionLevel + 1, fullScan); // NOPMD
             // N.B. unavoidable in-loop object generation
@@ -673,7 +657,7 @@ public class ClassFieldDescription implements FieldDescription {
                 // object is a (technically) Serializable, unknown (ie 'OTHER) compound object or interface than can be further parsed
                 exploreClass(ClassUtils.getRawType(field.getType()), field, recursionLevel + 1, fullScan);
             }
-        }
+        });
     }
 
     protected static void printClassStructure(final ClassFieldDescription field, final boolean fullView, final int recursionLevel) {
@@ -757,104 +741,5 @@ public class ClassFieldDescription implements FieldDescription {
 
     private static String spaces(final int spaces) {
         return CharBuffer.allocate(spaces).toString().replace('\0', ' ');
-    }
-
-    public static class FieldAccess {
-        private static final Unsafe unsafe; // NOPMD
-
-        static {
-            // get an instance of the otherwise private 'Unsafe' class
-            try {
-                final Field field = Unsafe.class.getDeclaredField("theUnsafe");
-                field.setAccessible(true); // NOSONAR NOPMD
-                unsafe = (Unsafe) field.get(null);
-            } catch (NoSuchFieldException | SecurityException | IllegalAccessException e) { // NOPMD
-                throw new SecurityException(e); // NOPMD
-            }
-        }
-
-        private final Field field;
-        private final long fieldByteOffset;
-
-        private FieldAccess(final Field field) {
-            this.field = field;
-            field.setAccessible(true); //NOSONAR
-
-            long offset = -1;
-            try {
-                offset = unsafe.objectFieldOffset(field);
-            } catch (IllegalArgumentException e) {
-                // fails for private static final fields
-            }
-            this.fieldByteOffset = offset;
-        }
-
-        public Object get(final Object classReference) {
-            return unsafe.getObject(classReference, fieldByteOffset);
-        }
-
-        public boolean getBoolean(final Object classReference) {
-            return unsafe.getBoolean(classReference, fieldByteOffset);
-        }
-
-        public byte getByte(final Object classReference) {
-            return unsafe.getByte(classReference, fieldByteOffset);
-        }
-
-        public char getChar(final Object classReference) {
-            return unsafe.getChar(classReference, fieldByteOffset);
-        }
-
-        public double getDouble(final Object classReference) {
-            return unsafe.getDouble(classReference, fieldByteOffset);
-        }
-
-        public Field getField() {
-            return field;
-        }
-        public float getFloat(final Object classReference) {
-            return unsafe.getFloat(classReference, fieldByteOffset);
-        }
-        public int getInt(final Object classReference) {
-            return unsafe.getInt(classReference, fieldByteOffset);
-        }
-        public long getLong(final Object classReference) {
-            return unsafe.getLong(classReference, fieldByteOffset);
-        }
-        public short getShort(final Object classReference) { // NOPMD
-            return unsafe.getShort(classReference, fieldByteOffset);
-        }
-        public void set(final Object classReference, final Object obj) {
-            unsafe.putObject(classReference, fieldByteOffset, obj);
-        }
-        public void setBoolean(final Object classReference, final boolean value) {
-            unsafe.putBoolean(classReference, fieldByteOffset, value);
-        }
-        public void setByte(final Object classReference, final byte value) {
-            unsafe.putByte(classReference, fieldByteOffset, value);
-        }
-        public void setChar(final Object classReference, final char value) {
-            unsafe.putChar(classReference, fieldByteOffset, value);
-        }
-
-        public void setDouble(final Object classReference, final double value) {
-            unsafe.putDouble(classReference, fieldByteOffset, value);
-        }
-
-        public void setFloat(final Object classReference, final float value) {
-            unsafe.putFloat(classReference, fieldByteOffset, value);
-        }
-
-        public void setInt(final Object classReference, final int value) {
-            unsafe.putInt(classReference, fieldByteOffset, value);
-        }
-
-        public void setLong(final Object classReference, final long value) {
-            unsafe.putLong(classReference, fieldByteOffset, value);
-        }
-
-        public void setShort(final Object classReference, final short value) { // NOPMD
-            unsafe.putShort(classReference, fieldByteOffset, value);
-        }
     }
 }
