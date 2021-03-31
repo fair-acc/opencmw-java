@@ -26,10 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.Logger;
@@ -162,6 +159,7 @@ class MajordomoWorkerTests {
     }
 
     @BeforeAll
+    @Timeout(10)
     void startBroker() throws IOException {
         broker = new MajordomoBroker("TestBroker", null, BasicRbacRole.values());
         // broker.setDaemon(true); // use this if running in another app that controls threads
@@ -174,6 +172,7 @@ class MajordomoWorkerTests {
     }
 
     @AfterAll
+    @Timeout(10)
     void stopBroker() {
         broker.stopBroker();
     }

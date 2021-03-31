@@ -1,2 +1,6 @@
+coverage:
+  status:
+    default:
+      threshold: 0.15 # allow the overall coverage to decrease by 0.15 so that PRs only touching few code lines will not fail because of the noise
 ignore:
   - "*/src/test/**/*"
