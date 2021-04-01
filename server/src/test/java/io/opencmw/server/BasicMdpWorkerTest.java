@@ -1,6 +1,5 @@
 package io.opencmw.server;
 
-import static io.opencmw.OpenCmwConstants.HEARTBEAT_INTERVAL;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static org.awaitility.Awaitility.await;
@@ -8,6 +7,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 
+import static io.opencmw.OpenCmwConstants.HEARTBEAT_INTERVAL;
 import static io.opencmw.OpenCmwProtocol.Command.W_NOTIFY;
 import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
