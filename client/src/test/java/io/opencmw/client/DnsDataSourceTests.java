@@ -146,7 +146,6 @@ class DnsDataSourceTests {
 
     @Test
     void testWithWorkerStartStopping() throws IOException {
-
         try (DataSourcePublisher dataSource = new DataSourcePublisher(null, null, "test-client");
                 DataSourcePublisher.Client client = dataSource.getClient()) {
             AtomicInteger notificationCounterA = new AtomicInteger();
