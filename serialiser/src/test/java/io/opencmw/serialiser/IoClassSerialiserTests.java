@@ -441,13 +441,12 @@ class IoClassSerialiserTests {
 
         @Override
         public boolean equals(final Object o) {
-            if (this == o) return true;
-            if (!(o instanceof NestedClass)) return false;
+            if (this == o)
+                return true;
+            if (!(o instanceof NestedClass))
+                return false;
             final NestedClass that = (NestedClass) o;
-            return i == that.i &&
-                    Objects.equals(class1, that.class1) &&
-                    Objects.equals(class2, that.class2) &&
-                    Objects.equals(class3, that.class3);
+            return i == that.i && Objects.equals(class1, that.class1) && Objects.equals(class2, that.class2) && Objects.equals(class3, that.class3);
         }
 
         @Override
@@ -457,12 +456,8 @@ class IoClassSerialiserTests {
 
         @Override
         public String toString() {
-            return "NestedClass{" +
-                    "class1=" + class1 +
-                    ", class2=" + class2 +
-                    ", class3=" + class3 +
-                    ", i=" + i +
-                    '}';
+            return "NestedClass{"
+          + "class1=" + class1 + ", class2=" + class2 + ", class3=" + class3 + ", i=" + i + '}';
         }
 
         public class NonStaticInnerClass {
@@ -477,13 +472,16 @@ class IoClassSerialiserTests {
 
             @Override
             public String toString() {
-                return "NonStaticInnerClass{" + "j=" + j + ", parent:i=" + i + '}'; // include parent so class cannot become static
+                return "NonStaticInnerClass{"
+              + "j=" + j + ", parent:i=" + i + '}'; // include parent so class cannot become static
             }
 
             @Override
             public boolean equals(final Object o) {
-                if (this == o) return true;
-                if (!(o instanceof NonStaticInnerClass)) return false;
+                if (this == o)
+                    return true;
+                if (!(o instanceof NonStaticInnerClass))
+                    return false;
                 final NonStaticInnerClass that = (NonStaticInnerClass) o;
                 return j == that.j;
             }
