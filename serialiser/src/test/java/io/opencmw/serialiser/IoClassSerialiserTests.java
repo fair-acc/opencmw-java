@@ -16,6 +16,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -142,6 +143,26 @@ class IoClassSerialiserTests {
         assertEquals(sourceClass, returnObject);
         // TODO: future upgrade that this tests also passes:
         // assertEquals(sourceClass, destinationClass)
+    }
+
+    @Test
+    void testNestedClass() {
+        final NestedClass classUnderTest = new NestedClass(
+                new CustomClass(1.337, 42, "pi equals exactly three!"),
+                new CustomClass2(1.337, 23, "pi equals exactly three!"),
+                1337, 1);
+        final NestedClass classAfterTest = new NestedClass();
+
+        IoClassSerialiser serialiser = new IoClassSerialiser(new FastByteBuffer(2 * BUFFER_SIZE), BinarySerialiser.class);
+        serialiser.serialiseObject(classUnderTest);
+        final byte[] bytes = serialiser.getDataBuffer().elements();
+
+        final IoClassSerialiser deserialiser = new IoClassSerialiser(new FastByteBuffer(0));
+        deserialiser.setDataBuffer(FastByteBuffer.wrap(bytes));
+        final Object returnedClass = deserialiser.deserialiseObject(classAfterTest);
+
+        assertSame(classAfterTest, returnedClass); // deserialisation should be in place
+        assertEquals(classUnderTest, classAfterTest);
     }
 
     @ParameterizedTest(name = "IoBuffer class - {0}")
@@ -298,7 +319,7 @@ class IoClassSerialiserTests {
         assertEquals(sourceClass.uriAddress, destinationClass.uriAddress);
     }
 
-    static class CustomClass {
+    public static class CustomClass {
         public double testDouble;
         public int testInt;
         public String testString;
@@ -375,7 +396,7 @@ class IoClassSerialiserTests {
     /**
      * small test class to test (de-)serialisation of wrapped and/or compound object types
      */
-    static class TestClass {
+    public static class TestClass {
         public Integer integerBoxed;
 
         public List<Integer> integerList;
@@ -400,5 +421,77 @@ class IoClassSerialiserTests {
         public MultiArrayBoolean multiArrayBoolean;
         public MultiArrayObject<String> multiArrayString;
         public URI uriAddress;
+    }
+
+    public static class NestedClass {
+        public CustomClass class1;
+        public CustomClass2 class2;
+        public NonStaticInnerClass class3;
+        public int i;
+
+        public NestedClass(final CustomClass class1, final CustomClass2 class2, final int j, final int i) {
+            this.class1 = class1;
+            this.class2 = class2;
+            this.class3 = new NonStaticInnerClass(j);
+            this.i = i;
+        }
+
+        public NestedClass() {
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (!(o instanceof NestedClass)) return false;
+            final NestedClass that = (NestedClass) o;
+            return i == that.i &&
+                    Objects.equals(class1, that.class1) &&
+                    Objects.equals(class2, that.class2) &&
+                    Objects.equals(class3, that.class3);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(class1, class2, class3, i);
+        }
+
+        @Override
+        public String toString() {
+            return "NestedClass{" +
+                    "class1=" + class1 +
+                    ", class2=" + class2 +
+                    ", class3=" + class3 +
+                    ", i=" + i +
+                    '}';
+        }
+
+        public class NonStaticInnerClass {
+            public int j;
+
+            public NonStaticInnerClass() {
+            }
+
+            public NonStaticInnerClass(final int j) {
+                this.j = j;
+            }
+
+            @Override
+            public String toString() {
+                return "NonStaticInnerClass{" + "j=" + j + ", parent:i=" + i + '}'; // include parent so class cannot become static
+            }
+
+            @Override
+            public boolean equals(final Object o) {
+                if (this == o) return true;
+                if (!(o instanceof NonStaticInnerClass)) return false;
+                final NonStaticInnerClass that = (NonStaticInnerClass) o;
+                return j == that.j;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(j);
+            }
+        }
     }
 }

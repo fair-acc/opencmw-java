@@ -196,13 +196,12 @@ public class ClassFieldDescription implements FieldDescription {
     public Object allocateMemberClassField(final Object fieldParent) {
         try {
             // need to allocate new class object
-            Class<?> fieldParentClass = ClassUtils.getRawType(getParent(this, 1).getType());
             final Object newFieldObj;
-            if (fieldParentClass.getDeclaringClass() == null) {
-                final Constructor<?> constr = fieldParentClass.getDeclaredConstructor();
+            if (this.classType.getDeclaringClass() == null || Modifier.isStatic(this.classType.getModifiers())) {
+                final Constructor<?> constr = this.classType.getDeclaredConstructor();
                 newFieldObj = constr.newInstance();
             } else {
-                final Constructor<?> constr = fieldParentClass.getDeclaredConstructor(fieldParent.getClass());
+                final Constructor<?> constr = this.classType.getDeclaredConstructor(fieldParent.getClass());
                 newFieldObj = constr.newInstance(fieldParent);
             }
             this.getField().set(fieldParent, newFieldObj);
