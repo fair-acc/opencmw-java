@@ -1,5 +1,5 @@
 module io.opencmw.client {
-    requires disruptor;
+    requires com.lmax.disruptor;
     requires io.opencmw;
     requires io.opencmw.serialiser;
     requires it.unimi.dsi.fastutil.core;
