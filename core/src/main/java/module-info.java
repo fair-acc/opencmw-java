@@ -1,7 +1,7 @@
 open module io.opencmw {
     uses io.opencmw.utils.Settings;
     requires com.google.auto.service;
-    requires disruptor;
+    requires com.lmax.disruptor;
     requires org.slf4j;
     requires jeromq;
     requires io.opencmw.serialiser;
