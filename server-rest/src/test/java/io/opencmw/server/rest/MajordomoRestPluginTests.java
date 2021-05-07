@@ -14,7 +14,9 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -66,6 +68,8 @@ class MajordomoRestPluginTests {
     private static MajordomoBroker secondaryBroker;
     private static URI secondaryBrokerRouterAddress;
     private static OkHttpClient okHttp;
+    private static HelloWorldService helloWorldService;
+    private static ImageService imageService;
 
     @BeforeAll
     @Timeout(10)
@@ -83,9 +87,9 @@ class MajordomoRestPluginTests {
         LOGGER.atInfo().log("Broker and REST plugin started");
 
         // start simple test services/properties
-        final HelloWorldService helloWorldService = new HelloWorldService(primaryBroker.getContext());
+        helloWorldService = new HelloWorldService(primaryBroker.getContext());
         helloWorldService.start();
-        final ImageService imageService = new ImageService(primaryBroker.getContext(), 100);
+        imageService = new ImageService(primaryBroker.getContext(), 100);
         imageService.start();
 
         // TODO: add OpenCMW client requesting binary and json models
@@ -108,8 +112,22 @@ class MajordomoRestPluginTests {
     @AfterAll
     @Timeout(10)
     static void finish() {
+        helloWorldService.stopWorker();
+        imageService.stopWorker();
         secondaryBroker.stopBroker();
         primaryBroker.stopBroker();
+        final AtomicBoolean isShutdown = new AtomicBoolean(false);
+        RestServer.getInstance().events(event -> event.serverStopped(() -> isShutdown.set(true)));
+        RestServer.getInstance().stop();
+        Field.getField(RestServerSettings.class, "DEFAULT_PORT").setInt(null, 8080);
+        Field.getField(RestServerSettings.class, "DEFAULT_PORT2").setInt(null, 8443);
+
+        while (!isShutdown.get()) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
+        }
+        if (isShutdown.get()) {
+            LOGGER.atDebug().log("shut-down Javalin properly");
+        }
     }
 
     @ParameterizedTest

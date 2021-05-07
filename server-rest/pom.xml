@@ -74,6 +74,23 @@
             <artifactId>jetty-alpn-conscrypt-server</artifactId>
             <version>${version.jetty}</version>
         </dependency>
+        <!-- bump jetty version due to CVE issue -->
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-server</artifactId>
+            <version>${version.jetty}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-webapp</artifactId>
+            <version>${version.jetty}</version>
+        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.eclipse.jetty.websocket</groupId>-->
+<!--            <artifactId>websocket-server</artifactId>-->
+<!--            <version>${version.jetty}</version>-->
+<!--        </dependency>-->
+
 
         <!-- HTTP template engine-->
         <dependency>

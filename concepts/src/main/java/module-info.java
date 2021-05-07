@@ -1,6 +1,6 @@
 module io.opencmw.concepts {
     requires org.slf4j;
-    requires disruptor;
+    requires com.lmax.disruptor;
     requires jeromq;
     requires java.management;
     requires io.opencmw;
