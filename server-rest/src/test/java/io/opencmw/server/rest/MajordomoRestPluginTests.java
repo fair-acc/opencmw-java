@@ -21,7 +21,6 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
-import io.opencmw.serialiser.spi.Field;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -38,6 +37,7 @@ import io.opencmw.MimeType;
 import io.opencmw.domain.BinaryData;
 import io.opencmw.domain.NoData;
 import io.opencmw.rbac.BasicRbacRole;
+import io.opencmw.serialiser.spi.Field;
 import io.opencmw.server.MajordomoBroker;
 import io.opencmw.server.MajordomoWorker;
 import io.opencmw.server.rest.test.HelloWorldService;
@@ -71,8 +71,8 @@ class MajordomoRestPluginTests {
     @Timeout(10)
     static void init() throws IOException {
         assertEquals(8080, RestServerSettings.DEFAULT_PORT); // this assert is important for the following lines to have effect
-        Field.getField(RestServerSettings.class, "DEFAULT_PORT").setInt(null,8099);
-        Field.getField(RestServerSettings.class, "DEFAULT_PORT2").setInt(null,8499);
+        Field.getField(RestServerSettings.class, "DEFAULT_PORT").setInt(null, 8099);
+        Field.getField(RestServerSettings.class, "DEFAULT_PORT2").setInt(null, 8499);
         okHttp = getUnsafeOkHttpClient(); // N.B. ignore SSL certificates
         primaryBroker = new MajordomoBroker(PRIMARY_BROKER, null, BasicRbacRole.values());
         brokerRouterAddress = primaryBroker.bind(URI.create("mdp://localhost:" + Utils.findOpenPort()));

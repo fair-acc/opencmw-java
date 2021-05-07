@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import io.opencmw.server.rest.RestServerSettings;
 import org.jetbrains.annotations.NotNull;
 import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
@@ -23,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.server.rest.RestServer;
+import io.opencmw.server.rest.RestServerSettings;
 
 public class RestUserHandlerImpl implements RestUserHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(RestUserHandlerImpl.class);
@@ -96,7 +96,7 @@ public class RestUserHandlerImpl implements RestUserHandler {
         }
         synchronized (usersLock) {
             try (BufferedReader br = (REST_USER_PASSWORD_FILE == null ? new BufferedReader(new InputStreamReader(RestServer.class.getResourceAsStream("/DefaultRestUserPasswords.pwd"), StandardCharsets.UTF_8)) //
-                                                                     : Files.newBufferedReader(Paths.get(new File(REST_USER_PASSWORD_FILE).getPath()), StandardCharsets.UTF_8))) {
+                                                                      : Files.newBufferedReader(Paths.get(new File(REST_USER_PASSWORD_FILE).getPath()), StandardCharsets.UTF_8))) {
                 final List<RestUser> newUserList = new ArrayList<>(10);
                 String userLine;
                 int lineCount = 0;

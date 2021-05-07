@@ -376,7 +376,7 @@ public final class RestServer { // NOPMD -- nomen est omen
 
         // read keyStore password
         try (BufferedReader br = RestServerSettings.REST_KEY_STORE_PASSWORD.isBlank() ? new BufferedReader(new InputStreamReader(RestServer.class.getResourceAsStream("/keystore.pwd"), UTF_8)) //
-                                                         : Files.newBufferedReader(Paths.get(RestServerSettings.REST_KEY_STORE_PASSWORD), UTF_8)) {
+                                                                                      : Files.newBufferedReader(Paths.get(RestServerSettings.REST_KEY_STORE_PASSWORD), UTF_8)) {
             keyStorePwd = br.readLine();
         } catch (final IOException e) {
             readComplete = false;
@@ -386,7 +386,7 @@ public final class RestServer { // NOPMD -- nomen est omen
         if (readComplete && keyStorePwd != null) {
             // read the actual keyStore
             try (InputStream is = RestServerSettings.REST_KEY_STORE.isBlank() ? RestServer.class.getResourceAsStream("/keystore.jks") //
-                                                       : Files.newInputStream(Paths.get(RestServerSettings.REST_KEY_STORE))) {
+                                                                              : Files.newInputStream(Paths.get(RestServerSettings.REST_KEY_STORE))) {
                 keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keyStore.load(is, keyStorePwd.toCharArray());
             } catch (final NoSuchAlgorithmException | CertificateException | KeyStoreException | IOException e) {

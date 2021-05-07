@@ -1,8 +1,9 @@
 package io.opencmw.server.rest;
 
-import com.google.auto.service.AutoService;
 import io.opencmw.serialiser.annotations.MetaInfo;
 import io.opencmw.utils.Settings;
+
+import com.google.auto.service.AutoService;
 
 @AutoService(Settings.class)
 public class RestServerSettings implements Settings {
