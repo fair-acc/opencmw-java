@@ -92,23 +92,14 @@ import com.jsoniter.output.JsonStream;
  */
 @SuppressWarnings("PMD.ExcessiveImports")
 public final class RestServer { // NOPMD -- nomen est omen
-    public static final String TAG_REST_SERVER_HOST_NAME = "restServerHostName";
-    public static final String TAG_REST_SERVER_PORT = "restServerPort";
-    public static final String TAG_REST_SERVER_PORT2 = "restServerPort2";
-    public static final String REST_KEY_STORE = "restKeyStore";
-    public static final String REST_KEY_STORE_PASSWORD = "restKeyStorePassword";
+    private static final Logger LOGGER = LoggerFactory.getLogger(RestServer.class);
     // some HTML constants
     public static final String HTML_ACCEPT = "accept";
-    private static final Logger LOGGER = LoggerFactory.getLogger(RestServer.class);
-    private static final String DEFAULT_HOST_NAME = "0";
-    private static final int DEFAULT_PORT = 8080;
-    private static final int DEFAULT_PORT2 = 8443;
     private static final String REST_PROTOCOL = "protocol";
-
-    private static final String TEMPLATE_UNAUTHORISED = "/velocity/errors/unauthorised.vm";
-    private static final String TEMPLATE_ACCESS_DENIED = "/velocity/errors/accessDenied.vm";
-    private static final String TEMPLATE_NOT_FOUND = "/velocity/errors/notFound.vm";
-    private static final String TEMPLATE_BAD_REQUEST = "/velocity/errors/badRequest.vm";
+    public static final String TEMPLATE_UNAUTHORISED = "/velocity/errors/unauthorised.vm";
+    public static final String TEMPLATE_ACCESS_DENIED = "/velocity/errors/accessDenied.vm";
+    public static final String TEMPLATE_NOT_FOUND = "/velocity/errors/notFound.vm";
+    public static final String TEMPLATE_BAD_REQUEST = "/velocity/errors/badRequest.vm";
     private static final ConcurrentMap<String, Queue<SseClient>> EVENT_LISTENER_SSE = new ConcurrentHashMap<>();
     private static final List<HandlerMetaInfo> ENDPOINTS = new ArrayList<>();
     private static final Consumer<HandlerMetaInfo> ENDPOINT_ADDED_HANDLER = ENDPOINTS::add;
@@ -170,30 +161,6 @@ public final class RestServer { // NOPMD -- nomen est omen
         return EVENT_LISTENER_SSE;
     }
 
-    public static String getHostName() {
-        return System.getProperty(TAG_REST_SERVER_HOST_NAME, DEFAULT_HOST_NAME);
-    }
-
-    public static int getHostPort() {
-        final String property = System.getProperty(TAG_REST_SERVER_PORT, Integer.toString(DEFAULT_PORT));
-        try {
-            return Integer.parseInt(property);
-        } catch (final NumberFormatException e) {
-            LOGGER.atError().addArgument(TAG_REST_SERVER_PORT).addArgument(property).addArgument(DEFAULT_PORT).log("could not parse {}='{}' return default port {}");
-            return DEFAULT_PORT;
-        }
-    }
-
-    public static int getHostPort2() {
-        final String property = System.getProperty(TAG_REST_SERVER_PORT2, Integer.toString(DEFAULT_PORT2));
-        try {
-            return Integer.parseInt(property);
-        } catch (final NumberFormatException e) {
-            LOGGER.atError().addArgument(TAG_REST_SERVER_PORT2).addArgument(property).addArgument(DEFAULT_PORT2).log("could not parse {}='{}' return default port {}");
-            return DEFAULT_PORT2;
-        }
-    }
-
     public static Javalin getInstance() {
         if (instance == null) {
             startRestServer();
@@ -203,7 +170,7 @@ public final class RestServer { // NOPMD -- nomen est omen
 
     public static URI getLocalURI() {
         try {
-            return new URI("http://localhost:" + getHostPort());
+            return new URI("http://localhost:" + RestServerSettings.DEFAULT_PORT);
         } catch (final URISyntaxException e) {
             LOGGER.atError().setCause(e).log("getLocalURL()");
         }
@@ -217,7 +184,7 @@ public final class RestServer { // NOPMD -- nomen est omen
     public static URI getPublicURI() {
         final String ip = getLocalHostName();
         try (DatagramSocket socket = new DatagramSocket()) {
-            return new URI("https://" + ip + ":" + getHostPort2());
+            return new URI("https://" + ip + ":" + RestServerSettings.DEFAULT_PORT2);
         } catch (final URISyntaxException | SocketException e) {
             LOGGER.atError().setCause(e).log("getPublicURL()");
         }
@@ -318,19 +285,6 @@ public final class RestServer { // NOPMD -- nomen est omen
         instance.error(404, ctx -> ctx.render(TEMPLATE_NOT_FOUND, MessageBundle.baseModel(ctx)));
     }
 
-    public static void startRestServer(final int hostPort, final int hostPort2) {
-        System.setProperty(TAG_REST_SERVER_PORT, Integer.toString(hostPort));
-        System.setProperty(TAG_REST_SERVER_PORT2, Integer.toString(hostPort2));
-        startRestServer();
-    }
-
-    public static void startRestServer(final String hostName, final int hostPort, final int hostPort2) {
-        System.setProperty(TAG_REST_SERVER_HOST_NAME, hostName);
-        System.setProperty(TAG_REST_SERVER_PORT, Integer.toString(hostPort));
-        System.setProperty(TAG_REST_SERVER_PORT2, Integer.toString(hostPort2));
-        startRestServer();
-    }
-
     public static void stopRestServer() {
         if (Objects.requireNonNull(RestServer.getInstance().server()).server().isRunning()) {
             RestServer.getInstance().stop();
@@ -369,8 +323,8 @@ public final class RestServer { // NOPMD -- nomen est omen
 
         // unencrypted HTTP 1 anchor
         try (ServerConnector connector = new ServerConnector(server)) {
-            final String hostName = getHostName();
-            final int hostPort = getHostPort();
+            final String hostName = RestServerSettings.DEFAULT_HOST_NAME;
+            final int hostPort = RestServerSettings.DEFAULT_PORT;
             LOGGER.atInfo().addArgument(getLocalHostName()).log("local hostname = '{}'");
             LOGGER.atInfo().addArgument(hostName).addArgument(hostPort).log("create HTTP 1.x connector at 'http://{}:{}'");
             connector.setHost(hostName);
@@ -382,7 +336,7 @@ public final class RestServer { // NOPMD -- nomen est omen
         final HttpConfiguration httpConfig = new HttpConfiguration();
         httpConfig.setSendServerVersion(false);
         httpConfig.setSecureScheme("https");
-        httpConfig.setSecurePort(getHostPort2());
+        httpConfig.setSecurePort(RestServerSettings.DEFAULT_PORT2);
 
         // HTTPS Configuration
         final HttpConfiguration httpsConfig = new HttpConfiguration(httpConfig);
@@ -398,8 +352,8 @@ public final class RestServer { // NOPMD -- nomen est omen
 
         // HTTP/2 Connector
         try (ServerConnector http2Connector = new ServerConnector(server, ssl, alpn, h2, new HttpConnectionFactory(httpsConfig))) {
-            final String hostName = getHostName();
-            final int hostPort = getHostPort2();
+            final String hostName = RestServerSettings.DEFAULT_HOST_NAME;
+            final int hostPort = RestServerSettings.DEFAULT_PORT2;
             LOGGER.atInfo().addArgument(hostName).addArgument(hostPort).log("create HTTP/2 connector at 'http://{}:{}'");
             http2Connector.setHost(hostName);
             http2Connector.setPort(hostPort);
@@ -410,36 +364,34 @@ public final class RestServer { // NOPMD -- nomen est omen
     }
 
     private static SslContextFactory createSslContextFactory() {
-        final String keyStoreFile = System.getProperty(REST_KEY_STORE, null); // replace default with your real keystore
-        final String keyStorePwdFile = System.getProperty(REST_KEY_STORE_PASSWORD, null); // replace default with your real password
-        if (keyStoreFile == null || keyStorePwdFile == null) {
-            LOGGER.atInfo().addArgument(keyStoreFile).addArgument(keyStorePwdFile).log("using internal keyStore {} and/or keyStorePasswordFile {} -- PLEASE CHANGE FOR PRODUCTION -- THIS IS UNSAFE PRACTICE");
+        if (RestServerSettings.REST_KEY_STORE.isBlank() || RestServerSettings.REST_KEY_STORE_PASSWORD.isBlank()) {
+            LOGGER.atInfo().addArgument(RestServerSettings.REST_KEY_STORE).addArgument(RestServerSettings.REST_KEY_STORE_PASSWORD).log("using internal keyStore {} and/or keyStorePasswordFile {} -- PLEASE CHANGE FOR PRODUCTION -- THIS IS UNSAFE PRACTICE");
         }
-        LOGGER.atInfo().addArgument(keyStoreFile).log("using keyStore at '{}'");
-        LOGGER.atInfo().addArgument(keyStorePwdFile).log("using keyStorePasswordFile at '{}'");
+        LOGGER.atInfo().addArgument(RestServerSettings.REST_KEY_STORE).log("using keyStore at '{}'");
+        LOGGER.atInfo().addArgument(RestServerSettings.REST_KEY_STORE_PASSWORD).log("using keyStorePasswordFile at '{}'");
 
         boolean readComplete = true;
         String keyStorePwd = null;
         KeyStore keyStore = null;
 
         // read keyStore password
-        try (BufferedReader br = keyStorePwdFile == null ? new BufferedReader(new InputStreamReader(RestServer.class.getResourceAsStream("/keystore.pwd"), UTF_8)) //
-                                                         : Files.newBufferedReader(Paths.get(keyStorePwdFile), UTF_8)) {
+        try (BufferedReader br = RestServerSettings.REST_KEY_STORE_PASSWORD.isBlank() ? new BufferedReader(new InputStreamReader(RestServer.class.getResourceAsStream("/keystore.pwd"), UTF_8)) //
+                                                                                      : Files.newBufferedReader(Paths.get(RestServerSettings.REST_KEY_STORE_PASSWORD), UTF_8)) {
             keyStorePwd = br.readLine();
         } catch (final IOException e) {
             readComplete = false;
-            LOGGER.atError().setCause(e).addArgument(keyStorePwdFile).log("error while reading key store password from '{}'");
+            LOGGER.atError().setCause(e).addArgument(RestServerSettings.REST_KEY_STORE_PASSWORD).log("error while reading key store password from '{}'");
         }
 
         if (readComplete && keyStorePwd != null) {
             // read the actual keyStore
-            try (InputStream is = keyStoreFile == null ? RestServer.class.getResourceAsStream("/keystore.jks") //
-                                                       : Files.newInputStream(Paths.get(keyStoreFile))) {
+            try (InputStream is = RestServerSettings.REST_KEY_STORE.isBlank() ? RestServer.class.getResourceAsStream("/keystore.jks") //
+                                                                              : Files.newInputStream(Paths.get(RestServerSettings.REST_KEY_STORE))) {
                 keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keyStore.load(is, keyStorePwd.toCharArray());
             } catch (final NoSuchAlgorithmException | CertificateException | KeyStoreException | IOException e) {
                 readComplete = false;
-                LOGGER.atError().setCause(e).addArgument(keyStoreFile == null ? "internal" : keyStoreFile).log("error while reading key store from '{}'");
+                LOGGER.atError().setCause(e).addArgument(RestServerSettings.REST_KEY_STORE.isBlank() ? "internal" : RestServerSettings.REST_KEY_STORE).log("error while reading key store from '{}'");
             }
         }
 

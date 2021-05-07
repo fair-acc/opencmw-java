@@ -37,6 +37,7 @@ import io.opencmw.MimeType;
 import io.opencmw.domain.BinaryData;
 import io.opencmw.domain.NoData;
 import io.opencmw.rbac.BasicRbacRole;
+import io.opencmw.serialiser.spi.Field;
 import io.opencmw.server.MajordomoBroker;
 import io.opencmw.server.MajordomoWorker;
 import io.opencmw.server.rest.test.HelloWorldService;
@@ -69,11 +70,14 @@ class MajordomoRestPluginTests {
     @BeforeAll
     @Timeout(10)
     static void init() throws IOException {
+        assertEquals(8080, RestServerSettings.DEFAULT_PORT); // this assert is important for the following lines to have effect
+        Field.getField(RestServerSettings.class, "DEFAULT_PORT").setInt(null, 8099);
+        Field.getField(RestServerSettings.class, "DEFAULT_PORT2").setInt(null, 8499);
         okHttp = getUnsafeOkHttpClient(); // N.B. ignore SSL certificates
         primaryBroker = new MajordomoBroker(PRIMARY_BROKER, null, BasicRbacRole.values());
         brokerRouterAddress = primaryBroker.bind(URI.create("mdp://localhost:" + Utils.findOpenPort()));
         primaryBroker.bind(URI.create("mds://localhost:" + Utils.findOpenPort()));
-        restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "*:8080", BasicRbacRole.ADMIN);
+        restPlugin = new MajordomoRestPlugin(primaryBroker.getContext(), "My test REST server", "this string is completely ignored", BasicRbacRole.ADMIN);
         primaryBroker.start();
         restPlugin.start();
         LOGGER.atInfo().log("Broker and REST plugin started");
@@ -109,7 +113,7 @@ class MajordomoRestPluginTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = { "http://localhost:8080", "https://localhost:8443" })
+    @ValueSource(strings = { "http://localhost:8099", "https://localhost:8499" })
     @Timeout(value = 2)
     void testDns(final String address) throws IOException {
         final Request request = new Request.Builder().url(address + "/mmi.dns?noMenu," + PRIMARY_BROKER + "/mmi.service," + SECONDARY_BROKER).addHeader("accept", MimeType.HTML.getMediaType()).get().build();
@@ -118,14 +122,14 @@ class MajordomoRestPluginTests {
 
         assertThat(body, containsString(brokerRouterAddress.toString()));
         assertThat(body, containsString(secondaryBrokerRouterAddress.toString()));
-        assertThat(body, containsString("http://localhost:8080"));
+        assertThat(body, containsString("http://localhost:8099"));
     }
 
     @ParameterizedTest
     @EnumSource(value = MimeType.class, names = { "HTML", "BINARY", "JSON", "CMWLIGHT", "TEXT", "UNKNOWN" })
     @Timeout(value = 4)
     void testGet(final MimeType contentType) throws IOException {
-        final Request request = new Request.Builder().url("http://localhost:8080/helloWorld?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
+        final Request request = new Request.Builder().url("http://localhost:8099/helloWorld?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
         final Response response = okHttp.newCall(request).execute();
         final Headers header = response.headers();
         final String body = Objects.requireNonNull(response.body()).string();
@@ -148,7 +152,7 @@ class MajordomoRestPluginTests {
     @EnumSource(value = MimeType.class, names = { "HTML", "BINARY", "JSON", "CMWLIGHT", "TEXT", "UNKNOWN" })
     @Timeout(value = 2)
     void testGetException(final MimeType contentType) throws IOException {
-        final Request request = new Request.Builder().url("http://localhost:8080/mmi.openapi?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
+        final Request request = new Request.Builder().url("http://localhost:8099/mmi.openapi?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
         final Response response = okHttp.newCall(request).execute();
         final Headers header = response.headers();
         assertNotNull(header);
@@ -175,7 +179,7 @@ class MajordomoRestPluginTests {
     @Timeout(value = 2)
     void testSet(final MimeType contentType) throws IOException {
         final Request setRequest = new Request.Builder() //
-                                           .url("http://localhost:8080/helloWorld?noMenu")
+                                           .url("http://localhost:8099/helloWorld?noMenu")
                                            .addHeader("accept", contentType.getMediaType())
                                            .post(new MultipartBody.Builder().setType(MultipartBody.FORM) //
                                                            .addFormDataPart("name", "needsName")
@@ -186,7 +190,7 @@ class MajordomoRestPluginTests {
         final Response setResponse = okHttp.newCall(setRequest).execute();
         assertEquals(200, setResponse.code());
 
-        final Request getRequest = new Request.Builder().url("http://localhost:8080/helloWorld?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
+        final Request getRequest = new Request.Builder().url("http://localhost:8099/helloWorld?noMenu").addHeader("accept", contentType.getMediaType()).get().build();
         final Response response = okHttp.newCall(getRequest).execute();
         final Headers header = response.headers();
         assertNotNull(header);
@@ -207,7 +211,7 @@ class MajordomoRestPluginTests {
     @Timeout(value = 2)
     void testSSE() {
         AtomicInteger eventCounter = new AtomicInteger();
-        Request request = new Request.Builder().url("http://localhost:8080/" + ImageService.PROPERTY_NAME).build();
+        Request request = new Request.Builder().url("http://localhost:8099/" + ImageService.PROPERTY_NAME).build();
         EventSourceListener eventSourceListener = new EventSourceListener() {
             @Override
             public void onEvent(final @NotNull EventSource eventSource, final String id, final String type, @NotNull String data) {

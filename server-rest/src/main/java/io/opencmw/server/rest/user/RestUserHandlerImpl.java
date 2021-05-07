@@ -22,10 +22,10 @@ import org.slf4j.LoggerFactory;
 import io.opencmw.rbac.BasicRbacRole;
 import io.opencmw.rbac.RbacRole;
 import io.opencmw.server.rest.RestServer;
+import io.opencmw.server.rest.RestServerSettings;
 
 public class RestUserHandlerImpl implements RestUserHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(RestUserHandlerImpl.class);
-    private static final String REST_USER_PASSWORD_STORE = "restUserPasswordStore";
     /**
      * the password file location is statically allocated so that it cannot (for
      * security reasons) be overwritting during run time
@@ -95,8 +95,8 @@ public class RestUserHandlerImpl implements RestUserHandler {
             LOGGER.atDebug().log("readPasswordFile called");
         }
         synchronized (usersLock) {
-            try (BufferedReader br = REST_USER_PASSWORD_FILE == null ? new BufferedReader(new InputStreamReader(RestServer.class.getResourceAsStream("/DefaultRestUserPasswords.pwd"), StandardCharsets.UTF_8)) //
-                                                                     : Files.newBufferedReader(Paths.get(new File(REST_USER_PASSWORD_FILE).getPath()), StandardCharsets.UTF_8)) {
+            try (BufferedReader br = (REST_USER_PASSWORD_FILE == null ? new BufferedReader(new InputStreamReader(RestServer.class.getResourceAsStream("/DefaultRestUserPasswords.pwd"), StandardCharsets.UTF_8)) //
+                                                                      : Files.newBufferedReader(Paths.get(new File(REST_USER_PASSWORD_FILE).getPath()), StandardCharsets.UTF_8))) {
                 final List<RestUser> newUserList = new ArrayList<>(10);
                 String userLine;
                 int lineCount = 0;
@@ -194,10 +194,10 @@ public class RestUserHandlerImpl implements RestUserHandler {
     }
 
     private static String getUserPasswordStore() {
-        final String passWordStore = System.getProperty(REST_USER_PASSWORD_STORE);
-        if (passWordStore == null) {
+        if (RestServerSettings.USER_PASSWORD_STORE.isBlank()) {
             LOGGER.atWarn().log("using internal UserPasswordStore -- PLEASE CHANGE FOR PRODUCTION -- THIS IS UNSAFE PRACTICE");
+            return null;
         }
-        return passWordStore;
+        return RestServerSettings.USER_PASSWORD_STORE;
     }
 }
