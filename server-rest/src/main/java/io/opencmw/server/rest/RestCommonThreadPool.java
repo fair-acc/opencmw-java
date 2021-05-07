@@ -48,7 +48,7 @@ public final class RestCommonThreadPool implements ThreadFactory {
     private static int getDefaultScheduledThreadCount() {
         int nthreads = 32;
         try {
-            nthreads = Integer.parseInt(System.getProperty("restScheduledThreadCount", "32"));
+            nthreads = RestServerSettings.SCHEDULED_THREAD_COUNT;
         } catch (final NumberFormatException e) {
             // malformed number
         }
@@ -59,7 +59,7 @@ public final class RestCommonThreadPool implements ThreadFactory {
     private static int getDefaultThreadCount() {
         int nthreads = 32;
         try {
-            nthreads = Integer.parseInt(System.getProperty("restThreadCount", "64"));
+            nthreads = RestServerSettings.THREAD_COUNT;
         } catch (final NumberFormatException e) {
             // malformed number
         }
