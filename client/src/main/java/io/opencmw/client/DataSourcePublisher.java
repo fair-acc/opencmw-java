@@ -217,12 +217,13 @@ public class DataSourcePublisher implements Runnable, Closeable {
                 dataAvailable = handleDataSourceSockets(); // get data from clients
                 dataAvailable |= handleControlSocket(); // check specifically for control socket
             }
-
-            nextHousekeeping = clientMap.values().stream().mapToLong(DataSource::housekeeping).min().orElse(System.currentTimeMillis() + HEARTBEAT_INTERVAL);
-            timeOut = nextHousekeeping - System.currentTimeMillis();
+            final long now = System.currentTimeMillis();
+            nextHousekeeping = clientMap.values().stream().mapToLong(DataSource::housekeeping).min().orElse(now + HEARTBEAT_INTERVAL);
+            timeOut = nextHousekeeping - now;
             // remove closed client sockets from poller
             clientMap.values().stream().filter(DataSource::isClosed).forEach(s -> poller.unregister(s.getSocket()));
-            pollerReturn = poller.poll(timeOut);
+            // wait for next message or next requested housekeeping
+            pollerReturn = poller.poll(Math.max(0L, timeOut)); // ensure that argument is never negative which would lead to blocking the poller indefinitely (0 returns immediately)
         } while ((timeOut <= 0 || -1 != pollerReturn) && !Thread.interrupted() && shallRun.get() && !context.isClosed());
         if (shallRun.get()) {
             LOGGER.atError().addArgument(Thread.interrupted()).addArgument(context.isClosed()).addArgument(pollerReturn).addArgument(clientMap.values()).log("abnormally terminated (int={},ctx={},poll={}) - abort run() - clients = {}");
