@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -66,20 +65,7 @@ class IoClassSerialiserTests {
         assertEquals(classUnderTest, classAfterTest);
     }
 
-    @ParameterizedTest(name = "IoBuffer class - {0}")
-    @ValueSource(classes = { ByteBuffer.class, FastByteBuffer.class })
-    @ResourceLock(value = GLOBAL_LOCK, mode = READ_WRITE)
-    void testCustomSerialiserIdentity(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
-        assertNotNull(bufferClass, "bufferClass being not null");
-        assertNotNull(bufferClass.getConstructor(int.class), "Constructor(Integer) present");
-        final IoBuffer buffer = bufferClass.getConstructor(int.class).newInstance(2 * BUFFER_SIZE);
-
-        IoClassSerialiser serialiser = new IoClassSerialiser(buffer, BinarySerialiser.class);
-        serialiser.setAutoMatchSerialiser(false);
-
-        final AtomicInteger writerCalled = new AtomicInteger(0);
-        final AtomicInteger returnCalled = new AtomicInteger(0);
-
+    protected void addCustomClassSerialiser(final IoClassSerialiser serialiser) {
         // add custom serialiser  - for more examples see classes in de.gsi.dataset.serializer.spi.iobuffer.*Helper
         // provide a writer function
         final FieldSerialiser.TriConsumer writeFunction = (io, obj, field) -> {
@@ -94,7 +80,6 @@ class IoClassSerialiserTests {
             io.getBuffer().putInt(customClass.testInt);
             io.getBuffer().putString(customClass.testString);
             // [..] anything that can be generated with the IoSerialiser and/or IoBuffer interfaces
-            writerCalled.getAndIncrement();
         };
 
         // provide a return function (can usually be re-used for the reader function)
@@ -106,7 +91,6 @@ class IoClassSerialiserTests {
             final int intVal = io.getBuffer().getInt();
             final String str = io.getBuffer().getString();
             // generate custom object or modify existing one
-            returnCalled.getAndIncrement();
             if (sourceField == null) {
                 return new CustomClass(doubleVal, intVal, str);
             } else {
@@ -125,12 +109,23 @@ class IoClassSerialiserTests {
                 /* reader */ (io, obj, field) -> field.getField().set(obj, returnFunction.apply(io, obj, field)), //
                 /* return */ returnFunction, //
                 /* write */ writeFunction, CustomClass.class));
+    }
+
+    @ParameterizedTest(name = "IoBuffer class - {0}")
+    @ValueSource(classes = { ByteBuffer.class, FastByteBuffer.class })
+    @ResourceLock(value = GLOBAL_LOCK, mode = READ_WRITE)
+    void testCustomSerialiserIdentity(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
+        assertNotNull(bufferClass, "bufferClass being not null");
+        assertNotNull(bufferClass.getConstructor(int.class), "Constructor(Integer) present");
+        final IoBuffer buffer = bufferClass.getConstructor(int.class).newInstance(2 * BUFFER_SIZE);
+
+        IoClassSerialiser serialiser = new IoClassSerialiser(buffer, BinarySerialiser.class);
+        addCustomClassSerialiser(serialiser);
+        serialiser.setAutoMatchSerialiser(false);
 
         final CustomClass sourceClass = new CustomClass(1.2, 2, "Hello World!");
         final CustomClass destinationClass = new CustomClass();
 
-        writerCalled.set(0);
-        returnCalled.set(0);
         // serialise-deserialise DataSet
         buffer.reset(); // '0' writing at start of buffer
         serialiser.serialiseObject(sourceClass);
@@ -176,47 +171,30 @@ class IoClassSerialiserTests {
         IoClassSerialiser serialiser = new IoClassSerialiser(buffer, BinarySerialiser.class);
 
         TestClass sourceClass = new TestClass();
+
         sourceClass.integerBoxed = 1337;
 
-        sourceClass.integerList = new ArrayList<>();
-        sourceClass.integerList.add(1);
-        sourceClass.integerList.add(2);
-        sourceClass.integerList.add(3);
-        sourceClass.stringList = new ArrayList<>();
-        sourceClass.stringList.add("String1");
-        sourceClass.stringList.add("String2");
+        sourceClass.integerList = new ArrayList<>(List.of(1, 2, 3));
+        sourceClass.stringList = new ArrayList<>(List.of("String1", "String2"));
         sourceClass.dataSet = new DefaultErrorDataSet("test", //
                 new double[] { 1f, 2f, 3f }, new double[] { 6f, 7f, 8f }, //
                 new double[] { 0.7f, 0.8f, 0.9f }, new double[] { 7f, 8f, 9f }, 3, false);
-        sourceClass.dataSetList = new ArrayList<>();
-        sourceClass.dataSetList.add(new DefaultErrorDataSet("ListDataSet#1"));
-        sourceClass.dataSetList.add(new DefaultErrorDataSet("ListDataSet#2"));
-        sourceClass.dataSetSet = new HashSet<>();
-        sourceClass.dataSetSet.add(new DefaultErrorDataSet("SetDataSet#1"));
-        sourceClass.dataSetSet.add(new DefaultErrorDataSet("SetDataSet#2"));
-        sourceClass.dataSetQueue = new ArrayDeque<>();
-        sourceClass.dataSetQueue.add(new DefaultErrorDataSet("QueueDataSet#1"));
-        sourceClass.dataSetQueue.add(new DefaultErrorDataSet("QueueDataSet#2"));
+        sourceClass.dataSetList = new ArrayList<>(List.of(new DefaultErrorDataSet("ListDataSet#1"), new DefaultErrorDataSet("ListDataSet#2")));
+        sourceClass.dataSetSet = new HashSet<>(List.of(new DefaultErrorDataSet("SetDataSet#1"), new DefaultErrorDataSet("SetDataSet#2")));
+        sourceClass.dataSetQueue = new ArrayDeque<>(List.of(new DefaultErrorDataSet("QueueDataSet#1"), new DefaultErrorDataSet("QueueDataSet#2")));
 
-        sourceClass.dataSetMap = new HashMap<>();
-        sourceClass.dataSetMap.put("dataSet1", new DefaultErrorDataSet("MapDataSet#1"));
-        sourceClass.dataSetMap.put("dataSet2", new DefaultErrorDataSet("MapDataSet#2"));
+        sourceClass.dataSetMap = new HashMap<>(Map.of( //
+                "dataSet1", new DefaultErrorDataSet("MapDataSet#1"), //
+                "dataSet2", new DefaultErrorDataSet("MapDataSet#2") //
+                ));
 
         final DefaultErrorDataSet keyDataSet1 = new DefaultErrorDataSet("KeyDataSet#1");
         final DefaultErrorDataSet keyDataSet2 = new DefaultErrorDataSet("KeyDataSet#2");
-        sourceClass.dataSetStringMap = new HashMap<>();
-        sourceClass.dataSetStringMap.put(keyDataSet1, "keyDataSet1");
-        sourceClass.dataSetStringMap.put(keyDataSet2, "keyDataSet2");
+        sourceClass.dataSetStringMap = new HashMap<>(Map.of( //
+                keyDataSet1, "keyDataSet1", //
+                keyDataSet2, "keyDataSet2" //
+                ));
 
-        sourceClass.multiArrayDouble = MultiArrayDouble.wrap(new double[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
-        sourceClass.multiArrayFloat = MultiArrayFloat.wrap(new float[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
-        sourceClass.multiArrayInt = MultiArrayInt.wrap(new int[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
-        sourceClass.multiArrayLong = MultiArrayLong.wrap(new long[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
-        sourceClass.multiArrayShort = MultiArrayShort.wrap(new short[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
-        sourceClass.multiArrayChar = MultiArrayChar.wrap(new char[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
-        sourceClass.multiArrayBoolean = MultiArrayBoolean.wrap(new boolean[] { true, false, false, true, true, false }, new int[] { 2, 3 });
-        sourceClass.multiArrayByte = MultiArrayByte.wrap(new byte[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
-        sourceClass.multiArrayString = MultiArrayObject.wrap(new String[] { "aa", "ba", "ab", "bb", "ac", "bc" }, new int[] { 2, 3 }); // NOPMD NOSONAR -- String type is known
         sourceClass.uriAddress = URI.create("http://host/path");
 
         TestClass destinationClass = new TestClass();
@@ -225,7 +203,7 @@ class IoClassSerialiserTests {
         assertNotEquals(sourceClass.nullIntegerList, destinationClass.nullIntegerList);
         assertNotEquals(sourceClass.nullDataSet, destinationClass.nullDataSet);
 
-        // serialise-deserialise DataSet
+        // serialise-deserialise Object
         buffer.reset(); // '0' writing at start of buffer
         serialiser.serialiseObject(sourceClass);
         buffer.reset(); // reset to read position (==0)
@@ -253,9 +231,6 @@ class IoClassSerialiserTests {
         assertEquals("String2", destinationClass.stringList.get(1));
 
         // assertEquals(sourceClass.emptyIntegerList, destinationClass.emptyIntegerList); cannot assure that null is serialised will map to empty list
-        // buffer.reset(); // reset to read position (==0)
-        // final WireDataFieldDescription root = serialiser.getIoSerialiser().parseIoStream(true);
-        // root.printFieldStructure();
 
         assertEquals(sourceClass.dataSet, destinationClass.dataSet);
         // assertEquals(sourceClass.nullDataSet, destinationClass.nullDataSet);
@@ -279,6 +254,48 @@ class IoClassSerialiserTests {
         assertEquals(sourceClass.dataSetStringMap, destinationClass.dataSetStringMap);
         assertEquals("keyDataSet1", destinationClass.dataSetStringMap.get(keyDataSet1));
         assertEquals("keyDataSet2", destinationClass.dataSetStringMap.get(keyDataSet2));
+
+        assertEquals(sourceClass.uriAddress, destinationClass.uriAddress);
+    }
+
+    @ParameterizedTest(name = "IoBuffer class - {0}")
+    @ValueSource(classes = { ByteBuffer.class, FastByteBuffer.class })
+    @SuppressWarnings("unchecked")
+    void testGenericSerialiserIdentityMultiArray(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
+        assertNotNull(bufferClass, "bufferClass being not null");
+        assertNotNull(bufferClass.getConstructor(int.class), "Constructor(Integer) present");
+        final IoBuffer buffer = bufferClass.getConstructor(int.class).newInstance(2 * BUFFER_SIZE);
+
+        IoClassSerialiser serialiser = new IoClassSerialiser(buffer, BinarySerialiser.class);
+
+        MultiArrayTestClass sourceClass = new MultiArrayTestClass();
+
+        sourceClass.multiArrayDouble = MultiArrayDouble.wrap(new double[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
+        sourceClass.multiArrayFloat = MultiArrayFloat.wrap(new float[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
+        sourceClass.multiArrayInt = MultiArrayInt.wrap(new int[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
+        sourceClass.multiArrayLong = MultiArrayLong.wrap(new long[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
+        sourceClass.multiArrayShort = MultiArrayShort.wrap(new short[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
+        sourceClass.multiArrayChar = MultiArrayChar.wrap(new char[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
+        sourceClass.multiArrayBoolean = MultiArrayBoolean.wrap(new boolean[] { true, false, false, true, true, false }, new int[] { 2, 3 });
+        sourceClass.multiArrayByte = MultiArrayByte.wrap(new byte[] { 1, 2, 3, 4, 5, 6 }, new int[] { 2, 3 });
+        sourceClass.multiArrayString = MultiArrayObject.wrap(new String[] { "aa", "ba", "ab", "bb", "ac", "bc" }, new int[] { 2, 3 }); // NOPMD NOSONAR -- String type is known
+
+        MultiArrayTestClass destinationClass = new MultiArrayTestClass();
+
+        // serialise-deserialise Object
+        buffer.reset(); // '0' writing at start of buffer
+        serialiser.serialiseObject(sourceClass);
+        buffer.reset(); // reset to read position (==0)
+
+        final WireDataFieldDescription root = serialiser.getMatchedIoSerialiser().parseIoStream(true);
+        root.printFieldStructure();
+        buffer.reset(); // reset to read position (==0)
+        serialiser.deserialiseObject(destinationClass);
+
+        buffer.reset(); // reset to read position (==0)
+        final Object returnedClass = serialiser.deserialiseObject(destinationClass);
+
+        assertSame(returnedClass, destinationClass); // deserialisation should be should be in-place
 
         assertEquals(sourceClass.multiArrayDouble, destinationClass.multiArrayDouble);
         assertArrayEquals(sourceClass.multiArrayDouble.getDimensions(), destinationClass.multiArrayDouble.getDimensions());
@@ -315,8 +332,46 @@ class IoClassSerialiserTests {
         assertEquals(sourceClass.multiArrayString, destinationClass.multiArrayString);
         assertArrayEquals(sourceClass.multiArrayString.getDimensions(), destinationClass.multiArrayString.getDimensions());
         assertArrayEquals(sourceClass.multiArrayString.elements(), destinationClass.multiArrayString.elements());
+    }
 
-        assertEquals(sourceClass.uriAddress, destinationClass.uriAddress);
+    @ParameterizedTest(name = "IoBuffer class - {0}")
+    @ValueSource(classes = { ByteBuffer.class, FastByteBuffer.class })
+    @SuppressWarnings("unchecked")
+    void testGenericSerialiserIdentityCollectionOfCustomTypes(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
+        assertNotNull(bufferClass, "bufferClass being not null");
+        assertNotNull(bufferClass.getConstructor(int.class), "Constructor(Integer) present");
+        final IoBuffer buffer = bufferClass.getConstructor(int.class).newInstance(2 * BUFFER_SIZE);
+
+        IoClassSerialiser serialiser = new IoClassSerialiser(buffer, BinarySerialiser.class);
+        addCustomClassSerialiser(serialiser);
+
+        CollectionCustomTypesTestClass sourceClass = new CollectionCustomTypesTestClass();
+
+        sourceClass.customClassList = new ArrayList<>(List.of( //
+                new CustomClass(1.1, 42, "one"), //
+                new CustomClass(1.2, 43, "two"), //
+                new CustomClass(1.3, 44, "three") //
+                ));
+
+        // serialise-deserialise object
+        buffer.reset(); // '0' writing at start of buffer
+        serialiser.serialiseObject(sourceClass);
+        buffer.reset(); // reset to read position (==0)
+
+        CollectionCustomTypesTestClass destinationClass = new CollectionCustomTypesTestClass();
+
+        final WireDataFieldDescription root = serialiser.getMatchedIoSerialiser().parseIoStream(true);
+        root.printFieldStructure();
+        buffer.reset(); // reset to read position (==0)
+        serialiser.deserialiseObject(destinationClass);
+
+        buffer.reset(); // reset to read position (==0)
+        final Object returnedClass = serialiser.deserialiseObject(destinationClass);
+
+        assertSame(returnedClass, destinationClass); // deserialisation should be should be in-place
+
+        assertEquals(43, destinationClass.customClassList.get(1).testInt);
+        assertEquals("three", destinationClass.customClassList.get(2).testString);
     }
 
     public static class CustomClass {
@@ -394,6 +449,28 @@ class IoClassSerialiserTests {
     }
 
     /**
+     * small test class to test (de)serialisation of wrapped multi array types
+     */
+    public static class MultiArrayTestClass {
+        public MultiArrayDouble multiArrayDouble;
+        public MultiArrayFloat multiArrayFloat;
+        public MultiArrayInt multiArrayInt;
+        public MultiArrayLong multiArrayLong;
+        public MultiArrayShort multiArrayShort;
+        public MultiArrayByte multiArrayByte;
+        public MultiArrayChar multiArrayChar;
+        public MultiArrayBoolean multiArrayBoolean;
+        public MultiArrayObject<String> multiArrayString;
+    }
+
+    /**
+     * small test class to test (de)serialisation of wrapped collections of custom types
+     */
+    public static class CollectionCustomTypesTestClass {
+        public List<CustomClass> customClassList;
+    }
+
+    /**
      * small test class to test (de-)serialisation of wrapped and/or compound object types
      */
     public static class TestClass {
@@ -411,15 +488,6 @@ class IoClassSerialiserTests {
         public Map<String, DataSet> dataSetMap;
         public Map<DataSet, String> dataSetStringMap;
 
-        public MultiArrayDouble multiArrayDouble;
-        public MultiArrayFloat multiArrayFloat;
-        public MultiArrayInt multiArrayInt;
-        public MultiArrayLong multiArrayLong;
-        public MultiArrayShort multiArrayShort;
-        public MultiArrayByte multiArrayByte;
-        public MultiArrayChar multiArrayChar;
-        public MultiArrayBoolean multiArrayBoolean;
-        public MultiArrayObject<String> multiArrayString;
         public URI uriAddress;
     }
 

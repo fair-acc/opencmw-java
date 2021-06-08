@@ -844,7 +844,7 @@ public class BinarySerialiser implements IoSerialiser {
             if (serialiser == null) {
                 throw new IllegalArgumentException("could not find serialiser for class type " + valueType);
             }
-            buffer.putStringISO8859(serialiser.getClassPrototype().getCanonicalName()); // primary type
+            buffer.putStringISO8859(serialiser.getClassPrototype().getTypeName()); // primary type
             buffer.putStringISO8859(serialiser.getGenericsPrototypes().isEmpty() ? "" : serialiser.getGenericsPrototypes().get(0).getTypeName()); // secondary type if any
 
             final FieldSerialiser.TriConsumer writerFunction = serialiser.getWriterFunction();
@@ -913,7 +913,7 @@ public class BinarySerialiser implements IoSerialiser {
             if (serialiserKey == null) {
                 throw new IllegalArgumentException("could not find serialiser for key class type " + keyType);
             }
-            buffer.putStringISO8859(serialiserKey.getClassPrototype().getCanonicalName()); // primary type
+            buffer.putStringISO8859(serialiserKey.getClassPrototype().getTypeName()); // primary type
             buffer.putStringISO8859(serialiserKey.getGenericsPrototypes().isEmpty() ? "" : serialiserKey.getGenericsPrototypes().get(0).getTypeName()); // secondary key type if any
             // write key data
             final FieldSerialiser.TriConsumer writerFunctionKey = serialiserKey.getWriterFunction();
@@ -938,7 +938,7 @@ public class BinarySerialiser implements IoSerialiser {
             if (serialiserValue == null) {
                 throw new IllegalArgumentException("could not find serialiser for value class type " + valueType);
             }
-            buffer.putStringISO8859(serialiserValue.getClassPrototype().getCanonicalName()); // primary type
+            buffer.putStringISO8859(serialiserValue.getClassPrototype().getTypeName()); // primary type
             buffer.putStringISO8859(serialiserValue.getGenericsPrototypes().isEmpty() ? "" : serialiserValue.getGenericsPrototypes().get(0).getTypeName()); // secondary key type if any
 
             // write key data
@@ -1430,7 +1430,7 @@ public class BinarySerialiser implements IoSerialiser {
         buffer.putByte(ret.getFieldStart(), getDataType(DataType.OTHER));
         parent = lastFieldHeader;
         // write generic class description and type arguments (if any) to aid reconstruction
-        buffer.putStringISO8859(serialiser.getClassPrototype().getCanonicalName()); // primary type
+        buffer.putStringISO8859(serialiser.getClassPrototype().getTypeName()); // primary type
         buffer.putStringISO8859(serialiser.getGenericsPrototypes().isEmpty() ? "" : serialiser.getGenericsPrototypes().get(0).getTypeName()); // secondary type if any
         serialiser.getWriterFunction().accept(this, rootObject, fieldDescription instanceof ClassFieldDescription ? (ClassFieldDescription) fieldDescription : null);
         putEndMarker(fieldDescription);
