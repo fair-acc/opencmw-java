@@ -35,6 +35,7 @@ import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 import org.zeromq.ZMsg;
 
+import io.micrometer.core.instrument.Metrics;
 import io.opencmw.EventStore;
 import io.opencmw.Filter;
 import io.opencmw.MimeType;
@@ -223,6 +224,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             // remove closed client sockets from poller
             clientMap.values().stream().filter(DataSource::isClosed).forEach(s -> poller.unregister(s.getSocket()));
             // wait for next message or next requested housekeeping
+            Metrics.counter(DataSourcePublisher.class.getSimpleName() + ".eventLoopRate").increment();
             pollerReturn = poller.poll(Math.max(0L, timeOut)); // ensure that argument is never negative which would lead to blocking the poller indefinitely (0 returns immediately)
         } while ((timeOut <= 0 || -1 != pollerReturn) && !Thread.interrupted() && shallRun.get() && !context.isClosed());
         if (shallRun.get()) {

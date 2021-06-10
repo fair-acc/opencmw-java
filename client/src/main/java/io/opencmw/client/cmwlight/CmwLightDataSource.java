@@ -38,6 +38,7 @@ import org.zeromq.ZMQException;
 import org.zeromq.ZMonitor;
 import org.zeromq.ZMsg;
 
+import io.micrometer.core.instrument.Metrics;
 import io.opencmw.QueryParameterParser;
 import io.opencmw.client.DataSource;
 import io.opencmw.client.DnsResolver;
@@ -395,6 +396,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             replyIdMap.put(sub.updateId, sub);
             sub.subscriptionState = SubscriptionState.SUBSCRIBED;
             LOGGER.atDebug().addArgument(sub.device).addArgument(sub.property).log("subscription successful: {}/{}");
+            Metrics.gauge(CmwLightDataSource.class.getSimpleName() + ".numberOfSubscriptions", subscriptions.size());
             sub.backOff = 20;
             return new ZMsg();
         case UNSUBSCRIBE:
@@ -402,6 +404,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             final Subscription subscriptionForUnsub = replyIdMap.remove(reply.id);
             subscriptionsByReqId.remove(subscriptionForUnsub.idString);
             subscriptions.remove(subscriptionForUnsub.id);
+            Metrics.gauge(CmwLightDataSource.class.getSimpleName() + ".numberOfSubscriptions", subscriptions.size());
             return new ZMsg();
         case NOTIFICATION_DATA:
             final Subscription subscriptionForNotification = replyIdMap.get(reply.id);

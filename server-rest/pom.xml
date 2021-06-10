@@ -110,17 +110,6 @@
             <artifactId>jsoniter</artifactId>
             <version>0.9.23</version>
         </dependency>
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-core</artifactId>
-            <version>${version.micrometer}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-registry-prometheus</artifactId>
-            <version>${version.micrometer}</version>
-        </dependency>
-
         <!-- testing dependencies-->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
