@@ -40,7 +40,6 @@
             <version>${version.javassist}</version>
         </dependency>
 
-
         <!-- serialiser test dependencies for comparisons only-->
         <dependency>
             <groupId>com.google.flatbuffers</groupId>
