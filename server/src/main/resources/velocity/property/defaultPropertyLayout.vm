@@ -147,10 +147,18 @@ Subscribe:
             #else
                 #if ($value == "true" || $value == "false")
                     #set($type = 'type="checkbox"')
+                    ## checkbox behaves differently, returns value if selected else does not return anything -> for now values have to be default false
+                    ## also the "checked" attribute is not boolean but enables if it exists regardless of its value
+                    #if ($value == "true")
+                        #set($checked = 'checked="checked"')
+                    #else
+                        #set($checked = '')
+                    #end
+                    <input $type id="$field.getFieldName()" name="$field.getFieldName()" value='true' $checked style='width:100%'>
                 #else
                     #set($type = 'type="text" placeholder="<null>"')
+                    <input $type id="$field.getFieldName()" name="$field.getFieldName()" value='$value' style='width:100%'>
                 #end
-                <input $type id="$field.getFieldName()" name="$field.getFieldName()" value='$value' style='width:100%'>
             #end
             </td>
         </tr>
