@@ -84,10 +84,6 @@ public final class OpenCmwConstants implements Settings {
     @MetaInfo(unit = "n2", description = "after <n2> failed attempts the retry-'heartBeat interval is increased 100-fold")
     public static final Integer RECONNECT_THRESHOLD2 = 6;
 
-    static { // init properties with default values given in the description text above
-        init();
-    }
-
     public static void init() {
         SystemProperties.addCommandOptions(OpenCmwConstants.class);
     }
