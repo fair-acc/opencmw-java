@@ -72,7 +72,7 @@ class MajordomoRestPluginTests {
     private static ImageService imageService;
 
     @BeforeAll
-    @Timeout(10)
+    @Timeout(20)
     static void init() throws IOException {
         assertEquals(8080, RestServerSettings.DEFAULT_PORT); // this assert is important for the following lines to have effect
         Field.getField(RestServerSettings.class, "DEFAULT_PORT").setInt(null, 8099);
@@ -110,7 +110,7 @@ class MajordomoRestPluginTests {
     }
 
     @AfterAll
-    @Timeout(10)
+    @Timeout(20)
     static void finish() {
         helloWorldService.stopWorker();
         imageService.stopWorker();

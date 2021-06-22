@@ -8,7 +8,7 @@ import static io.opencmw.utils.SystemProperties.parseOptions;
 
 import java.net.URI;
 
-import org.docopt.DocoptExitException;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
@@ -18,14 +18,18 @@ import io.opencmw.serialiser.spi.Field;
 import io.opencmw.utils.SystemProperties;
 
 class OpenCmwConstantsTest {
-    private static final String testOption_heartbeat = OpenCmwConstants.class.getSimpleName() + ".HEARTBEAT_INTERVAL";
-    private static final String testOption_liveness = OpenCmwConstants.class.getSimpleName() + ".HEARTBEAT_LIVENESS";
+    @BeforeAll
+    static void init() {
+        OpenCmwConstants.init(); // needed to execute once -- other class member function invocation work as well
+    }
+
     @Test
     void testCommandLineOptions() {
+        final String testOption_heartbeat = OpenCmwConstants.class.getSimpleName() + ".HEARTBEAT_INTERVAL";
         Field.getField(SystemProperties.class, "WITH_EXIT").setBoolean(null, false); // needed only for testing purposes
-        OpenCmwConstants.init(); // needed to execute once -- other class member function invocation work as well
 
         assertEquals(1001, Integer.parseInt(parseOptions(new String[] { "--" + testOption_heartbeat + "=1001" }).get(testOption_heartbeat).toString()));
+
         assertEquals(1001, HEARTBEAT_INTERVAL);
         assertEquals(1001, SystemProperties.getIntValueIgnoreCase(testOption_heartbeat));
 
@@ -34,9 +38,9 @@ class OpenCmwConstantsTest {
         assertEquals(1002, SystemProperties.getIntValueIgnoreCase(testOption_heartbeat));
 
         try {
-            parseOptions(new String[] { "-help" });
+            parseOptions(new String[] { "--help" });
             fail();
-        } catch (DocoptExitException e) {
+        } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("--" + testOption_heartbeat));
         }
 
@@ -96,14 +100,12 @@ class OpenCmwConstantsTest {
     void testMisc() {
         try (ZContext ctx = new ZContext(); ZMQ.Socket socket = ctx.createSocket(SocketType.DEALER)) {
             assertDoesNotThrow(() -> setDefaultSocketParameters(socket));
-            final int heartBeatInterval = SystemProperties.getIntValueIgnoreCase(testOption_heartbeat);
-            final int liveness = SystemProperties.getIntValueIgnoreCase(testOption_liveness);
             assertEquals(HIGH_WATER_MARK, socket.getRcvHWM(), "receive high-water mark");
             assertEquals(HIGH_WATER_MARK, socket.getSndHWM(), "send high-water mark");
             assertArrayEquals(PROT_CLIENT.getData(), socket.getHeartbeatContext(), "heart-beat payload message");
-            assertEquals(heartBeatInterval * liveness, socket.getHeartbeatTtl(), "time-out for remote socket [ms]");
-            assertEquals(heartBeatInterval * liveness, socket.getHeartbeatTimeout(), "time-out for local socket [ms]");
-            assertEquals(heartBeatInterval, socket.getHeartbeatIvl(), "heart-beat ping period [ms]");
+            assertEquals(HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS, socket.getHeartbeatTtl(), "time-out for remote socket [ms]");
+            assertEquals(HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS, socket.getHeartbeatTimeout(), "time-out for local socket [ms]");
+            assertEquals(HEARTBEAT_INTERVAL, socket.getHeartbeatIvl(), "heart-beat ping period [ms]");
         }
     }
 }

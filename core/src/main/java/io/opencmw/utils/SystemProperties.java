@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,25 +15,25 @@ import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 import org.apache.commons.lang3.StringUtils;
 import org.docopt.Docopt;
+import org.docopt.DocoptExitException;
 import org.jetbrains.annotations.NotNull;
 
 import io.opencmw.serialiser.spi.ClassFieldDescription;
 
-public final class SystemProperties { // NOPMD -- nomen est omen
+@SuppressWarnings({ "PMD.GodClass" })
+public final class SystemProperties { //NOPMD -- nomen est omen
     protected static final List<String> COMMAND_ARGUMENTS = new NoDuplicatesList<>(); // NOPMD 'protected' needed only for testing purposes
-    protected static final List<Object> COMMAND_OPTION_CLASSES = new NoDuplicatesList<>(); // NOPMD 'protected' needed only for testing purposes
+    protected static final Map<String, Object> COMMAND_OPTION_CLASSES = new ConcurrentHashMap<>(); // NOPMD 'protected' needed only for testing purposes
+    public static final String DEFAULT_CFG = "default.cfg";
     private static final String PROGRAM_NAME_TAG = "<program>";
     private static final Properties SYSTEM_PROPERTIES = System.getProperties();
     private static final String DEFAULT_ARGUMENTS = "  <program> [options]\n";
     public static String version = "<program version>";
     private static final Boolean WITH_EXIT = true; // needed only for testing purposes
-
-    static { // init properties with default values given in the description text above
-        parseOptions(new String[0]);
-    }
 
     private SystemProperties() {
         // utility class
@@ -42,9 +43,8 @@ public final class SystemProperties { // NOPMD -- nomen est omen
         COMMAND_ARGUMENTS.add(arguments);
     }
 
-    @SuppressWarnings("ConstantConditions")
     public static void addCommandOptions(final @NotNull Object definition) {
-        if (COMMAND_OPTION_CLASSES.add(definition)) {
+        if (null == COMMAND_OPTION_CLASSES.put(StringUtils.removeStart(definition.toString(), "class "), definition)) {
             SystemProperties.parseOptions(new String[0]);
         }
     }
@@ -52,24 +52,48 @@ public final class SystemProperties { // NOPMD -- nomen est omen
     @SuppressWarnings("PMD.NPathComplexity")
     public static Map<String, Object> parseOptions(@NotNull final String[] args) {
         final String commandLineDoc = getCommandLineDoc();
-        final Map<String, Object> opts = new Docopt(commandLineDoc).withExit(WITH_EXIT).withVersion(version).parse(List.of(args)); // NOPMD - no concurrent access
-        final String configFile = Objects.requireNonNull(opts.get("--config"), "corrupt config file name").toString();
-        if (!Boolean.FALSE.equals(opts.get("--help")) && WITH_EXIT) {
-            System.out.println(commandLineDoc);
-            System.exit(0); // NOPMD -- needed once/in case DocOpt is being replaced
+        Map<String, Object> tempOpts;
+        try {
+            tempOpts = new Docopt(commandLineDoc).withExit(false).withVersion(version).parse(List.of(args)); // NOPMD - no concurrent access
+        } catch (DocoptExitException e) {
+            if (version != null && version.equals(e.getMessage())) {
+                if (WITH_EXIT) {
+                    System.out.println("program version: " + version);
+                    System.exit(0); // NOPMD -- needed once/in case DocOpt is being replaced
+                }
+                throw new IllegalArgumentException(version, e); // parsed '--version' option
+            }
+
+            if (Boolean.TRUE.equals(StringUtils.startsWith(e.getMessage(), "Usage:"))) {
+                if (WITH_EXIT) {
+                    System.out.println(e.getMessage());
+                    System.exit(0); // NOPMD -- needed once/in case DocOpt is being replaced
+                }
+                throw new IllegalArgumentException(e.getMessage(), e); // requested '--help' option (TEST-only)
+            }
+
+            if (WITH_EXIT) {
+                System.out.println(commandLineDoc);
+            }
+            throw new IllegalArgumentException("could not parse command line options: " + Arrays.toString(args), e);
         }
+
+        final Map<String, Object> opts = Objects.requireNonNull(tempOpts, "could not parse command line options: " + Arrays.toString(args));
+        final String configFile = Objects.requireNonNull(opts.get("--config"), "corrupt config file name").toString();
 
         final Properties configFileProperties = new Properties();
         try (InputStream input = Files.newInputStream(Paths.get(configFile))) { // N
             // load a properties file
             configFileProperties.load(input);
         } catch (final IOException e) {
+            if (!DEFAULT_CFG.equals(configFile)) {
+                throw new IllegalArgumentException("could not find file: '" + Paths.get(configFile) + "'", e);
+            }
             // to improve: add searching for file in default path, silently continue if this is the missing 'default.cfg' file and throwing an exception otherwise
-            // throw new IllegalArgumentException("config file not readable: '" + configFile + "'", e)
         }
 
         final ConcurrentHashMap<String, Object> retMap = new ConcurrentHashMap<>();
-        for (Object optionClass : COMMAND_OPTION_CLASSES) {
+        for (Object optionClass : COMMAND_OPTION_CLASSES.values()) {
             final ClassFieldDescription classDescription = new ClassFieldDescription((optionClass instanceof Class) ? (Class<?>) optionClass : optionClass.getClass(), true); // NOPMD
             final String configClassName = classDescription.getTypeNameSimple();
             classDescription.getChildren().stream().map(ClassFieldDescription.class ::cast).forEach(field -> {
@@ -84,16 +108,21 @@ public final class SystemProperties { // NOPMD -- nomen est omen
 
                 // passing JVM environment Variables
                 if (SYSTEM_PROPERTIES.get(environmentOption) != null) {
-                    stringValue = SYSTEM_PROPERTIES.get(environmentOption).toString();
+                    final String testStringValue = SYSTEM_PROPERTIES.get(environmentOption).toString();
+                    if (!testStringValue.isBlank()) {
+                        stringValue = SYSTEM_PROPERTIES.get(environmentOption).toString();
+                    }
                 }
 
                 // passing command-line options -- highest priority
                 final String commandLineOption = "--" + environmentOption;
-                if (opts.get(commandLineOption) != null) {
+                final boolean argsContainCommandLineOption = Stream.of(args).anyMatch(s -> StringUtils.startsWith(s, commandLineOption));
+                if (opts.get(commandLineOption) != null && argsContainCommandLineOption) {
                     final Object value = opts.get(commandLineOption);
                     // found matching field
                     stringValue = (value instanceof List ? ((List<?>) value).get(0) : value).toString();
                 }
+
                 // perform actual setting of settings
                 if (stringValue != null) {
                     field.getField().set(optionClass, stringValue);
@@ -109,15 +138,14 @@ public final class SystemProperties { // NOPMD -- nomen est omen
     public static String getCommandLineDoc() {
         for (final Settings settingClass : ServiceLoader.load(Settings.class)) {
             // enable this for testing
-            // System.err.println("found settingClass " + settingClass)
-            COMMAND_OPTION_CLASSES.add(settingClass);
+            COMMAND_OPTION_CLASSES.put(settingClass.getClass().getName(), settingClass);
         }
 
         final StringBuilder builder = new StringBuilder(1000);
         builder.append("Usage:\n").append(String.join("", COMMAND_ARGUMENTS)).append(DEFAULT_ARGUMENTS).append("\nOptions:\n");
 
         final List<String[]> descriptionItems = new ArrayList<>();
-        for (Object optionClass : COMMAND_OPTION_CLASSES) {
+        for (Object optionClass : COMMAND_OPTION_CLASSES.values()) {
             final ClassFieldDescription classDescription = new ClassFieldDescription((optionClass instanceof Class) ? (Class<?>) optionClass : optionClass.getClass(), true); // NOPMD
             final String configClassName = classDescription.getTypeNameSimple();
             classDescription.getChildren().stream().map(ClassFieldDescription.class ::cast).filter(f -> f.isPublic() && f.isAnnotationPresent()).forEach(field -> {
@@ -131,7 +159,7 @@ public final class SystemProperties { // NOPMD -- nomen est omen
         }
         // add default optional parameters
         descriptionItems.add(new String[] { "", "", "" }); // empty line on purpose
-        descriptionItems.add(new String[] { "-c FILE --config=FILE", "[default: default.cfg]", "load properties from file." });
+        descriptionItems.add(new String[] { "-c FILE --config=FILE", "[default: " + DEFAULT_CFG + "]", "load properties from file." });
         descriptionItems.add(new String[] { "-p --print", "", "print actual parsed/provided parameters." });
         descriptionItems.add(new String[] { "-h --help", "", "show this screen." });
         descriptionItems.add(new String[] { "--version", "", "show version." });
