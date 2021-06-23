@@ -14,9 +14,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.LockSupport;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -56,7 +54,7 @@ import okhttp3.sse.EventSources;
 import zmq.util.Utils;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@Timeout(60)
+@Timeout(120)
 class MajordomoRestPluginTests {
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPluginTests.class);
     private static final Duration STARTUP = Duration.ofSeconds(3);
@@ -72,7 +70,7 @@ class MajordomoRestPluginTests {
     private static ImageService imageService;
 
     @BeforeAll
-    @Timeout(20)
+    @Timeout(10)
     static void init() throws IOException {
         assertEquals(8080, RestServerSettings.DEFAULT_PORT); // this assert is important for the following lines to have effect
         Field.getField(RestServerSettings.class, "DEFAULT_PORT").setInt(null, 8099);
@@ -110,24 +108,15 @@ class MajordomoRestPluginTests {
     }
 
     @AfterAll
-    @Timeout(20)
+    @Timeout(10)
     static void finish() {
         helloWorldService.stopWorker();
         imageService.stopWorker();
         secondaryBroker.stopBroker();
         primaryBroker.stopBroker();
-        final AtomicBoolean isShutdown = new AtomicBoolean(false);
-        RestServer.getInstance().events(event -> event.serverStopped(() -> isShutdown.set(true)));
-        RestServer.getInstance().stop();
+        restPlugin.stopWorker();
         Field.getField(RestServerSettings.class, "DEFAULT_PORT").setInt(null, 8080);
         Field.getField(RestServerSettings.class, "DEFAULT_PORT2").setInt(null, 8443);
-
-        while (!isShutdown.get()) {
-            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
-        }
-        if (isShutdown.get()) {
-            LOGGER.atDebug().log("shut-down Javalin properly");
-        }
     }
 
     @ParameterizedTest

@@ -628,7 +628,7 @@ public class ClassFieldDescription implements FieldDescription {
             return;
         }
         if (recursionLevel > ClassUtils.getMaxRecursionDepth()) {
-            throw new IllegalStateException("recursion error while scanning object structure: recursionLevel = '"
+            throw new IllegalStateException("recursion error while scanning " + parent.getTypeName() + "::" + classType.getName() + " structure: recursionLevel = '"
                                             + recursionLevel + "' > " + ClassFieldDescription.class.getSimpleName() + ".maxRecursionLevel ='"
                                             + ClassUtils.getMaxRecursionDepth() + "'");
         }

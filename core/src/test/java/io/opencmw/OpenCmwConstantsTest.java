@@ -20,7 +20,12 @@ import io.opencmw.utils.SystemProperties;
 class OpenCmwConstantsTest {
     @BeforeAll
     static void init() {
-        OpenCmwConstants.init(); // needed to execute once -- other class member function invocation work as well
+        try {
+            OpenCmwConstants.init(); // needed to execute once -- other class member function invocation work as well
+        } catch (Throwable e) {
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @Test
