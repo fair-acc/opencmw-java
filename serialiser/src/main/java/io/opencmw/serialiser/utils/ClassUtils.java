@@ -66,6 +66,7 @@ public final class ClassUtils { //NOPMD nomen est omen
         // boxed arrays
 
         // do not parse following classes
+        DO_NOT_PARSE_MAP.put(Object.class, "private java implementation");
         DO_NOT_PARSE_MAP.put(Class.class, "private java implementation");
         DO_NOT_PARSE_MAP.put(Thread.class, "recursive definitions"); // NOPMD - not an issue/not a use within a J2EE context
         DO_NOT_PARSE_MAP.put(AtomicBoolean.class, DOES_NOT_LIKE_TO_BE_PARSED);

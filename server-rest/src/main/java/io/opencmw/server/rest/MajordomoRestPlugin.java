@@ -8,10 +8,7 @@ import static io.javalin.plugin.openapi.dsl.DocumentedContentKt.anyOf;
 import static io.javalin.plugin.openapi.dsl.DocumentedContentKt.documentedContent;
 import static io.opencmw.OpenCmwConstants.HEARTBEAT_LIVENESS;
 import static io.opencmw.OpenCmwConstants.setDefaultSocketParameters;
-import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
-import static io.opencmw.OpenCmwProtocol.Command.READY;
-import static io.opencmw.OpenCmwProtocol.Command.SET_REQUEST;
-import static io.opencmw.OpenCmwProtocol.Command.UNKNOWN;
+import static io.opencmw.OpenCmwProtocol.Command.*;
 import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import static io.opencmw.OpenCmwProtocol.MdpMessage;
 import static io.opencmw.OpenCmwProtocol.MdpMessage.receive;
@@ -49,6 +46,7 @@ import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
+import io.javalin.Javalin;
 import io.javalin.apibuilder.ApiBuilder;
 import io.javalin.core.security.Role;
 import io.javalin.http.BadRequestResponse;
@@ -98,11 +96,12 @@ import com.jsoniter.spi.JsonException;
  * @author rstein
  */
 @MetaInfo(description = "Majordomo Broker REST/HTTP plugin.<br><br>"
-                        + " This opens two http ports and converts and forwards incoming request to the OpenCMW protocol and provides<br>"
-                        + " some basic admin functionality<br>",
+                      + " This opens two http ports and converts and forwards incoming request to the OpenCMW protocol and provides<br>"
+                      + " some basic admin functionality<br>",
         unit = "MajordomoRestPlugin")
 @SuppressWarnings({ "PMD.ExcessiveImports", "PMD.TooManyStaticImports", "PMD.DoNotUseThreads" }) // makes the code more readable/shorter lines
 public class MajordomoRestPlugin extends BasicMdpWorker {
+    protected static final byte[] REST_SUB_ID = "REST_SUBSCRIPTION".getBytes(UTF_8);
     private static final Logger LOGGER = LoggerFactory.getLogger(MajordomoRestPlugin.class);
     private static final byte[] RBAC = {}; // TODO: implement RBAC between Majordomo and Worker
     private static final int LAST_NOTIFY_MAX_HISTORY = 20; // remember last 10 notifications
@@ -115,16 +114,8 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     private static final String TAG_NOTIFY_ID = "notifyID";
     private static final AtomicLong REQUEST_COUNTER = new AtomicLong();
     private static final AtomicLong NOTIFY_COUNTER = new AtomicLong();
-    protected final ZMQ.Socket subSocket;
-    protected final Map<String, AtomicInteger> subscriptionCount = new ConcurrentHashMap<>();
-    protected final Map<Long, MdpMessage> subscriptionCache; // <notify_counter, last message>
-    protected static final byte[] REST_SUB_ID = "REST_SUBSCRIPTION".getBytes(UTF_8);
-    protected final ConcurrentMap<String, OpenApiDocumentation> registeredEndpoints = new ConcurrentHashMap<>();
-    private final BlockingArrayQueue<MdpMessage> requestQueue = new BlockingArrayQueue<>();
-    private final ConcurrentMap<String, CustomFuture<MdpMessage>> requestReplies = new ConcurrentHashMap<>();
-    private final BiConsumer<SseClient, CombinedHandler.SseState> newSseClientHandler;
-    private final AtomicReference<String> rootService = new AtomicReference<>("/mmi.service");
-    private final Map<String, String> menuMap = new ConcurrentSkipListMap<>(); // NOPMD NOSONAR <menu-tag,property-path>
+    private final transient Javalin restInstance = RestServer.getInstance();
+
     static {
         try {
             Base64Support.enable();
@@ -132,6 +123,16 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             // do nothing -- ensures that this is initialised only once
         }
     }
+
+    protected final ZMQ.Socket subSocket;
+    protected final Map<String, AtomicInteger> subscriptionCount = new ConcurrentHashMap<>();
+    protected final Map<Long, MdpMessage> subscriptionCache; // <notify_counter, last message>
+    protected final ConcurrentMap<String, OpenApiDocumentation> registeredEndpoints = new ConcurrentHashMap<>();
+    private final BlockingArrayQueue<MdpMessage> requestQueue = new BlockingArrayQueue<>();
+    private final ConcurrentMap<String, CustomFuture<MdpMessage>> requestReplies = new ConcurrentHashMap<>();
+    private final BiConsumer<SseClient, CombinedHandler.SseState> newSseClientHandler;
+    private final AtomicReference<String> rootService = new AtomicReference<>("/mmi.service");
+    private final Map<String, String> menuMap = new ConcurrentSkipListMap<>(); // NOPMD NOSONAR <menu-tag,property-path>
 
     public MajordomoRestPlugin(ZContext ctx, final String serverDescription, String httpAddress, final RbacRole<?>... rbacRoles) {
         super(ctx, MajordomoRestPlugin.class.getSimpleName(), rbacRoles);
@@ -158,7 +159,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         };
 
         // add default root - here: redirect to mmi.service
-        RestServer.getInstance().get("/", restCtx -> restCtx.redirect(rootService.get()), RestServer.getDefaultRole());
+        restInstance.get("/", restCtx -> restCtx.redirect(rootService.get()), RestServer.getDefaultRole());
 
         registerHandler(getDefaultRequestHandler()); // NOPMD - one-time call OK
 
@@ -200,30 +201,23 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         serviceListener.setName(MajordomoRestPlugin.class.getSimpleName() + "Subscriptions");
         serviceListener.start();
 
-        // perform initial get request
-        String services = "(uninitialised)";
-        final CustomFuture<MdpMessage> reply = dispatchRequest(new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_NAMES.getBytes(UTF_8), EMPTY_FRAME, URI.create(INTERNAL_SERVICE_NAMES), EMPTY_FRAME, "", RBAC));
-        try {
-            final MdpMessage msg = reply.get();
-            services = msg.data == null ? "" : new String(msg.data, UTF_8);
-            Arrays.stream(StringUtils.split(services, ",:;")).forEach(this::registerEndPoint);
-        } catch (final Exception e) { // NOPMD -- erroneous worker replies shall not stop the broker
-            LOGGER.atError().setCause(e).addArgument(services).log("could not perform initial registering of endpoints {}");
-        }
+//        // perform initial get request
+//        String services = "(uninitialised)";
+//        final CustomFuture<MdpMessage> reply = dispatchRequest(new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_NAMES.getBytes(UTF_8), EMPTY_FRAME, URI.create(INTERNAL_SERVICE_NAMES), EMPTY_FRAME, "", RBAC));
+//        try {
+//            final MdpMessage msg = reply.get();
+//            services = msg.data == null ? "" : new String(msg.data, UTF_8);
+//            Arrays.stream(StringUtils.split(services, ",:;")).forEach(this::registerEndPoint);
+//        } catch (final Exception e) { // NOPMD -- erroneous worker replies shall not stop the broker
+//            LOGGER.atError().setCause(e).addArgument(services).log("could not perform initial registering of endpoints {}");
+//        }
     }
 
-    protected static OpenCmwProtocol.Command getCommand(@NotNull final Context restCtx) {
-        switch (restCtx.method()) {
-        case "GET":
-            return GET_REQUEST;
-        case "POST":
-            return SET_REQUEST;
-        default:
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.atWarn().addArgument(restCtx.req).log("unknown request: {}");
-            }
-            return UNKNOWN;
-        }
+    @Override
+    public void stopWorker() {
+        super.stopWorker();
+        shallRun.set(false);
+        restInstance.stop();
     }
 
     protected RequestHandler getDefaultRequestHandler() {
@@ -354,7 +348,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                     OpenApiDocumentation openApi = getOpenApiDocumentation(handlerClassName);
 
                     final Set<Role> accessRoles = RestServer.getDefaultRole();
-                    RestServer.getInstance().routes(() -> {
+                    restInstance.routes(() -> {
                         ApiBuilder.before(ep, restCtx -> {
                             // for some strange reason this needs to be executed to be able to read 'restCtx.formParamMap()'
                             if ("POST".equals(restCtx.method())) {
@@ -375,6 +369,25 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 return null;
             });
         }
+    }
+
+    protected void notifySubscribedClients(final @NotNull MdpMessage msg) {
+        final long notifyID = NOTIFY_COUNTER.getAndIncrement();
+        try {
+            msg.topic = QueryParameterParser.appendQueryParameter(msg.topic, TAG_NO_MENU + '&' + TAG_NOTIFY_ID + '=' + notifyID);
+        } catch (URISyntaxException e) {
+            LOGGER.atWarn().setCause(e).addArgument(TAG_NOTIFY_ID).addArgument(msg.topic).log("could not append {} to {}");
+            return;
+        }
+        subscriptionCache.put(notifyID, msg);
+        final String notifyPath = prefixPath(msg.topic.getPath());
+        final Queue<SseClient> clients = RestServer.getEventClients(notifyPath);
+        final Predicate<SseClient> filter = c -> {
+            final String clientPath = StringUtils.stripEnd(c.ctx.path(), "/");
+            return clientPath.length() >= notifyPath.length() && clientPath.startsWith(notifyPath);
+        };
+        final String topicString = msg.topic.toString();
+        clients.stream().filter(filter).forEach(s -> s.sendEvent(topicString));
     }
 
     @NotNull
@@ -434,25 +447,6 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             requestQueue.notifyAll();
         }
         return reply;
-    }
-
-    protected void notifySubscribedClients(final @NotNull MdpMessage msg) {
-        final long notifyID = NOTIFY_COUNTER.getAndIncrement();
-        try {
-            msg.topic = QueryParameterParser.appendQueryParameter(msg.topic, TAG_NO_MENU + '&' + TAG_NOTIFY_ID + '=' + notifyID);
-        } catch (URISyntaxException e) {
-            LOGGER.atWarn().setCause(e).addArgument(TAG_NOTIFY_ID).addArgument(msg.topic).log("could not append {} to {}");
-            return;
-        }
-        subscriptionCache.put(notifyID, msg);
-        final String notifyPath = prefixPath(msg.topic.getPath());
-        final Queue<SseClient> clients = RestServer.getEventClients(notifyPath);
-        final Predicate<SseClient> filter = c -> {
-            final String clientPath = StringUtils.stripEnd(c.ctx.path(), "/");
-            return clientPath.length() >= notifyPath.length() && clientPath.startsWith(notifyPath);
-        };
-        final String topicString = msg.topic.toString();
-        clients.stream().filter(filter).forEach(s -> s.sendEvent(topicString));
     }
 
     private Handler getDefaultServiceRestHandler(final String restHandler) { // NOSONAR NOPMD - complexity is acceptable
@@ -582,5 +576,19 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         }
 
         return JsonStream.serialize(requestMap).getBytes(UTF_8);
+    }
+
+    protected static OpenCmwProtocol.Command getCommand(@NotNull final Context restCtx) {
+        switch (restCtx.method()) {
+        case "GET":
+            return GET_REQUEST;
+        case "POST":
+            return SET_REQUEST;
+        default:
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.atWarn().addArgument(restCtx.req).log("unknown request: {}");
+            }
+            return UNKNOWN;
+        }
     }
 }
