@@ -270,6 +270,7 @@ public final class RestServer { // NOPMD -- nomen est omen
                               config.registerPlugin(new OpenApiPlugin(getOpenApiOptions()));
                           })
                            .events(event -> event.handlerAdded(ENDPOINT_ADDED_HANDLER));
+        instance.events(event -> event.serverStopping(() -> instance = null)); // do not reuse stopped Javalin server
         instance.start();
 
         // add login management
@@ -375,7 +376,7 @@ public final class RestServer { // NOPMD -- nomen est omen
         KeyStore keyStore = null;
 
         // read keyStore password
-        try (BufferedReader br = RestServerSettings.REST_KEY_STORE_PASSWORD.isBlank() ? new BufferedReader(new InputStreamReader(RestServer.class.getResourceAsStream("/keystore.pwd"), UTF_8)) //
+        try (BufferedReader br = RestServerSettings.REST_KEY_STORE_PASSWORD.isBlank() ? new BufferedReader(new InputStreamReader(Objects.requireNonNull(RestServer.class.getResourceAsStream("/keystore.pwd"), "keystore.pwd not found"), UTF_8)) //
                                                                                       : Files.newBufferedReader(Paths.get(RestServerSettings.REST_KEY_STORE_PASSWORD), UTF_8)) {
             keyStorePwd = br.readLine();
         } catch (final IOException e) {
