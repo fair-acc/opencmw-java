@@ -11,6 +11,7 @@ import io.opencmw.server.MajordomoBroker;
 import io.opencmw.server.rest.MajordomoRestPlugin;
 import io.opencmw.server.rest.test.HelloWorldService;
 import io.opencmw.server.rest.test.ImageService;
+import io.opencmw.utils.SystemProperties;
 
 import zmq.util.Utils;
 
@@ -35,6 +36,7 @@ public class MajordomoRestPluginSample {
     }
 
     public static void main(String[] args) throws IOException {
+        SystemProperties.parseOptions(args);
         launchBroker();
 
         // start simple test services/properties
