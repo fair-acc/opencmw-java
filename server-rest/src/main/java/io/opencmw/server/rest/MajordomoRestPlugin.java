@@ -201,16 +201,16 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
         serviceListener.setName(MajordomoRestPlugin.class.getSimpleName() + "Subscriptions");
         serviceListener.start();
 
-//        // perform initial get request
-//        String services = "(uninitialised)";
-//        final CustomFuture<MdpMessage> reply = dispatchRequest(new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_NAMES.getBytes(UTF_8), EMPTY_FRAME, URI.create(INTERNAL_SERVICE_NAMES), EMPTY_FRAME, "", RBAC));
-//        try {
-//            final MdpMessage msg = reply.get();
-//            services = msg.data == null ? "" : new String(msg.data, UTF_8);
-//            Arrays.stream(StringUtils.split(services, ",:;")).forEach(this::registerEndPoint);
-//        } catch (final Exception e) { // NOPMD -- erroneous worker replies shall not stop the broker
-//            LOGGER.atError().setCause(e).addArgument(services).log("could not perform initial registering of endpoints {}");
-//        }
+        //        // perform initial get request
+        //        String services = "(uninitialised)";
+        //        final CustomFuture<MdpMessage> reply = dispatchRequest(new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_NAMES.getBytes(UTF_8), EMPTY_FRAME, URI.create(INTERNAL_SERVICE_NAMES), EMPTY_FRAME, "", RBAC));
+        //        try {
+        //            final MdpMessage msg = reply.get();
+        //            services = msg.data == null ? "" : new String(msg.data, UTF_8);
+        //            Arrays.stream(StringUtils.split(services, ",:;")).forEach(this::registerEndPoint);
+        //        } catch (final Exception e) { // NOPMD -- erroneous worker replies shall not stop the broker
+        //            LOGGER.atError().setCause(e).addArgument(services).log("could not perform initial registering of endpoints {}");
+        //        }
     }
 
     @Override
