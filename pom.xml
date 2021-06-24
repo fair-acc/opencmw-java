@@ -33,18 +33,18 @@
         <version.jetbrains.annotations>20.1.0</version.jetbrains.annotations>
         <version.jeromq>0.5.2</version.jeromq>
         <versions.lmax.disruptor>3.4.4</versions.lmax.disruptor>
-        <version.javalin>3.13.7</version.javalin>
+        <version.javalin>3.13.8</version.javalin>
         <version.jetty>9.4.42.v20210604</version.jetty> <!-- N.B. needs to be synchronised/tested with Javalin version -->
         <version.jsoniter>0.9.23</version.jsoniter>
         <version.fastutil>8.5.4</version.fastutil>
         <version.javassist>3.27.0-GA</version.javassist>
         <version.okHttp3>4.9.1</version.okHttp3>
         <version.commons-lang3>3.12.0</version.commons-lang3>
-        <version.jupiter>5.7.1</version.jupiter>
+        <version.jupiter>5.7.2</version.jupiter>
         <version.awaitility>4.0.3</version.awaitility>
-        <version.JMemoryBuddy>0.5.0</version.JMemoryBuddy>
-        <version.jmh>1.29</version.jmh>
-        <version.micrometer>1.6.6</version.micrometer>
+        <version.JMemoryBuddy>0.5.1</version.JMemoryBuddy>
+        <version.jmh>1.32</version.jmh>
+        <version.micrometer>1.7.1</version.micrometer>
         <version.velocity>2.3</version.velocity>
         <version.chartfx>11.2.5</version.chartfx>
         <version.docopt>0.6.0.20150202</version.docopt>
