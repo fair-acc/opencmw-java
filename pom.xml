@@ -30,17 +30,17 @@
         <maven.compiler.target>11</maven.compiler.target>
         <version.slf4j>2.0.0-alpha0</version.slf4j>
         <version.auto-service>1.0</version.auto-service>
-        <version.jetbrains.annotations>20.1.0</version.jetbrains.annotations>
+        <version.jetbrains.annotations>21.0.1</version.jetbrains.annotations>
         <version.jeromq>0.5.2</version.jeromq>
         <versions.lmax.disruptor>3.4.4</versions.lmax.disruptor>
         <version.javalin>3.13.8</version.javalin>
         <version.jetty>9.4.42.v20210604</version.jetty> <!-- N.B. needs to be synchronised/tested with Javalin version -->
         <version.jsoniter>0.9.23</version.jsoniter>
         <version.fastutil>8.5.4</version.fastutil>
-        <version.javassist>3.27.0-GA</version.javassist>
+        <version.javassist>3.28.0-GA</version.javassist>
         <version.okHttp3>4.9.1</version.okHttp3>
         <version.commons-lang3>3.12.0</version.commons-lang3>
-        <version.jupiter>5.7.1</version.jupiter>
+        <version.jupiter>5.7.2</version.jupiter>
         <version.awaitility>4.0.3</version.awaitility>
         <version.JMemoryBuddy>0.5.1</version.JMemoryBuddy>
         <version.jmh>1.32</version.jmh>
@@ -155,7 +155,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>3.2.0</version>
+                <version>3.3.0</version>
                 <executions>
                     <execution>
                         <id>attach-javadocs</id>
