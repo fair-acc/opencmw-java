@@ -77,7 +77,7 @@ public class EventStore {
         this.ctxMappingFunction = ctx -> {
             // mux contexts -> create copy into separate disruptor/ringbuffer if necessary
             // N.B. only single writer ... no further post-processors (all done in main eventStream)
-            final Disruptor<RingBufferEvent> ld = new Disruptor<>(() -> new RingBufferEvent(filterConfig), ringBufferSize, threadFactory, ProducerType.SINGLE, new BlockingWaitStrategy());
+            final Disruptor<RingBufferEvent> ld = new Disruptor<>(() -> new RingBufferEvent(filterConfig), 8, threadFactory, ProducerType.SINGLE, new BlockingWaitStrategy());
             ld.start();
             return ld;
         };
