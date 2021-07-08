@@ -106,14 +106,14 @@ public class ClipboardWorker extends MajordomoWorker<BasicCtx, BinaryData, Binar
 
         final Set<String> subCategories = //
                 repository.keySet().stream() //
-                        .filter(s -> s.startsWith('/' + categoryName))
+                        .filter(s -> StringUtils.substringBeforeLast(s, "/").startsWith('/' + categoryName))
                         .map(s -> StringUtils.removeStart(s, '/' + categoryName))
                         .map(s -> StringUtils.substringBefore(StringUtils.strip(StringUtils.substringBeforeLast(s, "/"), "/"), "/"))
                         .collect(Collectors.toSet());
 
         final List<DataContainer> dataInSubCategory = //
                 repository.entrySet().stream() //
-                        .filter(e -> StringUtils.substringBeforeLast(e.getKey(), "/").equals('/' + categoryName))
+                        .filter(e -> StringUtils.prependIfMissing(StringUtils.substringBeforeLast(e.getKey(), "/"), "/").equals('/' + categoryName))
                         .sorted(Comparator.comparing(s -> s.getValue().getFileName()))
                         .map(Map.Entry::getValue)
                         .collect(Collectors.toList());
