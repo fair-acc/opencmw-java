@@ -185,10 +185,10 @@ public class EventStore {
 
         assert handlerGroup != null;
         @SuppressWarnings("unchecked")
-        EventHandler<RingBufferEvent>[] eventHanders = allEventHandlers.toArray(new EventHandler[0]);
+        EventHandler<RingBufferEvent>[] eventHandlers = allEventHandlers.toArray(new EventHandler[0]);
         if (startReaper) {
             // start the reaper thread for this given ring buffer
-            disruptor.after(eventHanders).then(new RingBufferEvent.ClearEventHandler());
+            disruptor.after(eventHandlers).then(new RingBufferEvent.ClearEventHandler());
         }
 
         // register this event store to all DefaultHistoryEventHandler
