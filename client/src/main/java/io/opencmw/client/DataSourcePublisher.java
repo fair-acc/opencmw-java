@@ -202,48 +202,53 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
     @Override
     public void run() {
-        if (shallRun.getAndSet(true)) {
-            return; // is already running
-        }
-        running.set(true);
-        // start the ring buffer and its processors
-        rawDataEventStore.start();
-        // event loop polling all data sources and performing regular housekeeping jobs
-        long nextHousekeeping = System.currentTimeMillis(); // immediately perform first housekeeping
-        long timeOut;
-        int pollerReturn;
-        do {
-            boolean dataAvailable = !context.isClosed();
-            while (dataAvailable && System.currentTimeMillis() < nextHousekeeping && shallRun.get()) {
-                dataAvailable = handleDataSourceSockets(); // get data from clients
-                dataAvailable |= handleControlSocket(); // check specifically for control socket
+        try {
+            if (shallRun.getAndSet(true)) {
+                return; // is already running
             }
-            final long now = System.currentTimeMillis();
-            nextHousekeeping = clientMap.values().stream().mapToLong(DataSource::housekeeping).min().orElse(now + HEARTBEAT_INTERVAL);
-            timeOut = nextHousekeeping - now;
-            // remove closed client sockets from poller
-            clientMap.values().stream().filter(DataSource::isClosed).forEach(s -> poller.unregister(s.getSocket()));
-            // wait for next message or next requested housekeeping
-            Metrics.counter(DataSourcePublisher.class.getSimpleName() + ".eventLoopRate").increment();
-            pollerReturn = poller.poll(Math.max(0L, timeOut)); // ensure that argument is never negative which would lead to blocking the poller indefinitely (0 returns immediately)
-        } while ((timeOut <= 0 || -1 != pollerReturn) && !Thread.interrupted() && shallRun.get() && !context.isClosed());
-        if (shallRun.get()) {
-            LOGGER.atError().addArgument(Thread.interrupted()).addArgument(context.isClosed()).addArgument(pollerReturn).addArgument(clientMap.values()).log("abnormally terminated (int={},ctx={},poll={}) - abort run() - clients = {}");
-        } else {
-            LOGGER.atDebug().log("shutting down DataSourcePublisher");
-        }
-        rawDataEventStore.stop();
-        for (DataSource dataSource : clientMap.values()) {
-            try {
-                poller.unregister(dataSource.getSocket());
-                dataSource.close();
-            } catch (Exception e) { // NOPMD
-                // shut-down close
-                LOGGER.atError().setCause(e).addArgument(dataSource.toString()).log("data source {} did not close properly");
+            running.set(true);
+            // start the ring buffer and its processors
+            rawDataEventStore.start();
+            // event loop polling all data sources and performing regular housekeeping jobs
+            long nextHousekeeping = System.currentTimeMillis(); // immediately perform first housekeeping
+            long timeOut;
+            int pollerReturn;
+            do {
+                boolean dataAvailable = !context.isClosed();
+                while (dataAvailable && System.currentTimeMillis() < nextHousekeeping && shallRun.get()) {
+                    dataAvailable = handleDataSourceSockets(); // get data from clients
+                    dataAvailable |= handleControlSocket(); // check specifically for control socket
+                }
+                final long now = System.currentTimeMillis();
+                nextHousekeeping = clientMap.values().stream().mapToLong(DataSource::housekeeping).min().orElse(now + HEARTBEAT_INTERVAL);
+                timeOut = nextHousekeeping - now;
+                // remove closed client sockets from poller
+                clientMap.values().stream().filter(DataSource::isClosed).forEach(s -> poller.unregister(s.getSocket()));
+                // wait for next message or next requested housekeeping
+                Metrics.counter(DataSourcePublisher.class.getSimpleName() + ".eventLoopRate").increment();
+                pollerReturn = poller.poll(Math.max(0L, timeOut)); // ensure that argument is never negative which would lead to blocking the poller indefinitely (0 returns immediately)
+            } while ((timeOut <= 0 || -1 != pollerReturn) && !Thread.interrupted() && shallRun.get() && !context.isClosed());
+            if (shallRun.get()) {
+                LOGGER.atError().addArgument(Thread.interrupted()).addArgument(context.isClosed()).addArgument(pollerReturn).addArgument(clientMap.values()).log("abnormally terminated (int={},ctx={},poll={}) - abort run() - clients = {}");
+            } else {
+                LOGGER.atDebug().log("shutting down DataSourcePublisher");
             }
+            rawDataEventStore.stop();
+            for (DataSource dataSource : clientMap.values()) {
+                try {
+                    poller.unregister(dataSource.getSocket());
+                    dataSource.close();
+                } catch (Exception e) { // NOPMD
+                    // shut-down close
+                    LOGGER.atError().setCause(e).addArgument(dataSource.toString()).log("data source {} did not close properly");
+                }
+            }
+            running.set(false);
+            threadReference.set(null);
+        } catch (Exception e) {
+            LOGGER.atError().setCause(e).log("Unrecoverable Error in DataSourcePublisher, shutting down application");
+            System.exit(1);
         }
-        running.set(false);
-        threadReference.set(null);
     }
 
     protected boolean handleControlSocket() {
