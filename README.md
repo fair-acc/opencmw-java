@@ -11,6 +11,7 @@
 [![Language grade: Java](https://img.shields.io/lgtm/grade/java/github/fair-acc/opencmw-java)](https://lgtm.com/projects/g/fair-acc/opencmw-java/context:java)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/9c7215713a8d4e71a751ae70ec31f2db?branch=main)](https://app.codacy.com/gh/fair-acc/opencmw-java)
 [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/9c7215713a8d4e71a751ae70ec31f2db)](https://www.codacy.com/gh/fair-acc/opencmw-java/dashboard?utm_source=github.com&utm_medium=referral&utm_content=fair-acc/opencmw-java&utm_campaign=Badge_Coverage)
+[![Coverity Build Status](https://scan.coverity.com/projects/fair-acc-opencmw-java/badge.svg)](https://scan.coverity.com/projects/fair-acc-opencmw-java)
 # Open Common Middle-Ware
 ... is a modular event-driven [micro-](https://en.wikipedia.org/wiki/Microservices) and [middle-ware](https://en.wikipedia.org/wiki/Middleware#:~:text=Middleware%20is%20a%20computer%20software,described%20as%20%22software%20glue%22.)
 library for equipment- and beam-based monitoring as well as feedback control systems for the [FAIR](https://fair-center.eu/) Accelerator Facility ([video](https://www.youtube.com/watch?v=gCHzDR7hdoM)) 
