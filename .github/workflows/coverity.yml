@@ -45,7 +45,7 @@ jobs:
           distribution: 'adopt'
       - name: Download Coverity Build Tool
         run: |
-          wget -q https://scan.coverity.com/download/java/Linux --post-data "token=$TOKEN&project=opencmw-java" -O cov-analysis-linux64.tar.gz
+          wget -q https://scan.coverity.com/download/java/Linux --post-data "token=$TOKEN&project=fair-acc-opencmw-java" -O cov-analysis-linux64.tar.gz
           mkdir cov-analysis-linux64
           tar xzf cov-analysis-linux64.tar.gz --strip 1 -C cov-analysis-linux64
         env:
@@ -60,15 +60,15 @@ jobs:
           CHANGELIST: ${{ steps.version.outputs.changelist }}
       - name: Submit the result to Coverity Scan
         run: |
-          tar czvf opencmw-java.tgz cov-int
+          tar czvf fair-acc-opencmw-java.tgz cov-int
           curl -sS \
-            --form project=opencmw-java \
+            --form project=fair-acc-opencmw-java \
             --form token=$TOKEN \
             --form email=${COVERITY_EMAIL} \
-            --form file=@opencmw-java.tgz \
+            --form file=@fair-acc-opencmw-java.tgz \
             --form version=${{ github.ref }}\
             --form description="Description" \
-            https://scan.coverity.com/builds?project=opencmw-java
+            https://scan.coverity.com/builds?project=fair-acc-opencmw-java
         env:
           TOKEN: ${{ secrets.COVERITY_TOKEN }}
           COVERITY_EMAIL: ${{ secrets.COVERITY_SCAN_NOTIFICATION_EMAIL }}
