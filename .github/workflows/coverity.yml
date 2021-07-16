@@ -53,7 +53,7 @@ jobs:
       - name: Build with cov-build
         run: |
           export PATH=`pwd`/cov-analysis-linux64/bin:$PATH
-          cov-build --dir cov-int mvn clean test --batch-mode -Drevision=${REVISION} -Dsha1=${SHA1} -Dchangelist=${CHANGELIST}
+          cov-build --dir cov-int mvn clean compile --batch-mode -Drevision=${REVISION} -Dsha1=${SHA1} -Dchangelist=${CHANGELIST}
         env:
           REVISION: ${{ steps.version.outputs.revision }}
           SHA1: ${{ steps.version.outputs.sha1 }}
