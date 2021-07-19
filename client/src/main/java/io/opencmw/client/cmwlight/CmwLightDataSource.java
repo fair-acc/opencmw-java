@@ -1,10 +1,12 @@
 package io.opencmw.client.cmwlight;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import static org.zeromq.ZMonitor.Event;
+
 import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
 import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.zeromq.ZMonitor.Event;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -660,28 +662,28 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
         public URI toURI() throws URISyntaxException {
             final var filterString = filters.entrySet().stream() //
-                                                .map(e -> {
-                                                    final Object value = e.getValue();
-                                                    final String val;
-                                                    if (value instanceof String) {
-                                                        val = (String) value;
-                                                    } else if (value instanceof Integer) {
-                                                        val = FILTER_TYPE_INT + value;
-                                                    } else if (value instanceof Long) {
-                                                        val = FILTER_TYPE_LONG + value;
-                                                    } else if (value instanceof Boolean) {
-                                                        val = FILTER_TYPE_BOOL + value;
-                                                    } else if (value instanceof Double) {
-                                                        val = FILTER_TYPE_DOUBLE + value;
-                                                    } else if (value instanceof Float) {
-                                                        val = FILTER_TYPE_FLOAT + value;
-                                                    } else {
-                                                        // seems to be only thrown for library design errors
-                                                        throw new IllegalArgumentException("data type not supported in endpoint filters");
-                                                    }
-                                                    return e.getKey() + '=' + val;
-                                                }) //
-                                                .collect(Collectors.joining("&"));
+                                             .map(e -> {
+                                                 final Object value = e.getValue();
+                                                 final String val;
+                                                 if (value instanceof String) {
+                                                     val = (String) value;
+                                                 } else if (value instanceof Integer) {
+                                                     val = FILTER_TYPE_INT + value;
+                                                 } else if (value instanceof Long) {
+                                                     val = FILTER_TYPE_LONG + value;
+                                                 } else if (value instanceof Boolean) {
+                                                     val = FILTER_TYPE_BOOL + value;
+                                                 } else if (value instanceof Double) {
+                                                     val = FILTER_TYPE_DOUBLE + value;
+                                                 } else if (value instanceof Float) {
+                                                     val = FILTER_TYPE_FLOAT + value;
+                                                 } else {
+                                                     // seems to be only thrown for library design errors
+                                                     throw new IllegalArgumentException("data type not supported in endpoint filters");
+                                                 }
+                                                 return e.getKey() + '=' + val;
+                                             }) //
+                                             .collect(Collectors.joining("&"));
             return new URI(RDA_3_PROTOCOL, authority, '/' + device + '/' + property, "ctx=" + ctx + '&' + filterString, null);
         }
     }
