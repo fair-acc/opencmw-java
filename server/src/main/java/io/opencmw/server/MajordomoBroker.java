@@ -415,7 +415,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     protected void processClients() {
         // round-robin
         clients.values().stream().filter(client -> !client.requests.isEmpty()).forEach(client -> {
-            final MdpMessage clientMessage = client.pop();
+            final MdpMessage clientMessage = Objects.requireNonNull(client.pop(), "clientMessage is null");
 
             // dispatch client message to worker queue
             // old : final Service service = services.get(clientMessage.getServiceName())
@@ -738,7 +738,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         }
     }
 
-    /* default */ Service getBestMatchingService(final String serviceName) { // NOPMD package private OK
+    /* default */ Service getBestMatchingService(@NotNull final String serviceName) { // NOPMD package private OK
         final List<String> sortedList = services.keySet().stream().filter(serviceName::startsWith).sorted(Comparator.comparingInt(String::length)).collect(Collectors.toList());
         if (!sortedList.isEmpty()) {
             return services.get(sortedList.get(0));
