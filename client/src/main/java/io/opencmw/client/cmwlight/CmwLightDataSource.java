@@ -1,12 +1,10 @@
 package io.opencmw.client.cmwlight;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
-import static org.zeromq.ZMonitor.Event;
-
 import static io.opencmw.OpenCmwConstants.*;
 import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
 import static io.opencmw.client.OpenCmwDataSource.createInternalMsg;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.zeromq.ZMonitor.Event;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -14,12 +12,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,13 +23,7 @@ import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zeromq.SocketType;
-import org.zeromq.ZContext;
-import org.zeromq.ZFrame;
-import org.zeromq.ZMQ;
-import org.zeromq.ZMQException;
-import org.zeromq.ZMonitor;
-import org.zeromq.ZMsg;
+import org.zeromq.*;
 
 import io.micrometer.core.instrument.Metrics;
 import io.opencmw.QueryParameterParser;
@@ -151,7 +138,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         try {
             final String identity = getIdentity();
             resolveAddress = replaceSchemeKeepOnlyAuthority(resolveAddress, SCHEME_TCP);
-            socket.setIdentity(identity.getBytes()); // hostname/process/id/channel -- seems to be needed by CMW :-|
+            socket.setIdentity(identity.getBytes(UTF_8)); // hostname/process/id/channel -- seems to be needed by CMW :-|
             LOGGER.atDebug().addArgument(resolveAddress).addArgument(resolveAddress).addArgument(identity).log("connecting to: '{}'->'{}' with identity {}");
             if (!socket.connect(resolveAddress.toString())) {
                 LOGGER.atError().addArgument(endpoint).addArgument(resolveAddress.toString()).log("could not connect requested URI '{}' to '{}'");
@@ -168,7 +155,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
     @Override
     public void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
-        final Request request = new Request(CmwLightProtocol.RequestType.GET, requestId, endpoint, data, rbacToken);
+        final var request = new Request(CmwLightProtocol.RequestType.GET, requestId, endpoint, data, rbacToken);
         queuedRequests.add(request);
     }
 
@@ -311,15 +298,15 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
     @Override
     public void set(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
-        final Request request = new Request(CmwLightProtocol.RequestType.SET, requestId, endpoint, data, rbacToken);
+        final var request = new Request(CmwLightProtocol.RequestType.SET, requestId, endpoint, data, rbacToken);
         queuedRequests.add(request);
     }
 
     @Override
     public void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken) {
         try {
-            final ParsedEndpoint ep = new ParsedEndpoint(endpoint);
-            final Subscription sub = new Subscription(endpoint, ep.device, ep.property, ep.ctx, ep.filters);
+            final var ep = new ParsedEndpoint(endpoint);
+            final var sub = new Subscription(endpoint, ep.device, ep.property, ep.ctx, ep.filters);
             sub.idString = reqId;
             subscriptions.put(sub.id, sub);
             subscriptionsByReqId.put(reqId, sub);
@@ -330,7 +317,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
     @Override
     public void unsubscribe(final String reqId) {
-        final Subscription sub = subscriptionsByReqId.get(reqId);
+        final var sub = subscriptionsByReqId.get(reqId);
         if (sub.subscriptionState == SubscriptionState.UNSUBSCRIBED) {
             subscriptions.remove(sub.id);
             return;
@@ -379,7 +366,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     private ZMsg handleServerReply(final CmwLightMessage reply, final long currentTime) { //NOPMD
         switch (reply.requestType) {
         case REPLY:
-            Request requestForReply = pendingRequests.remove(reply.id);
+            var requestForReply = pendingRequests.remove(reply.id);
             try {
                 return createInternalMsg(requestForReply.requestId.getBytes(UTF_8), new ParsedEndpoint(requestForReply.endpoint, reply.dataContext.cycleName).toURI(), reply.bodyData, null, CmwLightDataSource.class);
             } catch (URISyntaxException | CmwLightProtocol.RdaLightException e) {
@@ -387,11 +374,11 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
                 return new ZMsg();
             }
         case EXCEPTION:
-            final Request requestForException = pendingRequests.remove(reply.id);
+            final var requestForException = pendingRequests.remove(reply.id);
             return createInternalMsg(requestForException.requestId.getBytes(UTF_8), requestForException.endpoint, null, "request exception: " + reply.exceptionMessage.message, CmwLightDataSource.class);
         case SUBSCRIBE:
             final long id = reply.id;
-            final Subscription sub = subscriptions.get(id);
+            final var sub = subscriptions.get(id);
             sub.updateId = (long) reply.options.get(CmwLightProtocol.FieldName.SOURCE_ID_TAG.value());
             replyIdMap.put(sub.updateId, sub);
             sub.subscriptionState = SubscriptionState.SUBSCRIBED;
@@ -401,13 +388,13 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             return new ZMsg();
         case UNSUBSCRIBE:
             // successfully removed subscription
-            final Subscription subscriptionForUnsub = replyIdMap.remove(reply.id);
+            final var subscriptionForUnsub = replyIdMap.remove(reply.id);
             subscriptionsByReqId.remove(subscriptionForUnsub.idString);
             subscriptions.remove(subscriptionForUnsub.id);
             Metrics.gauge(CmwLightDataSource.class.getSimpleName() + ".numberOfSubscriptions", subscriptions.size());
             return new ZMsg();
         case NOTIFICATION_DATA:
-            final Subscription subscriptionForNotification = replyIdMap.get(reply.id);
+            final var subscriptionForNotification = replyIdMap.get(reply.id);
             if (subscriptionForNotification == null) {
                 LOGGER.atInfo().addArgument(reply.id).addArgument(reply.toString()).log("received unsolicited subscription data for id '{}': {}");
                 return new ZMsg();
@@ -421,14 +408,14 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
             }
             return createInternalMsg(subscriptionForNotification.idString.getBytes(UTF_8), endpointForNotificationContext, reply.bodyData, null, CmwLightDataSource.class);
         case NOTIFICATION_EXC:
-            final Subscription subscriptionForNotifyExc = replyIdMap.get(reply.id);
+            final var subscriptionForNotifyExc = replyIdMap.get(reply.id);
             if (subscriptionForNotifyExc == null) {
                 LOGGER.atInfo().addArgument(reply.toString()).log("received unsolicited subscription notification error: {}");
                 return new ZMsg();
             }
             return createInternalMsg(subscriptionForNotifyExc.idString.getBytes(UTF_8), subscriptionForNotifyExc.endpoint, null, "notification exception: " + reply.exceptionMessage.message, CmwLightDataSource.class);
         case SUBSCRIBE_EXCEPTION:
-            final Subscription subForSubExc = subscriptions.get(reply.id);
+            final var subForSubExc = subscriptions.get(reply.id);
             subForSubExc.subscriptionState = SubscriptionState.UNSUBSCRIBED;
             subForSubExc.timeoutValue = currentTime + subForSubExc.backOff;
             subForSubExc.backOff *= 2;
@@ -448,7 +435,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
     private CmwLightMessage receiveData() {
         // receive data
         try {
-            final ZMsg data = ZMsg.recvMsg(socket, ZMQ.DONTWAIT);
+            final var data = ZMsg.recvMsg(socket, ZMQ.DONTWAIT);
             if (data == null) {
                 return null;
             }
@@ -461,7 +448,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
 
     private boolean sendRequest(final Request request) {
         try {
-            final ParsedEndpoint parsedEndpoint = new ParsedEndpoint(request.endpoint);
+            final var parsedEndpoint = new ParsedEndpoint(request.endpoint);
             switch (request.requestType) {
             case GET:
                 return CmwLightProtocol.sendMsg(socket, CmwLightMessage.getRequest(
@@ -672,7 +659,7 @@ public class CmwLightDataSource extends DataSource { // NOPMD - class should pro
         }
 
         public URI toURI() throws URISyntaxException {
-            final String filterString = filters.entrySet().stream() //
+            final var filterString = filters.entrySet().stream() //
                                                 .map(e -> {
                                                     final Object value = e.getValue();
                                                     final String val;
