@@ -1,6 +1,7 @@
 package io.opencmw.client.cmwlight;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -545,7 +546,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
                 }
             }
         } catch (IllegalStateException e) {
-            throw new RdaLightException("unparsable context data: " + Arrays.toString(contextData.getData()) + "(" + new String(contextData.getData()) + ")", e);
+            throw new RdaLightException("unparsable context data: " + Arrays.toString(contextData.getData()) + "(" + new String(contextData.getData(), StandardCharsets.UTF_8) + ")", e);
         }
         return requestContext;
     }
@@ -575,7 +576,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
                 }
             }
         } catch (IllegalStateException e) {
-            throw new RdaLightException("unparsable context data: " + Arrays.toString(contextData.getData()) + "(" + new String(contextData.getData()) + ")", e);
+            throw new RdaLightException("unparsable context data: " + Arrays.toString(contextData.getData()) + "(" + new String(contextData.getData(), StandardCharsets.UTF_8) + ")", e);
         }
         return dataContext;
     }
