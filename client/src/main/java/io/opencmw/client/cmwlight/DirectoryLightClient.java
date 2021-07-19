@@ -85,7 +85,7 @@ public class DirectoryLightClient implements DnsResolver {
      * @return The request message to send to the server
      **/
     private String getDeviceMsg(final List<String> devices) {
-        final var sb = new StringBuilder();
+        final var sb = new StringBuilder(30);
         sb.append(GET_DEVICE_INFO).append("\n@client-info ").append(CLIENT_INFO).append("\n@version ").append(VERSION).append('\n');
         // msg.append("@prefer-proxy\n");
         // msg.append("@direct ").append(this.properties.directServers.getValue()).append("\n");
