@@ -1,26 +1,25 @@
 package io.opencmw.client;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
-import static org.zeromq.ZMonitor.Event;
-
 import static io.opencmw.OpenCmwConstants.*;
-import static io.opencmw.OpenCmwProtocol.*;
-import static io.opencmw.OpenCmwProtocol.Command.*;
+import static io.opencmw.OpenCmwProtocol.Command.GET_REQUEST;
+import static io.opencmw.OpenCmwProtocol.Command.SET_REQUEST;
+import static io.opencmw.OpenCmwProtocol.Command.SUBSCRIBE;
+import static io.opencmw.OpenCmwProtocol.Command.UNSUBSCRIBE;
+import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
+import static io.opencmw.OpenCmwProtocol.EMPTY_URI;
+import static io.opencmw.OpenCmwProtocol.EMPTY_ZFRAME;
+import static io.opencmw.OpenCmwProtocol.MdpMessage;
 import static io.opencmw.OpenCmwProtocol.MdpSubProtocol.PROT_CLIENT;
 import static io.opencmw.utils.AnsiDefs.ANSI_RED;
 import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.zeromq.ZMonitor.Event;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -214,7 +213,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
 
     @Override
     public ZMsg getMessage() {
-        final MdpMessage msg = MdpMessage.receive(socket, false);
+        final var msg = MdpMessage.receive(socket, false);
         if (msg == null) {
             return null;
         }
@@ -290,7 +289,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         final byte[] serviceId = endpoint.getPath().substring(1).getBytes(UTF_8);
         if (socket.getSocketType() == SocketType.DEALER) { // mpd
             // only tcp fallback?
-            final MdpMessage msg = new MdpMessage(null, PROT_CLIENT, SUBSCRIBE, serviceId, reqId.getBytes(UTF_8), endpoint, EMPTY_FRAME, "", rbacToken);
+            final var msg = new MdpMessage(null, PROT_CLIENT, SUBSCRIBE, serviceId, reqId.getBytes(UTF_8), endpoint, EMPTY_FRAME, "", rbacToken);
             if (!msg.send(socket)) {
                 LOGGER.atError().addArgument(reqId).addArgument(endpoint).log("subscription error (reqId: {}) for endpoint: {}");
             }
@@ -305,7 +304,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         final URI subscriptionEndpoint = subscriptions.remove(reqId);
         final byte[] serviceId = subscriptionEndpoint.getPath().substring(1).getBytes(UTF_8);
         if (socket.getSocketType() == SocketType.DEALER) { // mdp
-            final MdpMessage msg = new MdpMessage(clientId.getBytes(UTF_8), PROT_CLIENT, UNSUBSCRIBE, serviceId, reqId.getBytes(UTF_8), endpoint, EMPTY_FRAME, "", null);
+            final var msg = new MdpMessage(clientId.getBytes(UTF_8), PROT_CLIENT, UNSUBSCRIBE, serviceId, reqId.getBytes(UTF_8), endpoint, EMPTY_FRAME, "", null);
             if (!msg.send(socket)) {
                 LOGGER.atError().addArgument(reqId).addArgument(endpoint).log("unsubscribe error (reqId: {}) for endpoint: {}");
             }
@@ -318,7 +317,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
     public void get(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
         // todo: filters which are not in endpoint
         final byte[] serviceId = endpoint.getPath().substring(1).getBytes(UTF_8);
-        final MdpMessage msg = new MdpMessage(null, PROT_CLIENT, GET_REQUEST, serviceId, requestId.getBytes(UTF_8), endpoint, EMPTY_FRAME, "", rbacToken);
+        final var msg = new MdpMessage(null, PROT_CLIENT, GET_REQUEST, serviceId, requestId.getBytes(UTF_8), endpoint, EMPTY_FRAME, "", rbacToken);
 
         if (!msg.send(socket)) {
             LOGGER.atError().addArgument(requestId).addArgument(endpoint).log("get error (reqId: {}) for endpoint: {}");
@@ -329,7 +328,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
     public void set(final String requestId, final URI endpoint, final byte[] data, final byte[] rbacToken) {
         // todo: filters which are not in endpoint
         final byte[] serviceId = endpoint.getPath().substring(1).getBytes(UTF_8);
-        final MdpMessage msg = new MdpMessage(null, PROT_CLIENT, SET_REQUEST, serviceId, requestId.getBytes(UTF_8), endpoint, data, "", rbacToken);
+        final var msg = new MdpMessage(null, PROT_CLIENT, SET_REQUEST, serviceId, requestId.getBytes(UTF_8), endpoint, data, "", rbacToken);
         if (!msg.send(socket)) {
             LOGGER.atError().addArgument(requestId).addArgument(endpoint).log("set error (reqId: {}) for endpoint: {}");
         }
@@ -359,7 +358,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
                                                    .map(Map.Entry::getKey)
                                                    .findFirst();
             if (reqId.isPresent()) {
-                return createInternalMsg(reqId.get().getBytes(), msg.topic, new ZFrame(msg.data), msg.errors, OpenCmwDataSource.class);
+                return createInternalMsg(reqId.get().getBytes(UTF_8), msg.topic, new ZFrame(msg.data), msg.errors, OpenCmwDataSource.class);
             }
             LOGGER.atWarn().addArgument(msg.topic).log("Could not find subscription for notified request with endpoint: {}");
             return new ZMsg(); // ignore unknown notification
@@ -378,7 +377,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
     }
 
     public static ZMsg createInternalMsg(final byte[] reqId, final URI endpoint, final ZFrame body, final String exception, final Class<? extends DataSource> dataSource) {
-        final ZMsg result = new ZMsg();
+        final var result = new ZMsg();
         result.add(reqId);
         result.add(endpoint.toString());
         result.add(body == null ? EMPTY_ZFRAME : body);
