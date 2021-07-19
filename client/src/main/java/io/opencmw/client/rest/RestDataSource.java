@@ -183,7 +183,7 @@ public class RestDataSource extends DataSource implements Runnable {
     @Override
     public void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken) {
         try {
-            final Request request = new Request.Builder().url(endpoint.toURL()).build();
+            final var request = new Request.Builder().url(endpoint.toURL()).build();
             sseSource.put(reqId, eventSourceFactory.newEventSource(request, new EventSourceListener() {
                 @Override
                 public void onEvent(final @NotNull EventSource eventSource, final String id, final String type, final @NotNull String data) {
@@ -288,7 +288,7 @@ public class RestDataSource extends DataSource implements Runnable {
                         }
                         final byte[] exception = callBack.exception == null ? EMPTY_FRAME : callBack.exception.getMessage().getBytes(StandardCharsets.UTF_8);
 
-                        final ZMsg msg = new ZMsg(); // NOPMD - instantiation in loop
+                        final var msg = new ZMsg(); // NOPMD - instantiation in loop
                         msg.add(callBack.hashKey);
                         msg.add(callBack.endPointName);
                         msg.add(data);
@@ -317,20 +317,21 @@ public class RestDataSource extends DataSource implements Runnable {
     }
 
     public void stop() {
-        for (final String reqId : sseSource.keySet()) {
+        final HashSet<String> sseSourceKeyCopy = new HashSet<>(sseSource.keySet());
+        for (final String reqId : sseSourceKeyCopy) {
             unsubscribe(reqId);
         }
         run.set(false);
     }
 
     protected void getRequest(final String hashKey, final String path, final MimeType mimeType) {
-        Request request = new Request.Builder().url(path).get().addHeader("Accept", mimeType.toString()).build();
+        final var request = new Request.Builder().url(path).get().addHeader("Accept", mimeType.toString()).build();
         if (LOGGER.isTraceEnabled()) {
             LOGGER.atTrace().addArgument(endpoint).addArgument(path).addArgument(request).log("new request for {} - {} : request{}");
         }
-        final RestCallBack callBack = new RestCallBack(hashKey, path, mimeType);
+        final var callBack = new RestCallBack(hashKey, path, mimeType);
         pendingCallbacks.add(callBack);
-        final Call call = okClient.newCall(request);
+        final var call = okClient.newCall(request);
         call.enqueue(callBack);
         if (cancelLastCall > 0) {
             call.cancel(); // needed only for unit-testing
@@ -368,9 +369,12 @@ public class RestDataSource extends DataSource implements Runnable {
             if (requestTimeStamp + timeOut.toMillis() < now) {
                 // mark failed and notify
                 lock.lock();
-                exception = new TimeoutException("ts=" + now + " - time-out of REST request for endpoint: " + endpoint);
-                notifyResult();
-                lock.unlock();
+                try {
+                    exception = new TimeoutException("ts=" + now + " - time-out of REST request for endpoint: " + endpoint);
+                    notifyResult();
+                } finally {
+                    lock.unlock();
+                }
             }
         }
 
@@ -391,8 +395,8 @@ public class RestDataSource extends DataSource implements Runnable {
                 logger.addArgument(retryCount.get()).addArgument(MAX_RETRIES).addArgument(endpoint).log("retry {} of {}: could not connect/receive from endpoint {}");
                 // TODO: add more sophisticated exponential back-off
                 LockSupport.parkNanos(timeOut.toMillis() * (1L << (2 * (retryCount.get() - 1))));
-                Request request = new Request.Builder().url(endPointName).get().addHeader("Accept", mimeType.toString()).build();
-                final Call repeatedCall = okClient.newCall(request);
+                final var request = new Request.Builder().url(endPointName).get().addHeader("Accept", mimeType.toString()).build();
+                final var repeatedCall = okClient.newCall(request);
                 repeatedCall.enqueue(this);
                 if (cancelLastCall > 0) {
                     repeatedCall.cancel(); // needed only for unit-testing
@@ -402,10 +406,13 @@ public class RestDataSource extends DataSource implements Runnable {
             }
             LOGGER.atWarn().setCause(e).addArgument(MAX_RETRIES).addArgument(endpoint).log("failed after {} connect/receive retries - abort");
             lock.lock();
-            exception = e;
-            notifyResult();
-            lock.unlock();
-            LOGGER.atWarn().addArgument(e.getLocalizedMessage()).log("RestCallBack-Failure: '{}'");
+            try {
+                exception = e;
+                notifyResult();
+            } finally {
+                lock.unlock();
+                LOGGER.atWarn().addArgument(e.getLocalizedMessage()).log("RestCallBack-Failure: '{}'");
+            }
         }
 
         @Override
@@ -414,9 +421,12 @@ public class RestDataSource extends DataSource implements Runnable {
                 return;
             }
             lock.lock();
-            this.response = response;
-            notifyResult();
-            lock.unlock();
+            try {
+                this.response = response;
+                notifyResult();
+            } finally {
+                lock.unlock();
+            }
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.atTrace().addArgument(response).log("RestCallBack: '{}'");
             }
