@@ -15,7 +15,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -59,11 +58,11 @@ public class OpenCmwDnsResolver implements DnsResolver, AutoCloseable {
 
     @Override
     public Map<URI, List<URI>> resolveNames(final List<URI> devicesToResolve) throws UnknownHostException {
-        try (DataSourcePublisher.Client client = dataSource.getClient()) {
+        try (var client = dataSource.getClient()) {
             final String query = devicesToResolve.stream().map(URI::toString).collect(Collectors.joining(","));
-            final URI queryURI = URI.create(dnsServer + "/mmi.dns?" + query);
+            final var queryURI = URI.create(dnsServer + "/mmi.dns?" + query);
             final Future<BinaryData> reply4 = client.get(queryURI, null, BinaryData.class);
-            for (int attempt = 0; attempt < OpenCmwConstants.HEARTBEAT_LIVENESS; attempt++) {
+            for (var attempt = 0; attempt < OpenCmwConstants.HEARTBEAT_LIVENESS; attempt++) {
                 try {
                     return parseDnsReply(Objects.requireNonNull(reply4.get(timeOut.toMillis(), TimeUnit.MILLISECONDS).data, "reply data is null"));
                 } catch (InterruptedException | ExecutionException | TimeoutException | NullPointerException e) { // NOPMD NOSONAR - fail only after three attempts
@@ -78,7 +77,7 @@ public class OpenCmwDnsResolver implements DnsResolver, AutoCloseable {
     @Override
     public void close() {
         dataSource.stop();
-        if (ownsCtx) {
+        if (ownsCtx && !context.isClosed()) {
             context.close();
         }
     }
@@ -87,13 +86,13 @@ public class OpenCmwDnsResolver implements DnsResolver, AutoCloseable {
         if (dnsReply == null || dnsReply.length == 0 || !isUTF8(dnsReply)) {
             return Collections.emptyMap();
         }
-        final String reply = new String(dnsReply, UTF_8);
+        final var reply = new String(dnsReply, UTF_8);
         if (reply.isBlank()) {
             return Collections.emptyMap();
         }
 
         // parse reply
-        final Matcher matchPattern = DNS_PATTERN.matcher(reply);
+        final var matchPattern = DNS_PATTERN.matcher(reply);
         final Map<URI, List<URI>> map = new ConcurrentHashMap<>();
         while (matchPattern.find()) {
             final String device = matchPattern.group(1);
@@ -119,7 +118,7 @@ public class OpenCmwDnsResolver implements DnsResolver, AutoCloseable {
 
     public static boolean isUTF8(byte[] array) {
         final CharsetDecoder decoder = UTF_8.newDecoder();
-        final ByteBuffer buf = ByteBuffer.wrap(array);
+        final var buf = ByteBuffer.wrap(array);
         try {
             decoder.decode(buf);
         } catch (CharacterCodingException e) {
