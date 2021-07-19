@@ -93,7 +93,7 @@ import io.opencmw.utils.SharedPointer;
  * @author rstein
  */
 @SuppressWarnings({ "PMD.GodClass", "PMD.ExcessiveImports", "PMD.TooManyFields" })
-public class DataSourcePublisher implements Runnable, Closeable {
+public class DataSourcePublisher implements Runnable, AutoCloseable, Closeable {
     public static final int MIN_FRAMES_INTERNAL_MSG = 3;
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisher.class);
     private static final AtomicInteger INSTANCE_COUNT = new AtomicInteger();
@@ -121,6 +121,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     private final RbacProvider rbacProvider;
     private final EventStore publicationTarget;
     private final AtomicReference<Thread> threadReference = new AtomicReference<>();
+    private final boolean ownsCtx;
 
     public DataSourcePublisher(final RbacProvider rbacProvider, final ExecutorService executorService, final String... clientId) {
         this(null, null, rbacProvider, executorService, clientId);
@@ -128,6 +129,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     public DataSourcePublisher(final ZContext ctx, final EventStore publicationTarget, final RbacProvider rbacProvider, final ExecutorService executorService, final String... clientId) {
+        ownsCtx = ctx == null;
         this.context = Objects.requireNonNullElse(ctx, new ZContext(N_IO_THREADS));
         this.executor = Objects.requireNonNullElse(executorService, Executors.newCachedThreadPool());
         poller = context.createPoller(1);
@@ -177,7 +179,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             LOGGER.atWarn().addArgument(thread.getName()).log("'{}' did not shut down as requested, going to forcefully interrupt");
             thread.interrupt();
         }
-        if (!context.isClosed()) {
+        if (ownsCtx && !context.isClosed()) {
             poller.close();
             sourceSocket.close();
         }
