@@ -1,5 +1,6 @@
 package io.opencmw.server.rest;
 
+import static io.opencmw.OpenCmwConstants.HEARTBEAT_INTERVAL;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import static io.javalin.apibuilder.ApiBuilder.get;
@@ -267,7 +268,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             while (shallRun.get() && !Thread.interrupted()) {
                 synchronized (requestQueue) {
                     try {
-                        requestQueue.wait();
+                        requestQueue.wait(TimeUnit.MILLISECONDS.toMillis(HEARTBEAT_INTERVAL));
                         if (!requestQueue.isEmpty()) {
                             notifyCopy.addAll(requestQueue);
                             requestQueue.clear();
