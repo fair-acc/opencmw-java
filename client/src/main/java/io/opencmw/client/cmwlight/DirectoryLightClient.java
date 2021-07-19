@@ -141,7 +141,7 @@ public class DirectoryLightClient implements DnsResolver {
         try (var socket = new Socket()) {
             socket.connect(new InetSocketAddress(nameserver, nameserverPort));
             try (var writer = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
-                    var bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                    var bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
                 writer.write(getDeviceMsg(devices));
                 writer.flush();
                 // read query result, one line per requested device or ERROR followed by error message
