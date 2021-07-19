@@ -255,11 +255,11 @@ public class DataSourcePublisher implements Runnable, Closeable {
         // msgType, requestId and endpoint have to be always present
         assert controlMsg.size() >= MIN_FRAMES_INTERNAL_MSG : "ignoring invalid message - message size: " + controlMsg.size();
 
-        final var msgType = Command.getCommand(controlMsg.pollFirst().getData());
+        final var msgType = Command.getCommand(requireNonNull(controlMsg.pollFirst(), "command frame is null").getData());
         final var requestId = requireNonNull(controlMsg.pollFirst(), "requestId is null").getString(UTF_8);
         final var endpoint = URI.create(requireNonNull(controlMsg.pollFirst(), "endpoint is null").getString(UTF_8));
-        final byte[] data = controlMsg.isEmpty() ? EMPTY_FRAME : controlMsg.pollFirst().getData();
-        final byte[] rbacToken = controlMsg.isEmpty() ? EMPTY_FRAME : controlMsg.pollFirst().getData();
+        final byte[] data = controlMsg.isEmpty() ? EMPTY_FRAME : requireNonNull(controlMsg.pollFirst(), "data frame is null").getData();
+        final byte[] rbacToken = controlMsg.isEmpty() ? EMPTY_FRAME : requireNonNull(controlMsg.pollFirst(), "rbac frame is null").getData();
 
         final DataSource client = getClient(endpoint); // get client for endpoint
         switch (msgType) {
