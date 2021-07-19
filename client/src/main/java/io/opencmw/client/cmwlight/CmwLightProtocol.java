@@ -1,9 +1,11 @@
 package io.opencmw.client.cmwlight;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import org.jetbrains.annotations.NotNull;
 import org.zeromq.ZFrame;
@@ -183,21 +185,17 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
         }
     }
 
-    public static CmwLightMessage recvMsg(final ZMQ.Socket socket, int tout) throws RdaLightException {
-        return parseMsg(ZMsg.recvMsg(socket, tout));
-    }
-
     public static CmwLightMessage parseMsg(final @NotNull ZMsg data) throws RdaLightException { // NOPMD - NPath complexity acceptable (complex protocol)
         final ZFrame firstFrame = data.pollFirst();
         if (firstFrame != null && Arrays.equals(firstFrame.getData(), new byte[] { MessageType.SERVER_CONNECT_ACK.value() })) {
-            final CmwLightMessage reply = new CmwLightMessage(MessageType.SERVER_CONNECT_ACK);
+            final var reply = new CmwLightMessage(MessageType.SERVER_CONNECT_ACK);
             final ZFrame versionData = data.pollFirst();
             assert versionData != null : "version data in connection acknowledgement frame";
             reply.version = versionData.getString(Charset.defaultCharset());
             return reply;
         }
         if (firstFrame != null && Arrays.equals(firstFrame.getData(), new byte[] { MessageType.CLIENT_CONNECT.value() })) {
-            final CmwLightMessage reply = new CmwLightMessage(MessageType.CLIENT_CONNECT);
+            final var reply = new CmwLightMessage(MessageType.CLIENT_CONNECT);
             final ZFrame versionData = data.pollFirst();
             assert versionData != null : "version data in connection acknowledgement frame";
             reply.version = versionData.getString(Charset.defaultCharset());
@@ -217,10 +215,10 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
         case REPLY:
             assertDescriptor(descriptor, FrameType.HEADER, FrameType.BODY, FrameType.BODY_DATA_CONTEXT);
             reply.bodyData = data.pollFirst();
-            if (data.isEmpty()) {
+            if (reply.bodyData == null || data.isEmpty()) {
                 throw new RdaLightException(EMPTY_CONTEXT + reply.requestType);
             }
-            reply.dataContext = parseContextData(data.pollFirst());
+            reply.dataContext = parseContextData(Objects.requireNonNull(data.pollFirst(), "REPLY context frame is null"));
             return reply;
         case NOTIFICATION_DATA: // notification update
             assertDescriptor(descriptor, FrameType.HEADER, FrameType.BODY, FrameType.BODY_DATA_CONTEXT);
@@ -228,23 +226,23 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
                 reply.notificationId = (long) reply.options.get(FieldName.NOTIFICATION_ID_TAG.value());
             }
             reply.bodyData = data.pollFirst();
-            if (data.isEmpty()) {
+            if (reply.bodyData == null || data.isEmpty()) {
                 throw new RdaLightException(EMPTY_CONTEXT + reply.requestType);
             }
-            reply.dataContext = parseContextData(data.pollFirst());
+            reply.dataContext = parseContextData(Objects.requireNonNull(data.pollFirst(), "NOTIFICATION_DATA context frame is null"));
             return reply;
         case EXCEPTION: // exception on get/set request
         case NOTIFICATION_EXC: // exception on notification, e.g null pointer in server notify code
         case SUBSCRIBE_EXCEPTION: // exception on subscribe e.g. nonexistent property, wrong filters
             assertDescriptor(descriptor, FrameType.HEADER, FrameType.BODY_EXCEPTION);
-            reply.exceptionMessage = parseExceptionMessage(data.pollFirst());
+            reply.exceptionMessage = parseExceptionMessage(Objects.requireNonNull(data.pollFirst(), "SUBSCRIBE_EXCEPTION context frame is null"));
             return reply;
         case GET:
             assertDescriptor(descriptor, FrameType.HEADER, FrameType.BODY_REQUEST_CONTEXT);
             if (data.isEmpty()) {
                 throw new RdaLightException(EMPTY_CONTEXT + reply.requestType);
             }
-            reply.requestContext = parseRequestContext(data.pollFirst());
+            reply.requestContext = parseRequestContext(Objects.requireNonNull(data.pollFirst(), "GET context frame is null"));
             return reply;
         case SUBSCRIBE: // descriptor: [0] options: SOURCE_ID_TAG // seems to be sent after subscription is accepted
             if (reply.messageType == MessageType.SERVER_REP) {
@@ -257,7 +255,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
                 if (data.isEmpty()) {
                     throw new RdaLightException(EMPTY_CONTEXT + reply.requestType);
                 }
-                reply.requestContext = parseRequestContext(data.pollFirst());
+                reply.requestContext = parseRequestContext(Objects.requireNonNull(data.pollFirst(), "SUBSCRIBE context frame is null"));
             }
             return reply;
         case SESSION_CONFIRM: // descriptor: [0] options: SESSION_BODY_TAG
@@ -300,7 +298,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
     }
 
     public static ZMsg serialiseMsg(final CmwLightMessage msg) throws RdaLightException {
-        final ZMsg result = new ZMsg();
+        final var result = new ZMsg();
         switch (msg.messageType) {
         case SERVER_CONNECT_ACK:
         case CLIENT_CONNECT:
@@ -375,8 +373,8 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
     }
 
     private static void addDescriptor(final ZMsg result, final FrameType... frametypes) {
-        byte[] descriptor = new byte[frametypes.length];
-        for (int i = 0; i < descriptor.length; i++) {
+        var descriptor = new byte[frametypes.length];
+        for (var i = 0; i < descriptor.length; i++) {
             descriptor[i] = frametypes[i].value();
         }
         result.add(new ZFrame(descriptor));
@@ -423,7 +421,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
 
     private static void putMap(final CmwLightSerialiser serialiser, final String fieldName, final Map<String, Object> map) throws RdaLightException {
         if (map != null) {
-            final WireDataFieldDescription dataFieldMarker = new WireDataFieldDescription(serialiser, serialiser.getParent(), -1,
+            final var dataFieldMarker = new WireDataFieldDescription(serialiser, serialiser.getParent(), -1,
                     fieldName, DataType.START_MARKER, -1, -1, -1);
             serialiser.putStartMarker(dataFieldMarker);
             for (final Map.Entry<String, Object> entry : map.entrySet()) {
@@ -448,7 +446,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
     }
 
     private static CmwLightMessage getReplyFromHeader(final ZFrame firstFrame, final ZFrame header) throws RdaLightException {
-        CmwLightMessage reply = new CmwLightMessage(MessageType.of(firstFrame.getData()[0]));
+        var reply = new CmwLightMessage(MessageType.of(firstFrame.getData()[0]));
         IO_CLASS_SERIALISER.setDataBuffer(FastByteBuffer.wrap(header.getData()));
         final FieldDescription headerMap;
         try {
@@ -501,7 +499,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
         if (exceptionBody == null) {
             throw new RdaLightException("malformed subscription exception");
         }
-        final CmwLightMessage.ExceptionMessage exceptionMessage = new CmwLightMessage.ExceptionMessage();
+        final var exceptionMessage = new CmwLightMessage.ExceptionMessage();
         IO_CLASS_SERIALISER.setDataBuffer(FastByteBuffer.wrap(exceptionBody.getData()));
         final FieldDescription exceptionFields = IO_CLASS_SERIALISER.parseWireFormat().getChildren().get(0);
         for (FieldDescription field : exceptionFields.getChildren()) {
@@ -521,7 +519,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
     }
 
     private static CmwLightMessage.RequestContext parseRequestContext(final @NotNull ZFrame contextData) throws RdaLightException {
-        CmwLightMessage.RequestContext requestContext = new CmwLightMessage.RequestContext();
+        var requestContext = new CmwLightMessage.RequestContext();
         IO_CLASS_SERIALISER.setDataBuffer(FastByteBuffer.wrap(contextData.getData()));
         final FieldDescription contextMap;
         try {
@@ -548,13 +546,13 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
                 }
             }
         } catch (IllegalStateException e) {
-            throw new RdaLightException("unparsable context data: " + Arrays.toString(contextData.getData()) + "(" + new String(contextData.getData()) + ")", e);
+            throw new RdaLightException("unparsable context data: " + Arrays.toString(contextData.getData()) + "(" + new String(contextData.getData(), StandardCharsets.UTF_8) + ")", e);
         }
         return requestContext;
     }
 
     private static CmwLightMessage.DataContext parseContextData(final @NotNull ZFrame contextData) throws RdaLightException {
-        CmwLightMessage.DataContext dataContext = new CmwLightMessage.DataContext();
+        var dataContext = new CmwLightMessage.DataContext();
         IO_CLASS_SERIALISER.setDataBuffer(FastByteBuffer.wrap(contextData.getData()));
         final FieldDescription contextMap;
         try {
@@ -578,7 +576,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
                 }
             }
         } catch (IllegalStateException e) {
-            throw new RdaLightException("unparsable context data: " + Arrays.toString(contextData.getData()) + "(" + new String(contextData.getData()) + ")", e);
+            throw new RdaLightException("unparsable context data: " + Arrays.toString(contextData.getData()) + "(" + new String(contextData.getData(), StandardCharsets.UTF_8) + ")", e);
         }
         return dataContext;
     }
@@ -587,7 +585,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
         if (descriptor.length != frameTypes.length) {
             throw new RdaLightException("descriptor does not match message type: \n  " + Arrays.toString(descriptor) + "\n  " + Arrays.toString(frameTypes));
         }
-        for (int i = 1; i < descriptor.length; i++) {
+        for (var i = 1; i < descriptor.length; i++) {
             if (descriptor[i] != frameTypes[i].value()) {
                 throw new RdaLightException("descriptor does not match message type: \n  " + Arrays.toString(descriptor) + "\n  " + Arrays.toString(frameTypes));
             }

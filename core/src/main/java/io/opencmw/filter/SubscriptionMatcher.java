@@ -52,23 +52,23 @@ public class SubscriptionMatcher implements BiPredicate<URI, URI> {
         return mapSubscribe.entrySet().stream().filter(e -> {
                                                    // N.B. inverted logic - stop at first mismatch
                                                    final String ctxKey = e.getKey();
-                                                   final Filter protoFilter = filterMapLocal.get(ctxKey);
+                                                   final var protoFilter = filterMapLocal.get(ctxKey);
                                                    if (protoFilter == null) {
                                                        // provided subscription filter unknown - continue with next
                                                        return false;
                                                    }
-                                                   final String subscriptionQuerySubString = e.getValue();
-                                                   final String notifyQuerySubString = mapNotify.get(ctxKey);
+                                                   final var subscriptionQuerySubString = e.getValue();
+                                                   final var notifyQuerySubString = mapNotify.get(ctxKey);
                                                    if (notifyQuerySubString == null && !subscriptionQuerySubString.isBlank()) {
                                                        // specific/required subscription topic but not corresponding filter in notification set
                                                        return true;
                                                    }
-                                                   final Filter subscriptionFilter = protoFilter.get(subscriptionQuerySubString);
+                                                   final var subscriptionFilter = protoFilter.get(subscriptionQuerySubString);
                                                    if (subscriptionFilter == null) {
                                                        // invalid subscription filter - ignore
                                                        return false;
                                                    }
-                                                   return !subscriptionFilter.matches(protoFilter.get(notifyQuerySubString));
+                                                   return !subscriptionFilter.matches(protoFilter.get(Objects.requireNonNull(notifyQuerySubString, "notifyQuerySubString is null")));
                                                })
                 .findFirst()
                 .isEmpty();
@@ -96,7 +96,7 @@ public class SubscriptionMatcher implements BiPredicate<URI, URI> {
             // no asterisk match path only - exact
             return pathNotification.equals(pathSubscriber) || pathSubscriber.isBlank();
         }
-        final String pathSubscriberCleaned = StringUtils.removeEnd(pathSubscriber, "*");
+        final var pathSubscriberCleaned = StringUtils.removeEnd(pathSubscriber, "*");
         // match path (leading characters) only - assumes trailing asterisk
         return pathNotification.startsWith(pathSubscriberCleaned) || pathSubscriber.isBlank();
     }

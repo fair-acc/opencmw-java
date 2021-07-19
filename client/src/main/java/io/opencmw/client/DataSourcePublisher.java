@@ -93,7 +93,7 @@ import io.opencmw.utils.SharedPointer;
  * @author rstein
  */
 @SuppressWarnings({ "PMD.GodClass", "PMD.ExcessiveImports", "PMD.TooManyFields" })
-public class DataSourcePublisher implements Runnable, Closeable {
+public class DataSourcePublisher implements Runnable, AutoCloseable, Closeable {
     public static final int MIN_FRAMES_INTERNAL_MSG = 3;
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourcePublisher.class);
     private static final AtomicInteger INSTANCE_COUNT = new AtomicInteger();
@@ -121,6 +121,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     private final RbacProvider rbacProvider;
     private final EventStore publicationTarget;
     private final AtomicReference<Thread> threadReference = new AtomicReference<>();
+    private final boolean ownsCtx;
 
     public DataSourcePublisher(final RbacProvider rbacProvider, final ExecutorService executorService, final String... clientId) {
         this(null, null, rbacProvider, executorService, clientId);
@@ -128,6 +129,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     public DataSourcePublisher(final ZContext ctx, final EventStore publicationTarget, final RbacProvider rbacProvider, final ExecutorService executorService, final String... clientId) {
+        ownsCtx = ctx == null;
         this.context = Objects.requireNonNullElse(ctx, new ZContext(N_IO_THREADS));
         this.executor = Objects.requireNonNullElse(executorService, Executors.newCachedThreadPool());
         poller = context.createPoller(1);
@@ -164,7 +166,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     @Override
     public void close() {
         shallRun.set(false);
-        Thread thread = threadReference.get();
+        var thread = threadReference.get();
         if (thread != null) {
             try {
                 thread.join(2L * HEARTBEAT_INTERVAL); // extra margin since the poller is running also at exactly 'heartbeatInterval'
@@ -177,14 +179,14 @@ public class DataSourcePublisher implements Runnable, Closeable {
             LOGGER.atWarn().addArgument(thread.getName()).log("'{}' did not shut down as requested, going to forcefully interrupt");
             thread.interrupt();
         }
-        if (!context.isClosed()) {
+        if (ownsCtx && !context.isClosed()) {
             poller.close();
             sourceSocket.close();
         }
     }
 
     public void start() {
-        Thread thread = threadReference.get();
+        var thread = threadReference.get();
         if (thread != null) {
             LOGGER.atWarn().addArgument(thread.getName()).log("Thread '{}' already running");
             return;
@@ -247,7 +249,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     protected boolean handleControlSocket() {
-        final ZMsg controlMsg = ZMsg.recvMsg(sourceSocket, false);
+        final var controlMsg = ZMsg.recvMsg(sourceSocket, false);
         if (controlMsg == null) {
             return false; // no more data available on control socket
         }
@@ -255,11 +257,11 @@ public class DataSourcePublisher implements Runnable, Closeable {
         // msgType, requestId and endpoint have to be always present
         assert controlMsg.size() >= MIN_FRAMES_INTERNAL_MSG : "ignoring invalid message - message size: " + controlMsg.size();
 
-        final Command msgType = Command.getCommand(controlMsg.pollFirst().getData());
-        final String requestId = requireNonNull(controlMsg.pollFirst()).getString(UTF_8);
-        final URI endpoint = URI.create(requireNonNull(controlMsg.pollFirst()).getString(UTF_8));
-        final byte[] data = controlMsg.isEmpty() ? EMPTY_FRAME : controlMsg.pollFirst().getData();
-        final byte[] rbacToken = controlMsg.isEmpty() ? EMPTY_FRAME : controlMsg.pollFirst().getData();
+        final var msgType = Command.getCommand(requireNonNull(controlMsg.pollFirst(), "command frame is null").getData());
+        final var requestId = requireNonNull(controlMsg.pollFirst(), "requestId is null").getString(UTF_8);
+        final var endpoint = URI.create(requireNonNull(controlMsg.pollFirst(), "endpoint is null").getString(UTF_8));
+        final byte[] data = controlMsg.isEmpty() ? EMPTY_FRAME : requireNonNull(controlMsg.pollFirst(), "data frame is null").getData();
+        final byte[] rbacToken = controlMsg.isEmpty() ? EMPTY_FRAME : requireNonNull(controlMsg.pollFirst(), "rbac frame is null").getData();
 
         final DataSource client = getClient(endpoint); // get client for endpoint
         switch (msgType) {
@@ -282,7 +284,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
     }
 
     protected boolean handleDataSourceSockets() {
-        boolean dataAvailable = false;
+        var dataAvailable = false;
         for (final DataSource entry : clientMap.values()) {
             final ZMsg reply = entry.getMessage();
             if (reply == null || reply.isEmpty()) {
@@ -292,7 +294,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
             dataAvailable = true;
             // the received data consists of the following frames:
             // replyType(byte), reqId(string), endpoint(string), dataBody(byte[])
-            final String reqId = requireNonNull(reply.pollFirst()).getString(UTF_8);
+            final var reqId = requireNonNull(reply.pollFirst(), "reqID is null").getString(UTF_8);
             final ThePromisedFuture<?, ?> returnFuture = requests.get(reqId);
             assert returnFuture != null : "no future available for reqId:" + reqId;
             rawDataEventStore.getRingBuffer().publishEvent((event, sequence) -> {
@@ -301,13 +303,13 @@ public class DataSourcePublisher implements Runnable, Closeable {
                         : "requestID mismatch";
                     requests.remove(reqId);
                 }
-                final String endpoint = requireNonNull(reply.pollFirst()).getString(UTF_8);
-                final InternalDomainObject internalData = new InternalDomainObject(reply, returnFuture); // NOPMD -- need to create
+                final var endpoint = requireNonNull(reply.pollFirst(), "endpoint is null").getString(UTF_8);
+                final var internalData = new InternalDomainObject(reply, returnFuture); // NOPMD -- need to create
                 event.arrivalTimeStamp = System.currentTimeMillis();
                 event.payload = Objects.requireNonNullElseGet(event.payload, SharedPointer::new); // NOPMD - need to create new shared pointer instance
                 event.payload.set(internalData); // InternalDomainObject containing - ZMsg containing header, body and exception frame + Future
 
-                final EvtTypeFilter evtTypeFilter = event.getFilter(EvtTypeFilter.class);
+                final var evtTypeFilter = event.getFilter(EvtTypeFilter.class);
                 evtTypeFilter.updateType = returnFuture.requestType;
                 evtTypeFilter.property = URI.create(endpoint);
             });
@@ -333,7 +335,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
     @SuppressWarnings({ "PMD.UnusedFormalParameter" }) // method signature is mandated by functional interface
     protected void internalEventHandler(final RingBufferEvent event, final long sequence, final boolean endOfBatch) {
-        final EvtTypeFilter evtTypeFilter = event.getFilter(EvtTypeFilter.class);
+        final var evtTypeFilter = event.getFilter(EvtTypeFilter.class);
         final boolean notifyFuture;
         switch (evtTypeFilter.updateType) {
         case GET_REQUEST:
@@ -348,11 +350,11 @@ public class DataSourcePublisher implements Runnable, Closeable {
             // todo: publish statistics, connection state and getRequests
             return;
         }
-        final URI endpointURI = evtTypeFilter.property;
+        final var endpointURI = evtTypeFilter.property;
         // get data from internal ring-buffer domain object
         final InternalDomainObject domainObject = requireNonNull(event.payload.get(InternalDomainObject.class), "empty payload");
         final byte[] body = requireNonNull(domainObject.data.poll(), "null body data").getData();
-        final String exceptionMsg = requireNonNull(domainObject.data.poll(), "null exception message").getString(UTF_8);
+        final var exceptionMsg = requireNonNull(domainObject.data.poll(), "null exception message").getString(UTF_8);
         Object replyDomainObject = null;
         if (exceptionMsg.isBlank()) {
             try {
@@ -369,7 +371,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
                     domainObject.future.castAndSetReply(replyDomainObject); // notify callback
                 }
                 if (domainObject.future.listener != null) {
-                    final Object finalDomainObj = replyDomainObject;
+                    final var finalDomainObj = replyDomainObject;
                     final Object contextObject;
                     if (domainObject.future.contextType == null) {
                         contextObject = QueryParameterParser.getMap(endpointURI.getQuery());
@@ -379,10 +381,10 @@ public class DataSourcePublisher implements Runnable, Closeable {
                     executor.submit(() -> domainObject.future.notifyListener(finalDomainObj, contextObject)); // NOPMD - threads are ok, not a webapp
                 }
             } catch (Exception e) { // NOPMD: exception is forwarded to client
-                final StringWriter sw = new StringWriter();
-                final PrintWriter pw = new PrintWriter(sw);
+                final var sw = new StringWriter();
+                final var pw = new PrintWriter(sw);
                 e.printStackTrace(pw);
-                final ProtocolException protocolException = new ProtocolException(ANSI_RED + "error deserialising object:\n" + sw.toString() + ANSI_RESET);
+                final var protocolException = new ProtocolException(ANSI_RED + "error deserialising object:\n" + sw.toString() + ANSI_RESET);
                 if (notifyFuture) {
                     domainObject.future.setException(protocolException);
                 } else {
@@ -410,7 +412,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
         if (exception != null && !exception.isBlank()) {
             publishEvent.throwables.add(new ProtocolException(exception));
         }
-        final EvtTypeFilter evtTypeFilter = publishEvent.getFilter(EvtTypeFilter.class);
+        final var evtTypeFilter = publishEvent.getFilter(EvtTypeFilter.class);
         // update other filter in destination ring-buffer
         for (final Filter filter : publishEvent.filters) {
             if (!(filter instanceof EvtTypeFilter)) {
@@ -429,7 +431,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
         // e.g. a key including the volatile authority and/or a more specific 'device/property' path information, e.g.
         // key := "<scheme>://authority/path"  (N.B. usually the authority is resolved by the DnsResolver/any Broker)
         return clientMap.computeIfAbsent(endpoint.getScheme() + ":/" + getDeviceName(endpoint), requestedEndPoint -> {
-            final DataSource dataSource = DataSource.getFactory(URI.create(requestedEndPoint)).newInstance(context, endpoint, Duration.ofMillis(100), executor, Long.toString(internalReqIdGenerator.incrementAndGet()));
+            final var dataSource = DataSource.getFactory(URI.create(requestedEndPoint)).newInstance(context, endpoint, Duration.ofMillis(100), executor, Long.toString(internalReqIdGenerator.incrementAndGet()));
             poller.register(dataSource.getSocket(), ZMQ.Poller.POLLIN);
             return dataSource;
         });
@@ -481,7 +483,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
 
         public void unsubscribe(String requestId) {
             // signal socket for get with endpoint and request id
-            final ZMsg msg = new ZMsg();
+            final var msg = new ZMsg();
             msg.add(Command.UNSUBSCRIBE.getData());
             msg.add(requestId);
             msg.add(requests.get(requestId).endpoint.toString());
@@ -521,7 +523,7 @@ public class DataSourcePublisher implements Runnable, Closeable {
         private <R, C> void request(final String requestId, final Command requestType, final URI endpoint, R requestBody, C requestContext, final RbacProvider... rbacProvider) {
             FilterRegistry.checkClassForNewFilters(requestContext);
             // signal socket for get with endpoint and request id
-            final ZMsg msg = new ZMsg();
+            final var msg = new ZMsg();
             msg.add(requestType.getData());
             msg.add(requestId);
             msg.add(endpoint.toString());

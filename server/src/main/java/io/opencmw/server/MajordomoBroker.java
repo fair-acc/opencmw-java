@@ -203,7 +203,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     }
 
     public void removeService(final String serviceName) {
-        final Service ret = services.remove(serviceName);
+        final var ret = services.remove(serviceName);
         ret.mdpWorker.forEach(BasicMdpWorker::stopWorker);
         ret.waiting.forEach(worker -> new MdpMessage(worker.address, PROT_WORKER, DISCONNECT, worker.service.nameBytes, EMPTY_FRAME, URI.create(worker.service.name), BROKER_SHUTDOWN, "", RBAC).send(worker.socket));
     }
@@ -217,15 +217,15 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         running.set(true);
         services.forEach((serviceName, service) -> service.internalWorkers.forEach(Thread::start));
         sendDnsHeartbeats(true); // initial register of default routes
-        try (ZMQ.Poller items = ctx.createPoller(4)) { // 4 -> four sockets defined below
+        try (var items = ctx.createPoller(4)) { // 4 -> four sockets defined below
             items.register(routerSocket, ZMQ.Poller.POLLIN);
             items.register(dnsSocket, ZMQ.Poller.POLLIN);
             items.register(pubSocket, ZMQ.Poller.POLLIN);
             items.register(subSocket, ZMQ.Poller.POLLIN);
             int pollerReturn;
             do {
-                int loopCount = 0;
-                boolean receivedMsg = true;
+                var loopCount = 0;
+                var receivedMsg = true;
                 while (run.get() && !Thread.currentThread().isInterrupted() && receivedMsg) {
                     final MdpMessage routerMsg = receive(routerSocket, false);
                     receivedMsg = handleReceivedMessage(routerSocket, routerMsg);
@@ -236,7 +236,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
                     final MdpMessage dnsMsg = receive(dnsSocket, false);
                     receivedMsg |= handleReceivedMessage(dnsSocket, dnsMsg);
 
-                    final ZMsg pubMsg = ZMsg.recvMsg(pubSocket, false);
+                    final var pubMsg = ZMsg.recvMsg(pubSocket, false);
                     receivedMsg |= handleSubscriptionMsg(pubMsg);
 
                     processClients();
@@ -295,7 +295,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     protected void deleteWorker(Worker worker, boolean disconnect) {
         assert (worker != null);
         if (disconnect && !ctx.isClosed()) {
-            final MdpMessage disconnectMsg = new MdpMessage(worker.address, PROT_WORKER, DISCONNECT, worker.serviceName, EMPTY_FRAME, URI.create(new String(worker.serviceName, UTF_8)), BROKER_SHUTDOWN, "", RBAC);
+            final var disconnectMsg = new MdpMessage(worker.address, PROT_WORKER, DISCONNECT, worker.serviceName, EMPTY_FRAME, URI.create(new String(worker.serviceName, UTF_8)), BROKER_SHUTDOWN, "", RBAC);
             disconnectMsg.send(worker.socket);
         }
         if (worker.service != null) {
@@ -336,7 +336,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
                 assert false : "getNextPrioritisedMessage should not be null";
                 continue;
             }
-            Worker worker = service.waiting.pop();
+            var worker = service.waiting.pop();
             waiting.remove(worker);
             msg.serviceNameBytes = msg.senderID;
             msg.senderID = worker.address; // replace sourceID with worker destinationID
@@ -356,7 +356,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         if (msg == null) {
             return false;
         }
-        final String topic = msg.topic.toString();
+        final var topic = msg.topic.toString();
         switch (msg.protocol) {
         case PROT_CLIENT:
         case PROT_CLIENT_HTTP:
@@ -392,8 +392,8 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
             default:
             }
 
-            final String senderName = msg.getSenderName();
-            final Client client = clients.computeIfAbsent(senderName, s -> new Client(receiveSocket, senderName, msg.senderID));
+            final var senderName = msg.getSenderName();
+            final var client = clients.computeIfAbsent(senderName, s -> new Client(receiveSocket, senderName, msg.senderID));
             client.offerToQueue(msg);
             return true;
         case PROT_WORKER:
@@ -415,14 +415,14 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     protected void processClients() {
         // round-robin
         clients.values().stream().filter(client -> !client.requests.isEmpty()).forEach(client -> {
-            final MdpMessage clientMessage = client.pop();
+            final MdpMessage clientMessage = Objects.requireNonNull(client.pop(), "clientMessage is null");
 
             // dispatch client message to worker queue
             // old : final Service service = services.get(clientMessage.getServiceName())
-            final Service service = getBestMatchingService(StringUtils.strip(URI.create(clientMessage.getServiceName()).getPath(), "/"));
+            final var service = getBestMatchingService(StringUtils.strip(URI.create(clientMessage.getServiceName()).getPath(), "/"));
             if (service == null) {
                 // not implemented -- reply according to Majordomo Management Interface (MMI) as defined in http://rfc.zeromq.org/spec:8
-                final MdpMessage msg = new MdpMessage(clientMessage.senderID, PROT_CLIENT, FINAL, clientMessage.serviceNameBytes, clientMessage.clientRequestID, URI.create(INTERNAL_SERVICE_NAMES),
+                final var msg = new MdpMessage(clientMessage.senderID, PROT_CLIENT, FINAL, clientMessage.serviceNameBytes, clientMessage.clientRequestID, URI.create(INTERNAL_SERVICE_NAMES),
                         "501".getBytes(UTF_8), "unknown service (error 501): '" + clientMessage.getServiceName() + '\'', RBAC);
                 msg.send(client.socket);
                 return;
@@ -445,7 +445,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         final String senderIdHex = strhex(msg.senderID);
         final String serviceName = msg.getServiceName();
         final boolean workerReady = workers.containsKey(senderIdHex);
-        final Worker worker = requireWorker(receiveSocket, msg.senderID, senderIdHex, msg.serviceNameBytes);
+        final var worker = requireWorker(receiveSocket, msg.senderID, senderIdHex, msg.serviceNameBytes);
 
         switch (msg.command) {
         case READY:
@@ -486,7 +486,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         case PARTIAL:
         case FINAL:
             if (workerReady) {
-                final Client client = clients.get(msg.getServiceName());
+                final var client = clients.get(msg.getServiceName());
                 if (client == null || client.socket == null) {
                     break;
                 }
@@ -529,14 +529,12 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         if (CLIENT_TIMEOUT <= 0) {
             return;
         }
-        for (String clientName : clients.keySet()) { // NOSONAR NOPMD copy because
-            // we are going to remove keys
-            Client client = clients.get(clientName);
+        final Set<String> clientKeyCopy = new HashSet<>(clients.keySet()); // copy because we are going to remove keys
+        for (String clientName : clientKeyCopy) {
+            final var client = clients.get(clientName);
             if (client == null || client.expiry < System.currentTimeMillis()) {
                 clients.remove(clientName);
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.atDebug().addArgument(client).log("Majordomo broker deleting expired client: '{}'");
-                }
+                LOGGER.atDebug().addArgument(client).log("Majordomo broker deleting expired client: '{}'");
             }
         }
     }
@@ -548,7 +546,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         if (System.currentTimeMillis() >= dnsHeartbeatAt) {
             sendDnsHeartbeats(false);
             List<DnsServiceItem> cachedList = new ArrayList<>(dnsCache.values());
-            final MdpMessage challengeMessage = new MdpMessage(null, PROT_CLIENT, W_HEARTBEAT, EMPTY_FRAME, "dnsChallenge".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
+            final var challengeMessage = new MdpMessage(null, PROT_CLIENT, W_HEARTBEAT, EMPTY_FRAME, "dnsChallenge".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
             for (DnsServiceItem registeredService : cachedList) {
                 if (registeredService.serviceName.equalsIgnoreCase(brokerName)) { // update self
                     registeredService.updateExpiryTimeStamp();
@@ -583,12 +581,12 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
 
     protected void registerDefaultServices(final RbacRole<?>[] rbacRoles) {
         // add simple internal Majordomo worker
-        final int nServiceThreads = 3;
+        final var nServiceThreads = 3;
 
         addInternalService(new MmiService(this, rbacRoles));
         addInternalService(new MmiOpenApi(this, rbacRoles));
         addInternalService(new MmiDns(this, rbacRoles));
-        for (int i = 0; i < nServiceThreads; i++) {
+        for (var i = 0; i < nServiceThreads; i++) {
             addInternalService(new MmiEcho(this, rbacRoles)); // NOPMD valid instantiation inside loop
         }
     }
@@ -603,7 +601,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     protected Service requireService(final String serviceName, final BasicMdpWorker... worker) {
         assert (serviceName != null);
         final BasicMdpWorker w = worker.length > 0 ? worker[0] : null;
-        final Service service = services.computeIfAbsent(serviceName, s -> new Service(serviceName, serviceName.getBytes(UTF_8), w));
+        final var service = services.computeIfAbsent(serviceName, s -> new Service(serviceName, serviceName.getBytes(UTF_8), w));
         if (w != null) {
             w.start();
         }
@@ -637,7 +635,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     protected void sendDnsHeartbeats(boolean force) {
         // Send heartbeats to idle workers if it's time
         if (System.currentTimeMillis() >= dnsHeartbeatAt || force) {
-            final MdpMessage readyMsg = new MdpMessage(null, PROT_CLIENT, READY, brokerName.getBytes(UTF_8), "clientID".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
+            final var readyMsg = new MdpMessage(null, PROT_CLIENT, READY, brokerName.getBytes(UTF_8), "clientID".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
             final ArrayList<String> localCopy = new ArrayList<>(getRouterSockets());
             for (String routerAddress : localCopy) {
                 readyMsg.topic = URI.create(routerAddress);
@@ -648,7 +646,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     }
 
     private void registerNewService(final String serviceName) {
-        final MdpMessage readyMsg = new MdpMessage(null, PROT_CLIENT, READY, brokerName.getBytes(UTF_8), "clientID".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
+        final var readyMsg = new MdpMessage(null, PROT_CLIENT, READY, brokerName.getBytes(UTF_8), "clientID".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
         final ArrayList<String> localCopy = new ArrayList<>(getRouterSockets());
         for (String routerAddress : localCopy) {
             readyMsg.topic = URI.create(routerAddress + '/' + serviceName);
@@ -672,7 +670,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
     protected void sendHeartbeats() {
         // Send heartbeats to idle workers if it's time
         if (System.currentTimeMillis() >= heartbeatAt) {
-            final MdpMessage heartbeatMsg = new MdpMessage(null, PROT_WORKER, W_HEARTBEAT, EMPTY_FRAME, EMPTY_FRAME, EMPTY_URI, EMPTY_FRAME, "", RBAC);
+            final var heartbeatMsg = new MdpMessage(null, PROT_WORKER, W_HEARTBEAT, EMPTY_FRAME, EMPTY_FRAME, EMPTY_URI, EMPTY_FRAME, "", RBAC);
             for (Worker worker : waiting) {
                 heartbeatMsg.senderID = worker.address;
                 heartbeatMsg.serviceNameBytes = worker.service.nameBytes;
@@ -721,7 +719,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         if (topicBytes.length == 0) {
             return false;
         }
-        final URI subscriptionTopic = URI.create(new String(topicBytes, 1, topicBytes.length - 1, UTF_8));
+        final var subscriptionTopic = URI.create(new String(topicBytes, 1, topicBytes.length - 1, UTF_8));
         LOGGER.atDebug().addArgument(topicBytes[0]).addArgument(subscriptionTopic).log("received subscription request: {} to '{}'");
 
         switch (topicBytes[0]) {
@@ -740,7 +738,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         }
     }
 
-    /* default */ Service getBestMatchingService(final String serviceName) { // NOPMD package private OK
+    /* default */ Service getBestMatchingService(@NotNull final String serviceName) { // NOPMD package private OK
         final List<String> sortedList = services.keySet().stream().filter(serviceName::startsWith).sorted(Comparator.comparingInt(String::length)).collect(Collectors.toList());
         if (!sortedList.isEmpty()) {
             return services.get(sortedList.get(0));
@@ -787,8 +785,8 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         private void putPrioritisedMessage(final MdpMessage queuedMessage) {
             if (queuedMessage.hasRbackToken()) {
                 // find proper RBAC queue
-                final RbacToken rbacToken = RbacToken.from(queuedMessage.rbacToken);
-                final Queue<MdpMessage> roleBasedQueue = requests.get(rbacToken.getRole());
+                final var rbacToken = RbacToken.from(queuedMessage.rbacToken);
+                final var roleBasedQueue = requests.get(rbacToken.getRole());
                 if (roleBasedQueue != null) {
                     roleBasedQueue.offer(queuedMessage);
                 }
@@ -865,7 +863,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
      * This defines one DNS service item, idle or active.
      */
     @SuppressWarnings("PMD.CommentDefaultAccessModifier") // needed for utility classes in the same package
-    public class DnsServiceItem {
+    public static class DnsServiceItem {
         protected final byte[] address; // Address ID frame to route to
         protected final String serviceName;
         protected final List<URI> uri = new NoDuplicatesList<>();
@@ -913,7 +911,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
         @Override
         public String toString() {
             @SuppressWarnings("SpellCheckingInspection")
-            final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.UK);
+            final var sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.UK);
             return "DnsServiceItem{address=" + ZData.toString(address) + ", serviceName='" + serviceName + "', uri= '" + uri + "',expiry=" + expiry + " - " + sdf.format(expiry) + '}';
         }
 

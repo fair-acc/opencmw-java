@@ -75,7 +75,7 @@ public final class MmiServiceHelper {
          * @return String containing the 'broker : fully resolved device(service)/property address(es)' or 'null'
          */
         public String findDnsEntry(final String entry) {
-            StringBuilder builder = new StringBuilder(64);
+            var builder = new StringBuilder(64);
             final URI query;
             try {
                 query = new URI(entry);
@@ -84,7 +84,7 @@ public final class MmiServiceHelper {
                 return builder.toString();
             }
 
-            final String queryPath = StringUtils.stripStart(query.getPath(), "/");
+            final var queryPath = StringUtils.stripStart(query.getPath(), "/");
             final boolean providedScheme = query.getScheme() != null && !query.getScheme().isBlank();
             final String stripStartFromSearchPath = queryPath.startsWith("mmi.") ? ('/' + brokerName) : "/"; // crop initial broker name for broker-specific MMI services
             Predicate<URI> matcher = dnsEntry -> {
@@ -95,8 +95,8 @@ public final class MmiServiceHelper {
                 // scheme matches - check path compatibility
                 return StringUtils.stripStart(dnsEntry.getPath(), stripStartFromSearchPath).startsWith(queryPath);
             };
-            for (final String brokerName : dnsCache.keySet()) {
-                final MajordomoBroker.DnsServiceItem serviceItem = dnsCache.get(brokerName);
+            for (final var brokerEntry : dnsCache.entrySet()) {
+                final MajordomoBroker.DnsServiceItem serviceItem = dnsCache.get(brokerEntry.getKey());
                 final String matchedItems = serviceItem.uri.stream().filter(matcher).map(URI::toString).collect(Collectors.joining(", "));
                 if (matchedItems.isBlank()) {
                     continue;
@@ -116,7 +116,7 @@ public final class MmiServiceHelper {
             super(broker.getContext(), broker.brokerName + '/' + INTERNAL_SERVICE_OPENAPI, rbacRoles);
             this.registerHandler(context -> {
                 final String serviceName = context.req.data == null ? "" : new String(context.req.data, UTF_8);
-                MajordomoBroker.Service service = broker.services.get(serviceName);
+                var service = broker.services.get(serviceName);
                 if (service == null) {
                     service = broker.services.get(broker.brokerName + '/' + serviceName);
                 }

@@ -1,6 +1,5 @@
 package io.opencmw.serialiser.spi;
 
-import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.List;
@@ -110,10 +109,10 @@ public class CmwLightSerialiser implements IoSerialiser {
 
     @Override
     public ProtocolInfo checkHeaderInfo() {
-        final String fieldName = "";
+        final var fieldName = "";
         final int dataSize = FastByteBuffer.SIZE_OF_INT;
-        final WireDataFieldDescription headerStartField = new WireDataFieldDescription(this, parent, fieldName.hashCode(), fieldName, DataType.START_MARKER, buffer.position(), buffer.position(), dataSize); // NOPMD - needs to be read here
-        final int nEntries = buffer.getInt();
+        final var headerStartField = new WireDataFieldDescription(this, parent, fieldName.hashCode(), fieldName, DataType.START_MARKER, buffer.position(), buffer.position(), dataSize); // NOPMD - needs to be read here
+        final var nEntries = buffer.getInt();
         if (nEntries <= 0) {
             throw new IllegalStateException("nEntries = " + nEntries + " <= 0!");
         }
@@ -123,9 +122,9 @@ public class CmwLightSerialiser implements IoSerialiser {
 
     @Override
     public int[] getArraySizeDescriptor() {
-        final int nDims = buffer.getInt(); // number of dimensions
-        final int[] ret = new int[nDims];
-        for (int i = 0; i < nDims; i++) {
+        final var nDims = buffer.getInt(); // number of dimensions
+        final var ret = new int[nDims];
+        for (var i = 0; i < nDims; i++) {
             ret[i] = buffer.getInt(); // vector size for each dimension
         }
         return ret;
@@ -201,7 +200,7 @@ public class CmwLightSerialiser implements IoSerialiser {
 
     @Override
     public <E extends Enum<E>> Enum<E> getEnum(final Enum<E> enumeration) {
-        final int ordinal = buffer.getInt();
+        final var ordinal = buffer.getInt();
         assert ordinal >= 0 : "enum ordinal should be positive";
 
         final String enumName = enumeration.getClass().getName();
@@ -215,7 +214,7 @@ public class CmwLightSerialiser implements IoSerialiser {
         }
 
         try {
-            final Method values = enumClass.getMethod("values");
+            final var values = enumClass.getMethod("values");
             final Object[] possibleEnumValues = (Object[]) values.invoke(null);
             //noinspection unchecked
             return (Enum<E>) possibleEnumValues[ordinal]; // NOSONAR NOPMD
@@ -235,9 +234,9 @@ public class CmwLightSerialiser implements IoSerialiser {
         // process CMW-like wire-format
         final int headerStart = buffer.position(); // NOPMD - need to read the present buffer position
 
-        final String fieldName = buffer.getStringISO8859(); // NOPMD - read advances position
-        final byte dataTypeByte = buffer.getByte();
-        final DataType dataType = getDataType(dataTypeByte);
+        final var fieldName = buffer.getStringISO8859(); // NOPMD - read advances position
+        final var dataTypeByte = buffer.getByte();
+        final var dataType = getDataType(dataTypeByte);
         // process CMW-like wire-format - done
 
         final int dataStartOffset = buffer.position() - headerStart; // NOPMD - further reads advance the read position in the buffer
@@ -251,16 +250,16 @@ public class CmwLightSerialiser implements IoSerialiser {
         } else if (dataType.isArray() && dataType != DataType.STRING_ARRAY) {
             // read array descriptor
             final int[] dims = getArraySizeDescriptor();
-            final int arraySize = buffer.getInt(); // strided array size
+            final var arraySize = buffer.getInt(); // strided array size
             dataSize = FastByteBuffer.SIZE_OF_INT * (dims.length + 2) + arraySize * dataType.getPrimitiveSize(); // <array description> + <nElments * primitive size>
         } else if (dataType == DataType.STRING_ARRAY) {
             // read array descriptor -- this case has a high-penalty since the size of all Strings needs to be read
             final int[] dims = getArraySizeDescriptor();
-            final int arraySize = buffer.getInt(); // strided array size
+            final var arraySize = buffer.getInt(); // strided array size
             // String parsing, need to follow every single element
             int totalSize = FastByteBuffer.SIZE_OF_INT * arraySize;
-            for (int i = 0; i < arraySize; i++) {
-                final int stringSize = buffer.getInt(); // <(>string size -1> + <string byte data>
+            for (var i = 0; i < arraySize; i++) {
+                final var stringSize = buffer.getInt(); // <(>string size -1> + <string byte data>
                 totalSize += stringSize;
                 buffer.position(buffer.position() + stringSize);
             }
@@ -411,12 +410,12 @@ public class CmwLightSerialiser implements IoSerialiser {
             throw new IllegalStateException("fieldRoot not a START_MARKER but: " + fieldRoot);
         }
         buffer.position(fieldRoot.getDataStartPosition());
-        final int nEntries = buffer.getInt();
+        final var nEntries = buffer.getInt();
         if (nEntries < 0) {
             throw new IllegalStateException("nEntries = " + nEntries + " < 0!");
         }
         parent = lastFieldHeader = fieldRoot;
-        for (int i = 0; i < nEntries; i++) {
+        for (var i = 0; i < nEntries; i++) {
             final WireDataFieldDescription field = getFieldHeader(); // NOPMD - need to read the present buffer position
             final int dataSize = field.getDataSize();
             final int skipPosition = field.getDataStartPosition() + dataSize; // NOPMD - read at this location necessary, further reads advance position pointer
@@ -948,7 +947,7 @@ public class CmwLightSerialiser implements IoSerialiser {
     @Override
     public void put(final String fieldName, final Enum<?> enumeration) {
         final WireDataFieldDescription fieldHeader = putFieldHeader(fieldName, DataType.ENUM);
-        this.put((FieldDescription) null, enumeration);
+        this.put(fieldHeader, enumeration);
         this.updateDataEndMarker(fieldHeader);
     }
 
@@ -969,7 +968,7 @@ public class CmwLightSerialiser implements IoSerialiser {
     @Override
     public int putArraySizeDescriptor(final int[] dims) {
         buffer.putInt(dims.length); // number of dimensions
-        int nElements = 1;
+        var nElements = 1;
         for (final int dim : dims) {
             nElements *= dim;
             buffer.putInt(dim); // vector size for each dimension
@@ -1053,7 +1052,7 @@ public class CmwLightSerialiser implements IoSerialiser {
     @Override
     public void putHeaderInfo(final FieldDescription... field) {
         parent = lastFieldHeader = getRootElement();
-        final String fieldName = "";
+        final var fieldName = "";
         final int dataSize = FastByteBuffer.SIZE_OF_INT;
         lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName.hashCode(), fieldName, DataType.START_MARKER, buffer.position(), buffer.position(), dataSize);
         buffer.putInt(0);
@@ -1098,7 +1097,7 @@ public class CmwLightSerialiser implements IoSerialiser {
         final int parentDataStart = parent.getDataStartPosition();
         if (parentDataStart >= 0) { // N.B. needs to be '>=' since CMW header is an incomplete field header containing only an 'nEntries<int>' data field
             buffer.position(parentDataStart);
-            final int nEntries = buffer.getInt();
+            final var nEntries = buffer.getInt();
             buffer.position(parentDataStart);
             buffer.putInt(nEntries + 1);
             buffer.position(lastFieldHeader.getDataStartPosition());
