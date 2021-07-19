@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -84,7 +85,7 @@ public class DirectoryLightClient implements DnsResolver {
      * @return The request message to send to the server
      **/
     private String getDeviceMsg(final List<String> devices) {
-        final StringBuilder sb = new StringBuilder();
+        final var sb = new StringBuilder();
         sb.append(GET_DEVICE_INFO).append("\n@client-info ").append(CLIENT_INFO).append("\n@version ").append(VERSION).append('\n');
         // msg.append("@prefer-proxy\n");
         // msg.append("@direct ").append(this.properties.directServers.getValue()).append("\n");
@@ -137,10 +138,10 @@ public class DirectoryLightClient implements DnsResolver {
      **/
     public List<Device> getDeviceInfo(final List<String> devices) throws DirectoryClientException {
         final ArrayList<Device> result = new ArrayList<>();
-        try (Socket socket = new Socket()) {
+        try (var socket = new Socket()) {
             socket.connect(new InetSocketAddress(nameserver, nameserverPort));
-            try (PrintWriter writer = new PrintWriter(socket.getOutputStream());
-                    BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+            try (var writer = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
+                    var bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                 writer.write(getDeviceMsg(devices));
                 writer.flush();
                 // read query result, one line per requested device or ERROR followed by error message
@@ -171,15 +172,15 @@ public class DirectoryLightClient implements DnsResolver {
             throw new DirectoryClientException("Requested device not bound: " + tokens[0]);
         }
         final ArrayList<Map<String, String>> servers = new ArrayList<>();
-        for (int j = 2; j < tokens.length; j++) {
+        for (var j = 2; j < tokens.length; j++) {
             final HashMap<String, String> server = new HashMap<>(); // NOPMD - necessary to allocate inside loop
             servers.add(server);
             final String[] servertokens = tokens[j].split("#");
             server.put("protocol", servertokens[0]);
-            int k = 1;
+            var k = 1;
             while (k + 3 < servertokens.length) {
                 if ("string".equals(servertokens[k + 1])) {
-                    final int length = Integer.parseInt(servertokens[k + 2]);
+                    final var length = Integer.parseInt(servertokens[k + 2]);
                     final String value = URLDecoder.decode(servertokens[k + 3], Charset.defaultCharset());
                     if (length == value.length()) {
                         server.put(servertokens[k], value);
