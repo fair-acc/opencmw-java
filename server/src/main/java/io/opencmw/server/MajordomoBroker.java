@@ -863,7 +863,7 @@ public class MajordomoBroker extends Thread implements AutoCloseable {
      * This defines one DNS service item, idle or active.
      */
     @SuppressWarnings("PMD.CommentDefaultAccessModifier") // needed for utility classes in the same package
-    public class DnsServiceItem {
+    public static class DnsServiceItem {
         protected final byte[] address; // Address ID frame to route to
         protected final String serviceName;
         protected final List<URI> uri = new NoDuplicatesList<>();
