@@ -43,7 +43,7 @@
         <version.jupiter>5.7.2</version.jupiter>
         <version.awaitility>4.1.0</version.awaitility>
         <version.JMemoryBuddy>0.5.1</version.JMemoryBuddy>
-        <version.jmh>1.32</version.jmh>
+        <version.jmh>1.33</version.jmh>
         <version.micrometer>1.7.2</version.micrometer>
         <version.velocity>2.3</version.velocity>
         <version.chartfx>11.2.5</version.chartfx>
