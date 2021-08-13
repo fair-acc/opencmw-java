@@ -30,7 +30,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <version.slf4j>2.0.0-alpha2</version.slf4j>
         <version.auto-service>1.0</version.auto-service>
-        <version.jetbrains.annotations>21.0.1</version.jetbrains.annotations>
+        <version.jetbrains.annotations>22.0.0</version.jetbrains.annotations>
         <version.jeromq>0.5.2</version.jeromq>
         <versions.lmax.disruptor>3.4.4</versions.lmax.disruptor>
         <version.javalin>3.13.10</version.javalin>
