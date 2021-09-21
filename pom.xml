@@ -28,12 +28,12 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
-        <version.slf4j>2.0.0-alpha2</version.slf4j>
+        <version.slf4j>2.0.0-alpha5</version.slf4j>
         <version.auto-service>1.0</version.auto-service>
-        <version.jetbrains.annotations>21.0.1</version.jetbrains.annotations>
+        <version.jetbrains.annotations>22.0.0</version.jetbrains.annotations>
         <version.jeromq>0.5.2</version.jeromq>
         <versions.lmax.disruptor>3.4.4</versions.lmax.disruptor>
-        <version.javalin>3.13.10</version.javalin>
+        <version.javalin>3.13.11</version.javalin>
         <version.jetty>9.4.43.v20210629</version.jetty> <!-- N.B. needs to be synchronised/tested with Javalin version -->
         <version.jsoniter>0.9.23</version.jsoniter>
         <version.fastutil>8.5.4</version.fastutil>
@@ -44,7 +44,7 @@
         <version.awaitility>4.1.0</version.awaitility>
         <version.JMemoryBuddy>0.5.1</version.JMemoryBuddy>
         <version.jmh>1.33</version.jmh>
-        <version.micrometer>1.7.2</version.micrometer>
+        <version.micrometer>1.7.4</version.micrometer>
         <version.velocity>2.3</version.velocity>
         <version.chartfx>11.2.5</version.chartfx>
         <version.docopt>0.6.0.20150202</version.docopt>
