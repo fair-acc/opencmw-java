@@ -40,7 +40,7 @@
         <version.javassist>3.28.0-GA</version.javassist>
         <version.okHttp3>4.9.1</version.okHttp3>
         <version.commons-lang3>3.12.0</version.commons-lang3>
-        <version.jupiter>5.7.2</version.jupiter>
+        <version.jupiter>5.8.1</version.jupiter>
         <version.awaitility>4.1.0</version.awaitility>
         <version.JMemoryBuddy>0.5.1</version.JMemoryBuddy>
         <version.jmh>1.33</version.jmh>
