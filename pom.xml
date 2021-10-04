@@ -33,7 +33,7 @@
         <version.jetbrains.annotations>22.0.0</version.jetbrains.annotations>
         <version.jeromq>0.5.2</version.jeromq>
         <versions.lmax.disruptor>3.4.4</versions.lmax.disruptor>
-        <version.javalin>3.13.11</version.javalin>
+        <version.javalin>4.1.0</version.javalin>
         <version.jetty>9.4.43.v20210629</version.jetty> <!-- N.B. needs to be synchronised/tested with Javalin version -->
         <version.jsoniter>0.9.23</version.jsoniter>
         <version.fastutil>8.5.4</version.fastutil>
