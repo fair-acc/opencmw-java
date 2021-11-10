@@ -53,7 +53,7 @@ import io.opencmw.serialiser.utils.TestDataClass;
  */
 public class SerialiserQuickBenchmark { // NOPMD - nomen est omen
     private static final Logger LOGGER = LoggerFactory.getLogger(SerialiserQuickBenchmark.class);
-    private static final TestDataClass inputObject = new TestDataClass(10, 100, 1);
+    private static final TestDataClass inputObject = new TestDataClass(1000, 0, 0);
     private static final TestDataClass outputObject = new TestDataClass(-1, -1, 0);
 
     public static String humanReadableByteCount(final long bytes, final boolean si) {
