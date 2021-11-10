@@ -497,11 +497,11 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
          */
         public final MdpMessage req;
         /**
-         * return request nessage
+         * return request message
          */
         public MdpMessage rep;
         /**
-         * default data MIME type. defaults to BINARY/YaS serialiser format if not expicitly set
+         * default data MIME type. defaults to BINARY/YaS serialiser format if not explicitly set
          */
         public MimeType mimeType = MimeType.BINARY;
         /**
@@ -537,7 +537,7 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
 
         @Override
         public int hashCode() {
-            int result = req == null ? 0 : req.hashCode();
+            int result = req.hashCode();
             result = 31 * result + (rep == null ? 0 : rep.hashCode());
             return result;
         }
