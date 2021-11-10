@@ -121,7 +121,7 @@ public final class OpenCmwProtocol { // NOPMD - nomen est omen
         SUBSCRIBE(0x07, true, true), // client specific command
         UNSUBSCRIBE(0x08, true, true), // client specific command
         W_NOTIFY(0x09, false, true), // worker specific command
-        W_HEARTBEAT(0x10, true, true), // worker specific command, optional for client
+        W_HEARTBEAT(0x0A, true, true), // worker specific command, optional for client
         UNKNOWN(-1, false, false);
 
         private final byte[] data;
