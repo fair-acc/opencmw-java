@@ -44,7 +44,7 @@
         <version.awaitility>4.1.0</version.awaitility>
         <version.JMemoryBuddy>0.5.1</version.JMemoryBuddy>
         <version.jmh>1.33</version.jmh>
-        <version.micrometer>1.7.4</version.micrometer>
+        <version.micrometer>1.8.0</version.micrometer>
         <version.velocity>2.3</version.velocity>
         <version.chartfx>11.2.5</version.chartfx>
         <version.docopt>0.6.0.20150202</version.docopt>
