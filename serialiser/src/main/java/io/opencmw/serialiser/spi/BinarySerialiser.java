@@ -24,23 +24,23 @@ import io.opencmw.serialiser.utils.GenericsHelper;
  *
  * Generic binary serialiser aimed at efficiently transferring data between server/client and in particular between
  * Java/C++/web-based programs. For rationale see IoSerialiser.md description.
- * 
+ *
  * <p>
  * There are two default backing buffer implementations ({@link FastByteBuffer FastByteBuffer} and {@link ByteBuffer ByteBuffer}),
  * but can be extended/replaced with any other buffer is also possible provided it implements the {@link IoBuffer IoBuffer} interface.
- * 
+ *
  * <p>
  * The default serialisable data types are defined in {@link DataType DataType} and include definitions for
  * <ul>
- * <li> primitives (byte, short, ..., float, double, and String), and 
- * <li> arrays thereof (ie. byte[], short[], ..., float[], double[], and String[]), as well as 
+ * <li> primitives (byte, short, ..., float, double, and String), and
+ * <li> arrays thereof (ie. byte[], short[], ..., float[], double[], and String[]), as well as
  * <li> complex objects implementing Collections (ie. Set, List, Queues), Enums or Maps.
- * </ul> 
+ * </ul>
  * Any other complex data objects can be stored/extended using the {@link DataType#OTHER OTHER} sub-type.
- * 
+ *
  * N.B. Multi-dimensional arrays are handled through one-dimensional striding arrays with the additional
  * infos on number of dimensions and size for each individual dimension.
- * 
+ *
  * <p>
  * <b>raw-byte level protocol</b>: above data items are stored as follows:
  * <pre><code>
@@ -53,10 +53,9 @@ import io.opencmw.serialiser.utils.GenericsHelper;
  * * String:        [ 4 bytes (int) - length (including termination) ][ n bytes based on ISO-8859 or UTF-8 encoding ]
  * * field header:  # start field header 'p0'
  *                  [ 1 byte - uniqueType ]
- *                  [ 4 bytes - field name hash code] // enables faster field matching
  *                  [ 4 bytes - dataStart = n bytes until data start] // counted w.r.t. field header start
  *                  [ 4 bytes - dataSize = n bytes for data size]
- *                  [ String (ISO-8859) - field name ]             // optional, if there are no field name hash code collisions
+ *                  [ String (ISO-8859) - field name ]
  *                  N.B. following fields are optional (detectable if buffer position smaller than 'p0' + dataStart)
  *                  [ String (UTF-8)    - field unit ]
  *                  [ String (UTF-8)    - field in/out direction ]
@@ -69,14 +68,14 @@ import io.opencmw.serialiser.utils.GenericsHelper;
  * * boxed arrays:  as above but each element cast to corresponding primitive type
  * * array header:  [ field header (as above) ] +
  *                      [4 bytes - number of dimensions N_d ] +
- *                      [4 bytes x N_d - vector sizes for each dimension N_i ]  
+ *                      [4 bytes x N_d - vector sizes for each dimension N_i ]
  * * Collection[E]:
  * * List[]:
  * * Queue[E]:
- * * Set[E]:        [ array header (uniqueType= one of the Collection type IDs) ] + 
+ * * Set[E]:        [ array header (uniqueType= one of the Collection type IDs) ] +
  *                      [ 1 byte - uniqueType of E ] + [  n bytes - array of E cast to primitive type and/or string ]
  * * Map[K,V]:      [ array header (uniqueType=0xCB) ] + [ 1 byte - uniqueType of K ] +  [ 1 byte - uniqueType of V ] +
- *                      [ n bytes - array of K cast to primitive type and/or string ] + 
+ *                      [ n bytes - array of K cast to primitive type and/or string ] +
  *                      [ n bytes - array of V cast to primitive type and/or string ]
  * * OTHER          [ field header - uniqueByte = 0xFD ] +
  *                      [ 1 byte - uniqueType -- custom class type definition ]
@@ -84,20 +83,20 @@ import io.opencmw.serialiser.utils.GenericsHelper;
  *                      [ n bytes - custom serialisation definition ]
  * * start marker:  [ field header for '0x00' ] // dataSize == # bytes until the corresponding end-marker start
  * * end marker:    [ field header for '0xFE' ]
- * 
+ *
  * * nesting or sub-structures (ie. POJOs with sub-classes) can be achieved via:
- * [  start marker - field name == nesting context1 ] 
+ * [  start marker - field name == nesting context1 ]
  *   [  start marker - field name == nesting context2 ]
- *    ... 
+ *    ...
  *   [  end marker - field name == nesting context2 (optional name) ]
  * [  end marker - field name == nesting context1 (optional name) ]
- * 
+ *
  * with
  * T: being a generic list parameter outlined in {@link DataType DataType}
  * K: being a generic key parameter outlined in {@link DataType DataType}
  * V: being a generic value parameter outlined in {@link DataType DataType}
  * </code></pre>
- * 
+ *
  * @author rstein
  */
 @SuppressWarnings({ "PMD.CommentSize", "PMD.TooManyMethods", "PMD.ExcessivePublicCount", "PMD.PrematureDeclaration", "PMD.ExcessiveClassLength", "PMD.NPathComplexity" }) // variables need to be read from stream
@@ -402,28 +401,19 @@ public class BinarySerialiser implements IoSerialiser {
         return enumTypeList;
     }
 
-    @Override
-    public WireDataFieldDescription getFieldHeader() {
-        final int headerStart = buffer.position();
-        final byte dataTypeByte = buffer.getByte();
-        final int fieldNameHashCode = buffer.getInt();
-        final int dataStartOffset = buffer.getInt();
-        final int dataStartPosition = headerStart + dataStartOffset;
-        int dataSize = buffer.getInt();
-        final String fieldName;
-        if (buffer.position() < dataStartPosition) {
-            fieldName = buffer.getStringISO8859();
-        } else {
-            fieldName = null;
+            return null;
         }
 
-        final DataType dataType = getDataType(dataTypeByte);
-        if (dataType == DataType.END_MARKER) {
-            parent = (WireDataFieldDescription) parent.getParent();
-        }
-        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldNameHashCode, fieldName, dataType, headerStart, dataStartOffset, dataSize);
-        if (dataType == DataType.START_MARKER) {
-            parent = lastFieldHeader;
+        @Override
+        public String getEnumTypeList() {
+            // read value vector
+            buffer.getStringISO8859(); // enumSimpleName
+            buffer.getStringISO8859(); // enumName
+            final String enumTypeList = buffer.getStringISO8859();
+            buffer.getStringISO8859(); // enumState
+            buffer.getInt(); // enumOrdinal
+
+            return enumTypeList;
         }
 
         if (this.isPutFieldMetaData()) {
@@ -772,16 +762,10 @@ public class BinarySerialiser implements IoSerialiser {
         this.putFieldMetaData = putFieldMetaData;
     }
 
-    @Override
-    public WireDataFieldDescription parseIoStream(final boolean readHeader) {
-        final WireDataFieldDescription fieldRoot = getRootElement();
-        parent = fieldRoot;
-        final WireDataFieldDescription headerRoot = readHeader ? checkHeaderInfo().getFieldHeader() : getFieldHeader();
-        buffer.position(headerRoot.getDataStartPosition());
-        parseIoStream(headerRoot, 0);
-        //updateDataEndMarker(fieldRoot)
-        return fieldRoot;
-    }
+        @Override
+        public void setPutFieldMetaData(final boolean putFieldMetaData) {
+            this.putFieldMetaData = putFieldMetaData;
+        }
 
     public void parseIoStream(final WireDataFieldDescription fieldRoot, final int recursionDepth) {
         if (fieldRoot.getParent() == null) {
@@ -1462,14 +1446,37 @@ public class BinarySerialiser implements IoSerialiser {
         }
         final boolean isScalar = dataType.isScalar();
 
-        // -- offset 0 vs. field start
-        final int headerStart = buffer.position();
-        buffer.putByte(getDataType(dataType)); // data type ID
-        buffer.putInt(fieldDescription.getFieldNameHashCode());
-        buffer.putInt(-1); // dataStart offset
-        final int dataSize = isScalar ? dataType.getPrimitiveSize() : -1;
-        buffer.putInt(dataSize); // dataSize (N.B. 'headerStart' + 'dataStart + dataSize' == start of next field header
-        buffer.putStringISO8859(fieldDescription.getFieldName()); // full field name
+        @Override
+        public WireDataFieldDescription putFieldHeader(final FieldDescription fieldDescription) {
+            if (fieldDescription == null) {
+                // early return
+                return null;
+            }
+            final DataType dataType = fieldDescription.getDataType();
+            if (isPutFieldMetaData()) {
+                buffer.ensureAdditionalCapacity(bufferIncrements);
+            }
+            final boolean isScalar = dataType.isScalar();
+
+            // -- offset 0 vs. field start
+            final int headerStart = buffer.position();
+            buffer.putByte(getDataType(dataType)); // data type ID
+            buffer.putInt(-1); // dataStart offset
+            final int dataSize = isScalar ? dataType.getPrimitiveSize() : -1;
+            buffer.putInt(dataSize); // dataSize (N.B. 'headerStart' + 'dataStart + dataSize' == start of next field header
+            buffer.putStringISO8859(fieldDescription.getFieldName()); // full field name
+
+            if (isPutFieldMetaData() && fieldDescription.isAnnotationPresent() && dataType != DataType.END_MARKER) {
+                buffer.putString(fieldDescription.getFieldUnit());
+                buffer.putString(fieldDescription.getFieldDescription());
+                buffer.putString(fieldDescription.getFieldDirection());
+                final String[] groups = fieldDescription.getFieldGroups().toArray(new String[0]);
+                buffer.putStringArray(groups, groups.length);
+            }
+
+            // -- offset dataStart calculations
+            final int dataStartOffset = buffer.position() - headerStart;
+            buffer.putInt(headerStart + 1, dataStartOffset); // write offset to dataStart
 
         if (isPutFieldMetaData() && fieldDescription.isAnnotationPresent() && dataType != DataType.END_MARKER) {
             buffer.putString(fieldDescription.getFieldUnit());
@@ -1479,22 +1486,16 @@ public class BinarySerialiser implements IoSerialiser {
             buffer.putStringArray(groups, groups.length);
         }
 
-        // -- offset dataStart calculations
-        final int dataStartOffset = buffer.position() - headerStart;
-        buffer.putInt(headerStart + 5, dataStartOffset); // write offset to dataStart
+        @Override
+        public WireDataFieldDescription putFieldHeader(final String fieldName, final DataType dataType) {
+            final int addCapacity = ((fieldName.length() + 18) * FastByteBuffer.SIZE_OF_BYTE) + bufferIncrements + dataType.getPrimitiveSize();
+            buffer.ensureAdditionalCapacity(addCapacity);
+            final boolean isScalar = dataType.isScalar();
 
         // from hereon there are data specific structures
         buffer.ensureAdditionalCapacity(16); // allocate 16 bytes to account for potential array header (safe-bet)
 
-        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldDescription.getFieldNameHashCode(), fieldDescription.getFieldName(), dataType, headerStart, dataStartOffset, dataSize);
-        if (isPutFieldMetaData() && fieldDescription.isAnnotationPresent()) {
-            lastFieldHeader.setFieldUnit(fieldDescription.getFieldUnit());
-            lastFieldHeader.setFieldDescription(fieldDescription.getFieldDescription());
-            lastFieldHeader.setFieldDirection(fieldDescription.getFieldDirection());
-            lastFieldHeader.setFieldGroups(fieldDescription.getFieldGroups());
-        }
-        return lastFieldHeader;
-    }
+            // this putField method cannot add meta-data use 'putFieldHeader(final FieldDescription fieldDescription)' instead
 
     @Override
     public WireDataFieldDescription putFieldHeader(final String fieldName, final DataType dataType) {
@@ -1505,7 +1506,6 @@ public class BinarySerialiser implements IoSerialiser {
         // -- offset 0 vs. field start
         final int headerStart = buffer.position();
         buffer.putByte(getDataType(dataType)); // data type ID
-        buffer.putInt(fieldName.hashCode()); // unique hashCode identifier -- TODO: unify across C++/Java & optimise performance
         buffer.putInt(-1); // dataStart offset
         final int dataSize = isScalar ? dataType.getPrimitiveSize() : -1;
         buffer.putInt(dataSize); // dataSize (N.B. 'headerStart' + 'dataStart + dataSize' == start of next field header
@@ -1516,12 +1516,12 @@ public class BinarySerialiser implements IoSerialiser {
         // -- offset dataStart calculations
         final int fieldHeaderDataStart = buffer.position();
         final int dataStartOffset = (fieldHeaderDataStart - headerStart);
-        buffer.putInt(headerStart + 5, dataStartOffset); // write offset to dataStart
+        buffer.putInt(headerStart + 1, dataStartOffset); // write offset to dataStart
 
         // from hereon there are data specific structures
         buffer.ensureAdditionalCapacity(16); // allocate 16 bytes to account for potential array header (safe-bet)
 
-        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName.hashCode(), fieldName, dataType, headerStart, dataStartOffset, dataSize);
+        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName, dataType, headerStart, dataStartOffset, dataSize);
         return lastFieldHeader;
     }
 
@@ -1562,20 +1562,8 @@ public class BinarySerialiser implements IoSerialiser {
         }
     }
 
-    @Override
-    public void putHeaderInfo(final FieldDescription... field) {
-        parent = lastFieldHeader = getRootElement();
-
-        buffer.ensureAdditionalCapacity(ADDITIONAL_HEADER_INFO_SIZE);
-        buffer.putInt(VERSION_MAGIC_NUMBER);
-        buffer.putStringISO8859(PROTOCOL_NAME);
-        buffer.putByte(VERSION_MAJOR);
-        buffer.putByte(VERSION_MINOR);
-        buffer.putByte(VERSION_MICRO);
-        if (field.length == 0 || field[0] == null) {
-            putStartMarker(new WireDataFieldDescription(this, null, "OBJ_ROOT_START".hashCode(), "OBJ_ROOT_START", DataType.START_MARKER, -1, -1, -1));
-        } else {
-            putStartMarker(field[0]);
+            lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName, dataType, headerStart, dataStartOffset, dataSize);
+            return lastFieldHeader;
         }
     }
 
@@ -1598,11 +1586,23 @@ public class BinarySerialiser implements IoSerialiser {
             throw new IllegalStateException("buffer position " + sizeMarkerEnd + " is beyond buffer capacity " + buffer.capacity());
         }
 
-        final int dataSize = sizeMarkerEnd - fieldHeader.getDataStartPosition();
-        if (fieldHeader.getDataSize() != dataSize) {
-            final int headerStart = fieldHeader.getFieldStart();
-            fieldHeader.setDataSize(dataSize);
-            buffer.putInt(headerStart + 9, dataSize); // 9 bytes = 1 byte for dataType, 4 bytes for fieldNameHashCode, 4 bytes for dataOffset
+        @Override
+        public void updateDataEndMarker(final WireDataFieldDescription fieldHeader) {
+            if (fieldHeader == null) {
+                // N.B. early return in case field header hasn't been written
+                return;
+            }
+            final int sizeMarkerEnd = buffer.position();
+            if (isPutFieldMetaData() && sizeMarkerEnd >= buffer.capacity()) {
+                throw new IllegalStateException("buffer position " + sizeMarkerEnd + " is beyond buffer capacity " + buffer.capacity());
+            }
+
+            final int dataSize = sizeMarkerEnd - fieldHeader.getDataStartPosition();
+            if (fieldHeader.getDataSize() != dataSize) {
+                final int headerStart = fieldHeader.getFieldStart();
+                fieldHeader.setDataSize(dataSize);
+                buffer.putInt(headerStart + 5, dataSize); // 5 bytes = 1 byte for dataType, 4 bytes for dataOffset
+            }
         }
     }
 
@@ -1656,7 +1656,7 @@ public class BinarySerialiser implements IoSerialiser {
 
     private WireDataFieldDescription getRootElement() {
         final int headerOffset = 1 + PROTOCOL_NAME.length() + 3; // unique byte + protocol length + 3 x byte for version
-        return new WireDataFieldDescription(this, null, "ROOT".hashCode(), "ROOT", DataType.OTHER, buffer.position() + headerOffset, -1, -1);
+        return new WireDataFieldDescription(this, null, "ROOT", DataType.OTHER, buffer.position() + headerOffset, -1, -1);
     }
 
     public static byte getDataType(final DataType dataType) {

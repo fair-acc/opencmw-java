@@ -14,13 +14,12 @@ import io.opencmw.serialiser.utils.ClassUtils;
 
 /**
  * Field header descriptor
- * 
+ *
  * @author rstein
  */
 public class WireDataFieldDescription implements FieldDescription {
     private static final Logger LOGGER = LoggerFactory.getLogger(WireDataFieldDescription.class);
     private final String fieldName;
-    private final int fieldNameHashCode;
     private final DataType dataType;
     private final List<FieldDescription> children = new ArrayList<>();
     private final FieldDescription parent;
@@ -40,20 +39,16 @@ public class WireDataFieldDescription implements FieldDescription {
      *
      * @param source the referenced IoBuffer (if any)
      * @param parent the optional parent field header (for cascaded objects)
-     * @param fieldNameHashCode the fairly-unique hash-code of the field name,
-     *                         N.B. checked during 1st iteration against fieldName, if no collisions are present then
-     *                         this check is being suppressed
      * @param fieldName the clear text field name description
      * @param dataType the data type of that field
      * @param fieldStart the absolute buffer position from which the field header can be parsed
      * @param dataStartOffset the position from which the actual data can be parsed onwards
      * @param dataSize the expected number of bytes to skip the data block
      */
-    public WireDataFieldDescription(final IoSerialiser source, final FieldDescription parent, final int fieldNameHashCode, final String fieldName, final DataType dataType, //
+    public WireDataFieldDescription(final IoSerialiser source, final FieldDescription parent, final String fieldName, final DataType dataType, //
             final int fieldStart, final int dataStartOffset, final int dataSize) {
         ioSerialiser = source;
         this.parent = parent;
-        this.fieldNameHashCode = fieldNameHashCode;
         this.fieldName = fieldName;
         this.dataType = dataType;
         this.fieldStart = fieldStart;
@@ -75,10 +70,6 @@ public class WireDataFieldDescription implements FieldDescription {
             return false;
         }
         FieldDescription other = (FieldDescription) obj;
-        if (this.getFieldNameHashCode() != other.getFieldNameHashCode()) {
-            return false;
-        }
-
         if (this.getDataType() != other.getDataType()) {
             return false;
         }
@@ -88,18 +79,10 @@ public class WireDataFieldDescription implements FieldDescription {
 
     @Override
     public FieldDescription findChildField(final String fieldName) {
-        return findChildField(fieldName.hashCode(), fieldName);
-    }
-
-    @Override
-    public FieldDescription findChildField(final int fieldNameHashCode, final String fieldName) {
-        for (final FieldDescription field : children) { //NOSONAR
-            final String name = field.getFieldName();
-            if (name == fieldName) { // NOSONAR NOPMD early return if the same String object reference
-                return field;
-            }
-            if (field.hashCode() == fieldNameHashCode && name.equals(fieldName)) {
-                return field;
+        for (final FieldDescription child : children) {
+            final String name = child.getFieldName();
+            if (name.equals(fieldName)) { // NOSONAR NOPMD early return if the same String object reference
+                return child;
             }
         }
         return null;
@@ -164,11 +147,6 @@ public class WireDataFieldDescription implements FieldDescription {
     @Override
     public String getFieldName() {
         return fieldName;
-    }
-
-    @Override
-    public int getFieldNameHashCode() {
-        return fieldNameHashCode;
     }
 
     @Override
@@ -266,11 +244,6 @@ public class WireDataFieldDescription implements FieldDescription {
     @Override
     public Class<?> getType() {
         return dataType.getClassTypes().get(0);
-    }
-
-    @Override
-    public int hashCode() {
-        return fieldNameHashCode;
     }
 
     @Override

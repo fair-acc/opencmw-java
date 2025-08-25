@@ -25,7 +25,7 @@ import io.opencmw.serialiser.spi.WireDataFieldDescription;
  * Serializes CmwLightMessage to ZeroMQ messages and vice versa.
  */
 @SuppressWarnings("PMD.UnusedLocalVariable") // Unused variables are taken from the protocol and should be available for reference
-public class CmwLightProtocol { //NOPMD -- nomen est omen
+public class CmwLightProtocol { // NOPMD -- nomen est omen
     private static final String CONTEXT_ACQ_STAMP = "ContextAcqStamp";
     private static final String CONTEXT_CYCLE_STAMP = "ContextCycleStamp";
     private static final String MESSAGE = "Message";
@@ -421,8 +421,7 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
 
     private static void putMap(final CmwLightSerialiser serialiser, final String fieldName, final Map<String, Object> map) throws RdaLightException {
         if (map != null) {
-            final var dataFieldMarker = new WireDataFieldDescription(serialiser, serialiser.getParent(), -1,
-                    fieldName, DataType.START_MARKER, -1, -1, -1);
+            final var dataFieldMarker = new WireDataFieldDescription(serialiser, serialiser.getParent(), fieldName, DataType.START_MARKER, -1, -1, -1);
             serialiser.putStartMarker(dataFieldMarker);
             for (final Map.Entry<String, Object> entry : map.entrySet()) {
                 if (entry.getValue() instanceof String) {
@@ -485,10 +484,10 @@ public class CmwLightProtocol { //NOPMD -- nomen est omen
             if (result == null) {
                 result = new HashMap<>(); // NOPMD - necessary to allocate inside loop
             }
-            //if ( 'condition' ) {
-            // find out how to see if the field is itself a map
-            // result.put(dataField.getFieldName(), readMap(dataField))
-            // } else {
+            // if ( 'condition' ) {
+            //  find out how to see if the field is itself a map
+            //  result.put(dataField.getFieldName(), readMap(dataField))
+            //  } else {
             result.put(dataField.getFieldName(), ((WireDataFieldDescription) dataField).data());
             //}
         }

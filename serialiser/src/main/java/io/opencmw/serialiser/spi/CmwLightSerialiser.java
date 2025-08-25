@@ -20,7 +20,7 @@ import io.opencmw.serialiser.utils.ClassUtils;
 
 /**
  * Light-weight open-source implementation of a (de-)serialiser that is binary-compatible to the serialiser used by CMW,
- * a proprietary closed-source middle-ware used in some accelerator laboratories.
+ * a proprietary closed-source middleware used in some accelerator laboratories.
  *
  * N.B. this implementation is intended only for performance/functionality comparison and to enable a backward compatible
  * transition to the {@link BinarySerialiser} implementation which is a bit more flexible,
@@ -111,7 +111,7 @@ public class CmwLightSerialiser implements IoSerialiser {
     public ProtocolInfo checkHeaderInfo() {
         final var fieldName = "";
         final int dataSize = FastByteBuffer.SIZE_OF_INT;
-        final var headerStartField = new WireDataFieldDescription(this, parent, fieldName.hashCode(), fieldName, DataType.START_MARKER, buffer.position(), buffer.position(), dataSize); // NOPMD - needs to be read here
+        final var headerStartField = new WireDataFieldDescription(this, parent, fieldName, DataType.START_MARKER, buffer.position(), buffer.position(), dataSize); // NOPMD - needs to be read here
         final var nEntries = buffer.getInt();
         if (nEntries <= 0) {
             throw new IllegalStateException("nEntries = " + nEntries + " <= 0!");
@@ -216,7 +216,7 @@ public class CmwLightSerialiser implements IoSerialiser {
         try {
             final var values = enumClass.getMethod("values");
             final Object[] possibleEnumValues = (Object[]) values.invoke(null);
-            //noinspection unchecked
+            // noinspection unchecked
             return (Enum<E>) possibleEnumValues[ordinal]; // NOSONAR NOPMD
         } catch (final ReflectiveOperationException e) {
             LOGGER.atError().setCause(e).addArgument(enumClass).log("could not match 'valueOf(String)' function for class/(supposedly) enum of {}");
@@ -268,9 +268,7 @@ public class CmwLightSerialiser implements IoSerialiser {
             throw new IllegalStateException("should not reach here -- format is incompatible with CMW");
         }
 
-        final int fieldNameHashCode = fieldName.hashCode(); //TODO: verify same hashcode function
-
-        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldNameHashCode, fieldName, dataType, headerStart, dataStartOffset, dataSize);
+        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName, dataType, headerStart, dataStartOffset, dataSize);
         final int dataStartPosition = headerStart + dataStartOffset;
         buffer.position(dataStartPosition);
 
@@ -1014,7 +1012,7 @@ public class CmwLightSerialiser implements IoSerialiser {
             // from hereon there are data specific structures
             buffer.ensureAdditionalCapacity(16); // allocate 16+ bytes to account for potential array header (safe-bet)
         }
-        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldDescription.getFieldNameHashCode(), fieldDescription.getFieldName(), customDataType, headerStart, dataStartOffset, dataSize);
+        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldDescription.getFieldName(), customDataType, headerStart, dataStartOffset, dataSize);
         updateDataEntryCount();
 
         return lastFieldHeader;
@@ -1042,8 +1040,7 @@ public class CmwLightSerialiser implements IoSerialiser {
             buffer.ensureAdditionalCapacity(16); // allocate 16+ bytes to account for potential array header (safe-bet)
         }
 
-        final int fieldNameHashCode = fieldName.hashCode(); // TODO: check hashCode function
-        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldNameHashCode, fieldName, dataType, headerStart, dataStartOffset, dataSize);
+        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName, dataType, headerStart, dataStartOffset, dataSize);
         updateDataEntryCount();
 
         return lastFieldHeader;
@@ -1054,7 +1051,7 @@ public class CmwLightSerialiser implements IoSerialiser {
         parent = lastFieldHeader = getRootElement();
         final var fieldName = "";
         final int dataSize = FastByteBuffer.SIZE_OF_INT;
-        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName.hashCode(), fieldName, DataType.START_MARKER, buffer.position(), buffer.position(), dataSize);
+        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName, DataType.START_MARKER, buffer.position(), buffer.position(), dataSize);
         buffer.putInt(0);
         updateDataEntryCount();
         parent = lastFieldHeader;
@@ -1085,7 +1082,7 @@ public class CmwLightSerialiser implements IoSerialiser {
     }
 
     private WireDataFieldDescription getRootElement() {
-        return new WireDataFieldDescription(this, null, "ROOT".hashCode(), "ROOT", DataType.OTHER, buffer.position(), -1, -1);
+        return new WireDataFieldDescription(this, null, "ROOT", DataType.OTHER, buffer.position(), -1, -1);
     }
 
     private void updateDataEntryCount() {

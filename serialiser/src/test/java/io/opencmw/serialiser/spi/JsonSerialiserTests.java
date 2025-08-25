@@ -39,7 +39,7 @@ class JsonSerialiserTests {
         ioSerialiser.putHeaderInfo();
         // add start marker
         final String dataStartMarkerName = "StartMarker";
-        final WireDataFieldDescription dataStartMarker = new WireDataFieldDescription(ioSerialiser, null, dataStartMarkerName.hashCode(), dataStartMarkerName, DataType.START_MARKER, -1, -1, -1);
+        final WireDataFieldDescription dataStartMarker = new WireDataFieldDescription(ioSerialiser, null, dataStartMarkerName, DataType.START_MARKER, -1, -1, -1);
         ioSerialiser.putStartMarker(dataStartMarker);
         // add Collection - List<E>
         final List<Integer> list = Arrays.asList(1, 2, 3);
@@ -58,7 +58,7 @@ class JsonSerialiserTests {
         ioSerialiser.put("enum", DataType.ENUM);
         // add end marker
         final String dataEndMarkerName = "EndMarker";
-        final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName.hashCode(), dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
+        final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
         ioSerialiser.putEndMarker(dataEndMarker); // end start marker
         ioSerialiser.putEndMarker(dataEndMarker); // end header info
 
@@ -95,7 +95,7 @@ class JsonSerialiserTests {
     @DisplayName("basic primitive array writer tests")
     @ParameterizedTest(name = "IoBuffer class - {0}")
     @ValueSource(classes = { ByteBuffer.class, FastByteBuffer.class })
-    void testParseIoStream(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException { //NOSONAR NOPMD
+    void testParseIoStream(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException { // NOSONAR NOPMD
         assertNotNull(bufferClass, "bufferClass being not null");
         assertNotNull(bufferClass.getConstructor(int.class), "Constructor(Integer) present");
         final IoBuffer buffer = bufferClass.getConstructor(int.class).newInstance(2 * BUFFER_SIZE); // a bit larger buffer since we test more cases at once
@@ -144,7 +144,7 @@ class JsonSerialiserTests {
 
         // start nested data
         final String nestedContextName = "nested context";
-        final WireDataFieldDescription nestedContextMarker = new WireDataFieldDescription(ioSerialiser, null, nestedContextName.hashCode(), nestedContextName, DataType.START_MARKER, -1, -1, -1);
+        final WireDataFieldDescription nestedContextMarker = new WireDataFieldDescription(ioSerialiser, null, nestedContextName, DataType.START_MARKER, -1, -1, -1);
         ioSerialiser.putStartMarker(nestedContextMarker); // add start marker
         ioSerialiser.put("booleanArray", new boolean[] { true }, 1);
         ioSerialiser.put("byteArray", new byte[] { (byte) 0x42 }, 1);
@@ -153,7 +153,7 @@ class JsonSerialiserTests {
         // end nested data
 
         final String dataEndMarkerName = "Life is good!";
-        final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName.hashCode(), dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
+        final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
         ioSerialiser.putEndMarker(dataEndMarker); // add end marker
 
         buffer.flip();
@@ -215,7 +215,7 @@ class JsonSerialiserTests {
         simpleObj2.switches = Collections.emptyList();
         ioSerialiser.put("SimpleObjects", List.of(simpleObj, simpleObj2), SimpleClass.class);
 
-        ioSerialiser.putEndMarker(new WireDataFieldDescription(ioSerialiser, null, "end marker".hashCode(), "end marker", DataType.END_MARKER, -1, -1, -1));
+        ioSerialiser.putEndMarker(new WireDataFieldDescription(ioSerialiser, null, "end marker", DataType.END_MARKER, -1, -1, -1));
 
         ioSerialiser.getBuffer().flip();
 

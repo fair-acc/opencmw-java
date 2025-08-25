@@ -147,7 +147,7 @@ public class DataSetSerialiser { // NOPMD
         AssertUtils.notNull("dataSet", dataSet);
         AssertUtils.notNull("ioSerialiser", ioSerialiser);
         final String dataStartMarkerName = "START_MARKER_DATASET:" + dataSet.getName();
-        final WireDataFieldDescription dataStartMarker = new WireDataFieldDescription(ioSerialiser, null, dataStartMarkerName.hashCode(), dataStartMarkerName, DataType.OTHER, -1, -1, -1);
+        final WireDataFieldDescription dataStartMarker = new WireDataFieldDescription(ioSerialiser, null, dataStartMarkerName, DataType.OTHER, -1, -1, -1);
         ioSerialiser.putStartMarker(dataStartMarker);
 
         writeHeaderDataToStream(dataSet);
@@ -168,12 +168,12 @@ public class DataSetSerialiser { // NOPMD
         }
 
         final String dataEndMarkerName = "END_MARKER_DATASET:" + dataSet.getName();
-        final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName.hashCode(), dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
+        final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
         ioSerialiser.putEndMarker(dataEndMarker);
     }
 
     protected FieldDescription checkFieldCompatibility(final FieldDescription rootField, final int fieldNameHashCode, final String fieldName, final DataType... requireDataTypes) {
-        FieldDescription fieldHeader = rootField.findChildField(fieldNameHashCode, fieldName);
+        FieldDescription fieldHeader = rootField.findChildField(fieldName);
         if (fieldHeader == null) {
             return null;
         }

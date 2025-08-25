@@ -23,7 +23,6 @@ public class FieldSerialiser<R> {
     private final String name;
     private final String canonicalName;
     private final String simpleName;
-    private final int cachedHashCode;
     protected TriConsumer readerFunction;
     protected TriConsumer writerFunction;
     protected TriFunction<R> returnFunction;
@@ -50,7 +49,6 @@ public class FieldSerialiser<R> {
         this.writerFunction = writer;
         this.classPrototype = classPrototype;
         this.classGenericArguments = Arrays.asList(classGenericArguments);
-        cachedHashCode = IoClassSerialiser.computeHashCode(classPrototype, this.classGenericArguments);
 
         String genericFieldString = this.classGenericArguments.isEmpty() ? "" : this.classGenericArguments.stream().map(Type::getTypeName).collect(Collectors.joining(", ", "<", ">"));
 
@@ -71,7 +69,7 @@ public class FieldSerialiser<R> {
     }
 
     /**
-     * 
+     *
      * @return canonical name of the class/interface description
      */
     public String getCanonicalName() {
@@ -79,7 +77,7 @@ public class FieldSerialiser<R> {
     }
 
     /**
-     * 
+     *
      * @return class reference
      */
     public Class<?> getClassPrototype() {
@@ -87,7 +85,7 @@ public class FieldSerialiser<R> {
     }
 
     /**
-     * 
+     *
      * @return class reference to generics arguments
      */
     public List<Type> getGenericsPrototypes() {
@@ -95,7 +93,7 @@ public class FieldSerialiser<R> {
     }
 
     /**
-     * 
+     *
      * @return consumer that is being executed for reading from the back-end serialiser implementation
      */
     public TriConsumer getReaderFunction() {
@@ -103,7 +101,7 @@ public class FieldSerialiser<R> {
     }
 
     /**
-     * 
+     *
      * @return simple name name of the class/interface description
      */
     public String getSimpleName() {
@@ -111,7 +109,7 @@ public class FieldSerialiser<R> {
     }
 
     /**
-     * 
+     *
      * @return consumer that is being executed for writing to the back-end serialiser implementation
      */
     public TriConsumer getWriterFunction() {
@@ -124,11 +122,6 @@ public class FieldSerialiser<R> {
      */
     public TriFunction<R> getReturnObjectFunction() {
         return returnFunction;
-    }
-
-    @Override
-    public int hashCode() {
-        return cachedHashCode;
     }
 
     @Override

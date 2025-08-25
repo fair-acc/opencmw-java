@@ -86,7 +86,7 @@ public class JsonSerialiser implements IoSerialiser {
             throw new IllegalStateException(NOT_A_JSON_COMPATIBLE_PROTOCOL, e);
         }
 
-        final WireDataFieldDescription headerStartField = new WireDataFieldDescription(this, null, JSON_ROOT.hashCode(), JSON_ROOT, DataType.OTHER, buffer.position(), count - 1, -1);
+        final WireDataFieldDescription headerStartField = new WireDataFieldDescription(this, null, JSON_ROOT, DataType.OTHER, buffer.position(), count - 1, -1);
         final ProtocolInfo header = new ProtocolInfo(this, headerStartField, JsonSerialiser.class.getCanonicalName(), (byte) 1, (byte) 0, (byte) 0);
         parent = lastFieldHeader = headerStartField;
         queryFieldName = JSON_ROOT;
@@ -271,7 +271,7 @@ public class JsonSerialiser implements IoSerialiser {
             iter.reset(buffer.elements(), 0, buffer.limit());
             tempRoot = root = iter.readAny();
 
-            final WireDataFieldDescription fieldRoot = new WireDataFieldDescription(this, null, "ROOT".hashCode(), "ROOT", DataType.OTHER, buffer.position(), -1, -1);
+            final WireDataFieldDescription fieldRoot = new WireDataFieldDescription(this, null, "ROOT", DataType.OTHER, buffer.position(), -1, -1);
             parseIoStream(fieldRoot, tempRoot, "");
 
             return fieldRoot;
@@ -906,7 +906,7 @@ public class JsonSerialiser implements IoSerialiser {
         }
 
         final Map<String, Any> map = any.asMap();
-        final WireDataFieldDescription putStartMarker = new WireDataFieldDescription(this, fieldRoot, fieldName.hashCode(), fieldName, DataType.START_MARKER, 0, -1, -1);
+        final WireDataFieldDescription putStartMarker = new WireDataFieldDescription(this, fieldRoot, fieldName, DataType.START_MARKER, 0, -1, -1);
         for (Map.Entry<String, Any> child : map.entrySet()) {
             final String childName = child.getKey();
             final Any childAny = map.get(childName);
@@ -914,7 +914,7 @@ public class JsonSerialiser implements IoSerialiser {
             if (data instanceof Map) {
                 parseIoStream(putStartMarker, childAny, childName);
             } else if (data != null) {
-                new WireDataFieldDescription(this, putStartMarker, childName.hashCode(), childName, DataType.fromClassType(data.getClass()), 0, -1, -1); // NOPMD - necessary to allocate inside loop
+                new WireDataFieldDescription(this, putStartMarker, childName, DataType.fromClassType(data.getClass()), 0, -1, -1); // NOPMD - necessary to allocate inside loop
             }
         }
         // add if necessary:

@@ -29,7 +29,7 @@ class SerialiserAnnotationTests {
         final ClassFieldDescription classFieldDescription = ClassUtils.getFieldDescription(dataClass.getClass());
         // classFieldDescription.printFieldStructure();
 
-        final FieldDescription energyField = classFieldDescription.findChildField("energy".hashCode(), "energy");
+        final FieldDescription energyField = classFieldDescription.findChildField("energy");
         assertNotNull(energyField);
         assertEquals("GeV/u", energyField.getFieldUnit());
         assertEquals("energy description", energyField.getFieldDescription());
@@ -37,7 +37,7 @@ class SerialiserAnnotationTests {
         assertFalse(energyField.getFieldGroups().isEmpty());
         assertEquals("A", energyField.getFieldGroups().get(0));
 
-        final FieldDescription temperatureField = classFieldDescription.findChildField("temperature".hashCode(), "temperature");
+        final FieldDescription temperatureField = classFieldDescription.findChildField("temperature");
         assertNotNull(temperatureField);
         assertEquals("°C", temperatureField.getFieldUnit());
         assertEquals("important temperature reading", temperatureField.getFieldDescription());
@@ -67,7 +67,7 @@ class SerialiserAnnotationTests {
         final WireDataFieldDescription root = ioSerialiser.parseIoStream(true);
         final FieldDescription serialiserFieldDescriptions = root.getChildren().get(0);
 
-        final FieldDescription energyField = serialiserFieldDescriptions.findChildField("energy".hashCode(), "energy");
+        final FieldDescription energyField = serialiserFieldDescriptions.findChildField("energy");
         assertNotNull(energyField);
         assertEquals("GeV/u", energyField.getFieldUnit());
         assertEquals("energy description", energyField.getFieldDescription());
@@ -75,7 +75,7 @@ class SerialiserAnnotationTests {
         assertFalse(energyField.getFieldGroups().isEmpty());
         assertEquals("A", energyField.getFieldGroups().get(0));
 
-        final FieldDescription temperatureField = serialiserFieldDescriptions.findChildField("temperature".hashCode(), "temperature");
+        final FieldDescription temperatureField = serialiserFieldDescriptions.findChildField("temperature");
         assertNotNull(temperatureField);
         assertEquals("°C", temperatureField.getFieldUnit());
         assertEquals("important temperature reading", temperatureField.getFieldDescription());

@@ -407,7 +407,7 @@ class BinarySerialiserTests {
         // add start marker
         positionBefore.add(buffer.position());
         final String dataStartMarkerName = "StartMarker";
-        final WireDataFieldDescription dataStartMarker = new WireDataFieldDescription(ioSerialiser, null, dataStartMarkerName.hashCode(), dataStartMarkerName, DataType.START_MARKER, -1, -1, -1);
+        final WireDataFieldDescription dataStartMarker = new WireDataFieldDescription(ioSerialiser, null, dataStartMarkerName, DataType.START_MARKER, -1, -1, -1);
         ioSerialiser.putStartMarker(dataStartMarker);
         positionAfter.add(buffer.position());
 
@@ -444,7 +444,7 @@ class BinarySerialiserTests {
         // add end marker
         positionBefore.add(buffer.position());
         final String dataEndMarkerName = "EndMarker";
-        final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName.hashCode(), dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
+        final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
         ioSerialiser.putEndMarker(dataEndMarker);
         positionAfter.add(buffer.position());
 
@@ -562,7 +562,7 @@ class BinarySerialiserTests {
         header = ioSerialiser.getFieldHeader();
         assertEquals("enum", header.getFieldName(), "enum type retrieval");
         buffer.position(header.getDataStartPosition());
-        assertDoesNotThrow(ioSerialiser::getEnumTypeList); //skips enum info
+        assertDoesNotThrow(ioSerialiser::getEnumTypeList); // skips enum info
         buffer.position(header.getDataStartPosition());
         assertEquals(DataType.ENUM, ioSerialiser.getEnum(DataType.OTHER), "enum retrieval");
         assertEquals(positionAfter.removeFirst(), buffer.position());
@@ -657,7 +657,7 @@ class BinarySerialiserTests {
 
         // start nested data
         final String nestedContextName = "nested context";
-        final WireDataFieldDescription nestedContextMarker = new WireDataFieldDescription(ioSerialiser, null, nestedContextName.hashCode(), nestedContextName, DataType.START_MARKER, -1, -1, -1);
+        final WireDataFieldDescription nestedContextMarker = new WireDataFieldDescription(ioSerialiser, null, nestedContextName, DataType.START_MARKER, -1, -1, -1);
         ioSerialiser.putStartMarker(nestedContextMarker); // add start marker
         ioSerialiser.put("booleanArray", new boolean[] { true }, 1);
         ioSerialiser.put("byteArray", new byte[] { (byte) 0x42 }, 1);
@@ -666,7 +666,7 @@ class BinarySerialiserTests {
         // end nested data
 
         final String dataEndMarkerName = "Life is good!";
-        final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName.hashCode(), dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
+        final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
         ioSerialiser.putEndMarker(dataEndMarker); // add end marker
 
         buffer.flip();

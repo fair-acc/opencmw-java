@@ -189,7 +189,7 @@ public class IoClassSerialiser {
         // class reference is not known by name (ie. was empty) parse directly dependent children
         final List<FieldDescription> fieldRootChildren = fieldRoot.getChildren().get(0).getChildren();
         for (final FieldDescription fieldDescription : fieldRootChildren) {
-            final ClassFieldDescription subFieldDescription = (ClassFieldDescription) clazz.findChildField(fieldDescription.getFieldNameHashCode(), fieldDescription.getFieldName());
+            final ClassFieldDescription subFieldDescription = (ClassFieldDescription) clazz.findChildField(fieldDescription.getFieldName());
 
             if (subFieldDescription != null) {
                 deserialise(obj, obj.getClass(), fieldDescription, subFieldDescription, 1);
@@ -401,7 +401,7 @@ public class IoClassSerialiser {
             // serialise null object
             matchedIoSerialiser.putHeaderInfo();
             final String dataEndMarkerName = "OBJ_ROOT_END";
-            final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(matchedIoSerialiser, null, dataEndMarkerName.hashCode(), dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
+            final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(matchedIoSerialiser, null, dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
             matchedIoSerialiser.putEndMarker(dataEndMarker);
             return;
         }
@@ -424,7 +424,7 @@ public class IoClassSerialiser {
             FieldSerialiser<Object> castFieldSerialiser = fieldSerialiser;
             matchedIoSerialiser.putCustomData(classField, obj, obj.getClass(), castFieldSerialiser);
             final String dataEndMarkerName = "OBJ_ROOT_END";
-            final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(matchedIoSerialiser, null, dataEndMarkerName.hashCode(), dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
+            final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(matchedIoSerialiser, null, dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
             matchedIoSerialiser.putEndMarker(dataEndMarker);
         }
     }
@@ -491,14 +491,14 @@ public class IoClassSerialiser {
             return;
         }
 
-        if (fieldRoot.getFieldNameHashCode() != classField.getFieldNameHashCode() /*|| !fieldRoot.getFieldName().equals(classField.getFieldName())*/) {
+        if (!fieldRoot.getFieldName().equals(classField.getFieldName())) {
             // did not find matching (sub-)field in class
             if (fieldRoot.getChildren().isEmpty()) {
                 return;
             }
             // check for potential inner fields
             for (final FieldDescription fieldDescription : fieldRoot.getChildren()) {
-                final ClassFieldDescription subFieldDescription = (ClassFieldDescription) classField.findChildField(fieldDescription.getFieldNameHashCode(), fieldDescription.getFieldName());
+                final ClassFieldDescription subFieldDescription = (ClassFieldDescription) classField.findChildField(fieldDescription.getFieldName());
 
                 if (subFieldDescription != null) {
                     deserialise(obj, obj.getClass(), fieldDescription, subFieldDescription, recursionDepth + 1);
@@ -524,7 +524,7 @@ public class IoClassSerialiser {
 
         // no specific deserialiser present check for potential inner fields
         for (final FieldDescription fieldDescription : fieldRoot.getChildren()) {
-            final ClassFieldDescription subFieldDescription = (ClassFieldDescription) classField.findChildField(fieldDescription.getFieldNameHashCode(), fieldDescription.getFieldName());
+            final ClassFieldDescription subFieldDescription = (ClassFieldDescription) classField.findChildField(fieldDescription.getFieldName());
 
             if (subFieldDescription != null) {
                 deserialise(subRef, subRef.getClass(), fieldDescription, subFieldDescription, recursionDepth + 1);
@@ -616,7 +616,7 @@ public class IoClassSerialiser {
         @Override
         public String toString() {
             return "FieldSerialiserKey{"
-                    + "clazz=" + clazz + ", classGenericArguments=" + classGenericArguments + '}';
+          + "clazz=" + clazz + ", classGenericArguments=" + classGenericArguments + '}';
         }
     }
 

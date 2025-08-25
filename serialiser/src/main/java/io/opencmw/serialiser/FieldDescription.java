@@ -10,8 +10,6 @@ public interface FieldDescription {
 
     FieldDescription findChildField(String fieldName);
 
-    FieldDescription findChildField(final int fieldNameHashCode, final String fieldName);
-
     List<FieldDescription> getChildren();
 
     /**
@@ -59,11 +57,6 @@ public interface FieldDescription {
      * @return the data field's name
      */
     String getFieldName();
-
-    /**
-     * @return the data field name's hashcode (N.B. used for faster identification of the field)
-     */
-    int getFieldNameHashCode();
 
     /**
      *
