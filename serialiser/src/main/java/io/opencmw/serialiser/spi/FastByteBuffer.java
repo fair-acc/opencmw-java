@@ -53,17 +53,23 @@ public class FastByteBuffer implements IoBuffer {
     static {
         // get an instance of the otherwise private 'Unsafe' class
         try {
-            @SuppressWarnings("Java9ReflectionClassVisibility")
+            final Field field = Unsafe.class.getDeclaredField("theUnsafe");
+            field.setAccessible(true); // NOSONAR
+            unsafe = (Unsafe) field.get(null);
+        } catch (NoSuchFieldException | IllegalAccessException e) { // NOPMD
+            // If we cannot obtain Unsafe, fail fast as the implementation depends on it
+            throw new SecurityException(e); // NOPMD
+        }
+
+        // Best-effort: try to disable IllegalAccessLogger if present on this JDK.
+        // This is optional and should never prevent class initialization.
+        try {
             Class<?> cls = Class.forName("jdk.internal.module.IllegalAccessLogger"); // NOSONAR NOPMD
             Field logger = cls.getDeclaredField("logger");
-
-            final Field field = Unsafe.class.getDeclaredField("theUnsafe");
-            field.setAccessible(true); //NOSONAR
-            unsafe = (Unsafe) field.get(null);
             unsafe.putObjectVolatile(cls, unsafe.staticFieldOffset(logger), null);
-
-        } catch (NoSuchFieldException | SecurityException | IllegalAccessException | ClassNotFoundException e) { // NOPMD
-            throw new SecurityException(e); // NOPMD
+        } catch (Throwable t) {
+            // Ignore: class may not exist or may be inaccessible on this JDK (e.g., JDK 21+).
+            // This is purely an optimization to reduce noise; do not break initialization.
         }
     }
 
@@ -172,7 +178,7 @@ public class FastByteBuffer implements IoBuffer {
         if (!autoResize) {
             throw new IndexOutOfBoundsException("required capacity: " + newCapacity + " out of bounds: " + capacity() + " and autoResize is disabled");
         }
-        //TODO: add smarter enlarging algorithm (ie. increase fast for small arrays, + n% for medium sized arrays, byte-by-byte for large arrays)
+        // TODO: add smarter enlarging algorithm (ie. increase fast for small arrays, + n% for medium sized arrays, byte-by-byte for large arrays)
         final int addCapacity = Math.min(Math.max(DEFAULT_MIN_CAPACITY_INCREASE, newCapacity >> 3), DEFAULT_MAX_CAPACITY_INCREASE); // min, +12.5%, max
         // if we are reading, limit() marks valid data, when writing, position() marks end of valid data, limit() is safe bet because position <= limit
         forceCapacity(newCapacity + addCapacity, limit());
@@ -481,7 +487,7 @@ public class FastByteBuffer implements IoBuffer {
     public String getStringISO8859() {
         final int arraySize = getInt(); // for C++ zero terminated string
         checkAvailable(arraySize);
-        //alt safe-fallback final String str = new String(buffer,  position, arraySize - 1, StandardCharsets.ISO_8859_1)
+        // alt safe-fallback final String str = new String(buffer,  position, arraySize - 1, StandardCharsets.ISO_8859_1)
         @SuppressWarnings("deprecation")
         final String str = new String(buffer, 0, intPos, arraySize - 1); // NOSONAR NOPMD fastest alternative that is public API
         // final String str = FastStringBuilder.iso8859BytesToString(buffer, position, arraySize - 1)
@@ -918,7 +924,7 @@ public class FastByteBuffer implements IoBuffer {
 
     // Fast UTF-8 byte-array to String(Builder) decode - code originally based on Google's ProtoBuffer implementation and since modified
     @SuppressWarnings("PMD")
-    private static void decodeUTF8(byte[] bytes, int offset, int size, StringBuilder result) { //NOSONAR
+    private static void decodeUTF8(byte[] bytes, int offset, int size, StringBuilder result) { // NOSONAR
         // Bitwise OR combines the sign bits so any negative value fails the check.
         // N.B. many code snippets are in-lined for performance reasons (~10% performance improvement) ... this is a JIT hot spot.
         if ((offset | size | bytes.length - offset - size) < 0) {
@@ -987,7 +993,7 @@ public class FastByteBuffer implements IoBuffer {
                 final byte byte3 = unsafe.getByte(bytes, readPos++);
                 final int resultPos1 = resultPos++;
                 if (byte2 > (byte) 0xBF // is not trailing byte
-                        // overlong? 5 most significant bits must not all be zero
+                                        // overlong? 5 most significant bits must not all be zero
                         || (byte1 == (byte) 0xE0 && byte2 < (byte) 0xA0)
                         // check for illegal surrogate codepoints
                         || (byte1 == (byte) 0xED && byte2 >= (byte) 0xA0)
@@ -1043,7 +1049,7 @@ public class FastByteBuffer implements IoBuffer {
 
     // Fast UTF-8 String (CharSequence) to byte-array encoder - code originally based on Google's ProtoBuffer implementation and since modified
     @SuppressWarnings("PMD")
-    private static int encodeUTF8(final CharSequence sequence, final byte[] bytes, final int offset, final int length) { //NOSONAR
+    private static int encodeUTF8(final CharSequence sequence, final byte[] bytes, final int offset, final int length) { // NOSONAR
         int utf16Length = sequence.length();
         int base = ARRAY_BYTE_BASE_OFFSET + offset;
         int i = 0;

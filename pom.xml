@@ -26,27 +26,27 @@
         <changelist>-SNAPSHOT</changelist>
         <sha1/>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-        <version.slf4j>2.0.0-alpha5</version.slf4j>
-        <version.auto-service>1.0</version.auto-service>
-        <version.jetbrains.annotations>22.0.0</version.jetbrains.annotations>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <version.slf4j>2.0.17</version.slf4j>
+        <version.auto-service>1.1.1</version.auto-service>
+        <version.jetbrains.annotations>26.0.2</version.jetbrains.annotations>
         <version.jeromq>0.5.2</version.jeromq>
         <versions.lmax.disruptor>3.4.4</versions.lmax.disruptor>
-        <version.javalin>3.13.11</version.javalin>
-        <version.jetty>9.4.43.v20210629</version.jetty> <!-- N.B. needs to be synchronised/tested with Javalin version -->
+        <version.javalin>3.13.13</version.javalin>
+        <version.jetty>9.4.51.v20230217</version.jetty> <!-- N.B. needs to be synchronised/tested with Javalin version -->
         <version.jsoniter>0.9.23</version.jsoniter>
-        <version.fastutil>8.5.4</version.fastutil>
-        <version.javassist>3.28.0-GA</version.javassist>
-        <version.okHttp3>4.9.1</version.okHttp3>
+        <version.fastutil>8.5.16</version.fastutil>
+        <version.javassist>3.30.2-GA</version.javassist>
+        <version.okHttp3>5.1.0</version.okHttp3>
         <version.commons-lang3>3.12.0</version.commons-lang3>
-        <version.jupiter>5.7.2</version.jupiter>
-        <version.awaitility>4.1.0</version.awaitility>
-        <version.JMemoryBuddy>0.5.1</version.JMemoryBuddy>
-        <version.jmh>1.33</version.jmh>
-        <version.micrometer>1.7.4</version.micrometer>
+        <version.jupiter>5.13.4</version.jupiter>
+        <version.awaitility>4.3.0</version.awaitility>
+        <version.JMemoryBuddy>0.5.5</version.JMemoryBuddy>
+        <version.jmh>1.37</version.jmh>
+        <version.micrometer>1.15.3</version.micrometer>
         <version.velocity>2.3</version.velocity>
-        <version.chartfx>11.2.5</version.chartfx>
+        <version.chartfx>11.2.7</version.chartfx>
         <version.docopt>0.6.0.20150202</version.docopt>
     </properties>
 
@@ -101,7 +101,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>3.14.0</version>
                 <configuration>
                     <source>${maven.compiler.source}</source>
                     <target>${maven.compiler.target}</target>
@@ -142,7 +142,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>3.2.1</version>
+                <version>3.3.1</version>
                 <executions>
                     <execution>
                         <id>attach-sources</id>
@@ -155,7 +155,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>3.3.0</version>
+                <version>3.11.3</version>
                 <executions>
                     <execution>
                         <id>attach-javadocs</id>
@@ -168,7 +168,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0-M5</version>
+                <version>3.5.3</version>
                 <configuration>
                     <!-- Jacoco prepare-agent builds some command-line params without which jacoco will not instrument. Hence it is important to add those command-line params here (${argLine} holds those params) -->
                     <argLine>
@@ -202,7 +202,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.7</version>
+                <version>0.8.13</version>
                 <executions>
                     <execution>
                         <goals>
@@ -309,7 +309,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>3.0.1</version>
+                        <version>3.2.8</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
@@ -350,7 +350,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>3.0.1</version>
+                        <version>3.2.8</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
@@ -371,7 +371,7 @@
                     <plugin>
                         <groupId>org.sonatype.plugins</groupId>
                         <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>1.6.8</version>
+                        <version>1.7.0</version>
                         <extensions>true</extensions>
                         <configuration>
                             <serverId>ossrh</serverId>
