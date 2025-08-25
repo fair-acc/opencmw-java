@@ -56,13 +56,13 @@ public class IoClassSerialiser {
     private boolean useCustomJsonSerialiser;
 
     /**
-     * Initialises new IoBuffer-backed object serialiser
+     * Initialises a new IoBuffer-backed object serialiser
      *
-     * @param ioBuffer the backing IoBuffer (see e.g. {@link IoBuffer}
+     * @param ioBuffer the backing IoBuffer (see e.g. {@link IoBuffer})
      * @param ioSerialiserTypeClass optional IoSerialiser type class this IoClassSerialiser should start with
      *                  (see also e.g. {@link BinarySerialiser},
      *                  {@link CmwLightSerialiser}, or
-     *                  {@link JsonSerialiser}
+     *                  {@link JsonSerialiser})
      */
     @SafeVarargs
     public IoClassSerialiser(final IoBuffer ioBuffer, final Class<? extends IoSerialiser>... ioSerialiserTypeClass) {
@@ -170,7 +170,7 @@ public class IoClassSerialiser {
         matchedIoSerialiser.getBuffer().position(startPosition);
 
         if (fieldSerialiser != null) {
-            // return new object
+            // return a new object
             final FieldDescription rawObjectFieldDescription = fieldRoot.getChildren().get(0).getChildren().get(0);
             matchedIoSerialiser.getBuffer().position(rawObjectFieldDescription.getDataStartPosition());
             if (rawObjectFieldDescription.getDataType() == DataType.OTHER) {
@@ -186,7 +186,7 @@ public class IoClassSerialiser {
             return obj;
         }
 
-        // class reference is not known by name (ie. was empty) parse directly dependent children
+        // class reference is not known by name (i.e. was empty) parse directly dependent children
         final List<FieldDescription> fieldRootChildren = fieldRoot.getChildren().get(0).getChildren();
         for (final FieldDescription fieldDescription : fieldRootChildren) {
             final ClassFieldDescription subFieldDescription = (ClassFieldDescription) clazz.findChildField(fieldDescription.getFieldName());

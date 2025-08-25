@@ -21,7 +21,7 @@ import io.opencmw.serialiser.utils.ClassUtils;
 /**
  * Light-weight open-source implementation of a (de-)serialiser that is binary-compatible to the serialiser used by CMW,
  * a proprietary closed-source middleware used in some accelerator laboratories.
- *
+ * <p>
  * N.B. this implementation is intended only for performance/functionality comparison and to enable a backward compatible
  * transition to the {@link BinarySerialiser} implementation which is a bit more flexible,
  * has some additional (optional) features, and a better IO performance. See the corresponding benchmarks for details;

@@ -35,7 +35,7 @@ public class JsonSerialiser implements IoSerialiser {
     public static final char QUOTE = '\"';
     private static final String NULL = "null";
     private static final String ASSIGN = ": ";
-    private static final String LINE_BREAK = System.getProperty("line.separator");
+    private static final String LINE_BREAK = System.lineSeparator();
     public static final String UNCHECKED = "unchecked";
     private final StringBuilder builder = new StringBuilder(DEFAULT_INITIAL_CAPACITY); // NOPMD
     private IoBuffer buffer;
@@ -795,14 +795,14 @@ public class JsonSerialiser implements IoSerialiser {
 
     @Override
     public WireDataFieldDescription putFieldHeader(final String fieldName, final DataType dataType) {
-        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName.hashCode(), fieldName, dataType, -1, 1, -1);
+        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName, dataType, -1, 1, -1);
         queryFieldName = fieldName;
         return lastFieldHeader;
     }
 
     @Override
     public void putHeaderInfo(final FieldDescription... field) {
-        if (builder.length() > 0) {
+        if (!builder.isEmpty()) {
             final byte[] outputStrBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
             buffer.ensureAdditionalCapacity(outputStrBytes.length);
             System.arraycopy(outputStrBytes, 0, buffer.elements(), buffer.position(), outputStrBytes.length);
@@ -829,7 +829,7 @@ public class JsonSerialiser implements IoSerialiser {
     }
 
     public void serialiseObject(final Object obj) {
-        if (builder.length() > 0) {
+        if (!builder.isEmpty()) {
             final byte[] outputStrBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
             buffer.ensureAdditionalCapacity(outputStrBytes.length);
             System.arraycopy(outputStrBytes, 0, buffer.elements(), buffer.position(), outputStrBytes.length);

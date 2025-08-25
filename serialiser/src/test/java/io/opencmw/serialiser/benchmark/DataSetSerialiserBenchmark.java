@@ -18,7 +18,7 @@ import de.gsi.dataset.testdata.spi.GaussFunction;
 
 /**
  * Simple benchmark to verify that the in-place DataSet (de-)serialiser is not significantly slower than creating a new DataSet
- *
+ * <p>
  * Benchmark                                                                Mode  Cnt     Score     Error  Units
  * DataSetSerialiserBenchmark.serialiserRoundTripByteBufferInplace         thrpt   10  5971.023 ± 100.145  ops/s
  * DataSetSerialiserBenchmark.serialiserRoundTripByteBufferNewDataSet      thrpt   10  5652.462 ± 114.474  ops/s

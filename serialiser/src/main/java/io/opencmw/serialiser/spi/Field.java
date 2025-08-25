@@ -225,72 +225,100 @@ public class Field implements AnnotatedElement {
         }
     }
 
-    /** @return {@code Class} object that identifies the declared type for this {@code Field} object. */
+    /**
+     * @return {@code Class} object that identifies the declared type for this {@code Field} object.
+     */
     public final Class<?> getType() {
         return jdkField.getType();
     }
 
-    /** @return {@code true} if the field is defined with the {@code abstract} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code abstract} modifier, {@code false} otherwise.
+     */
     public final boolean isAbstract() {
         return Modifier.isAbstract(jdkField.getModifiers());
     }
 
-    /** @return {@code true} if the field is defined with the {@code final} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code final} modifier, {@code false} otherwise.
+     */
     public final boolean isFinal() {
         return Modifier.isFinal(jdkField.getModifiers());
     }
 
-    /** @return @return {@code true} if the field is defined with the {@code native} modifier, {@code false} otherwise. */
+    /**
+     * @return @return {@code true} if the field is defined with the {@code native} modifier, {@code false} otherwise.
+     */
     public final boolean isNative() {
         return Modifier.isNative(jdkField.getModifiers());
     }
 
-    /** @return {@code true} if the field is defined with the {@code private} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code private} modifier, {@code false} otherwise.
+     */
     public final boolean isPackagePrivate() {
         return !isPrivate() && !isProtected() && !isPublic();
     }
 
-    /** @return {@code true} if the field is a primitive (e.g. boolean, int, .., float, double value, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is a primitive (e.g. boolean, int, .., float, double value, {@code false} otherwise.
+     */
     public final boolean isPrimitive() {
         return primitive;
     }
 
-    /** @return {@code true} if the field is defined with the {@code private} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code private} modifier, {@code false} otherwise.
+     */
     public final boolean isPrivate() {
         return Modifier.isPrivate(jdkField.getModifiers());
     }
 
-    /** @return {@code true} if the field is defined with the {@code protected} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code protected} modifier, {@code false} otherwise.
+     */
     public final boolean isProtected() {
         return Modifier.isProtected(jdkField.getModifiers());
     }
 
-    /** @return {@code true} if the field is defined with the {@code public} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code public} modifier, {@code false} otherwise.
+     */
     public final boolean isPublic() {
         return Modifier.isPublic(jdkField.getModifiers());
     }
 
-    /** @return {@code true} if the field is defined with the {@code static} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code static} modifier, {@code false} otherwise.
+     */
     public final boolean isStatic() {
         return Modifier.isStatic(jdkField.getModifiers());
     }
 
-    /** @return {@code true} if the field is defined with the {@code strictfp} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code strictfp} modifier, {@code false} otherwise.
+     */
     public final boolean isStrict() {
         return Modifier.isStrict(jdkField.getModifiers());
     }
 
-    /** @return {@code true} if the field is defined with the {@code synchronised} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code synchronised} modifier, {@code false} otherwise.
+     */
     public final boolean isSynchronized() {
         return Modifier.isSynchronized(jdkField.getModifiers());
     }
 
-    /** @return {@code true} if the field is defined with the {@code transient} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code transient} modifier, {@code false} otherwise.
+     */
     public final boolean isTransient() {
         return Modifier.isTransient(jdkField.getModifiers());
     }
 
-    /** @return {@code true} if the field is defined with the {@code volatile} modifier, {@code false} otherwise. */
+    /**
+     * @return {@code true} if the field is defined with the {@code volatile} modifier, {@code false} otherwise.
+     */
     public final boolean isVolatile() {
         return Modifier.isVolatile(jdkField.getModifiers());
     }
@@ -478,12 +506,12 @@ public class Field implements AnnotatedElement {
     }
 
     @Override
-    public final Annotation[] getAnnotations() {
+    public final Annotation @NotNull[] getAnnotations() {
         return getDeclaredAnnotations();
     }
 
     @Override
-    public Annotation[] getDeclaredAnnotations() {
+    public Annotation @NotNull[] getDeclaredAnnotations() {
         if (declaredAnnotations == null) {
             declaredAnnotations = jdkField.getDeclaredAnnotations();
         }

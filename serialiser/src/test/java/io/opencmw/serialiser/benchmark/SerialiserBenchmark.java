@@ -23,7 +23,7 @@ import com.jsoniter.spi.DecodingMode;
  * More thorough (JMH-based)) benchmark of various internal and external serialiser protocols.
  * Test consists of a simple repeated POJO->serialised->byte[] buffer -> de-serialisation -> POJO + comparison checks.
  * N.B. this isn't as precise as the JMH tests but gives a rough idea whether the protocol degraded or needs to be improved.
- *
+ * <p>
  * Benchmark                                     (testClassId)   Mode  Cnt       Score      Error  Units
  * SerialiserBenchmark.customCmwLight             string-heavy  thrpt   10   49954.479 ±  560.726  ops/s
  * SerialiserBenchmark.customCmwLight            numeric-heavy  thrpt   10   22433.828 ±  195.939  ops/s

@@ -198,10 +198,9 @@ public class ClassFieldDescription implements FieldDescription {
         if (this == obj) {
             return true;
         }
-        if (!(obj instanceof FieldDescription)) {
+        if (!(obj instanceof FieldDescription other)) {
             return false;
         }
-        final FieldDescription other = (FieldDescription) obj;
         if (this.getDataType() != other.getDataType()) {
             return false;
         }

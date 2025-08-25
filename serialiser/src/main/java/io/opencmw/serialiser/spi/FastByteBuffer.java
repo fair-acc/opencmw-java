@@ -17,15 +17,15 @@ import sun.misc.Unsafe; // NOPMD - there is still nothing better under the Sun
 
 /**
  * FastByteBuffer implementation based on JVM 'Unsafe' Class. based on:
- * https://mechanical-sympathy.blogspot.com/2012/07/native-cc-like-performance-for-java.html
- * http://java-performance.info/various-methods-of-binary-serialization-in-java/
- *
+ * <a href="https://mechanical-sympathy.blogspot.com/2012/07/native-cc-like-performance-for-java.html">...</a>
+ * <a href="http://java-performance.info/various-methods-of-binary-serialization-in-java/">...</a>
+ * <p>
  * All accesses are range checked, because the performance impact was determined to be negligible.
- *
+ * <p>
  * Read operations return "IndexOutOfBoundsException" if there are not enough bytes left in the buffer.
  * For primitive types, the check can be done before, but for arrays and strings the size field has to be read first.
  * Therefore, the position after a failed non-primitive read is not necessarily the position before the read attempt.
- *
+ * <p>
  * When there is not enough space for a write operation, the behaviour depends on the autoRange and byteArrayCache
  * variables. If autoRange is false, the operation returns an IndexOutOfBounds exception and the position is set to the
  * position before the operation. For Strings there is a worst case space estimate being done, so an operation might

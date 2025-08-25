@@ -21,7 +21,7 @@ import io.opencmw.serialiser.utils.GenericsHelper;
 
 /**
  * YaS -- Yet another Serialiser implementation
- *
+ * <p>
  * Generic binary serialiser aimed at efficiently transferring data between server/client and in particular between
  * Java/C++/web-based programs. For rationale see IoSerialiser.md description.
  *
@@ -37,7 +37,7 @@ import io.opencmw.serialiser.utils.GenericsHelper;
  * <li> complex objects implementing Collections (ie. Set, List, Queues), Enums or Maps.
  * </ul>
  * Any other complex data objects can be stored/extended using the {@link DataType#OTHER OTHER} sub-type.
- *
+ * <p>
  * N.B. Multi-dimensional arrays are handled through one-dimensional striding arrays with the additional
  * infos on number of dimensions and size for each individual dimension.
  *
@@ -278,19 +278,11 @@ public class BinarySerialiser implements IoSerialiser {
 
         final Collection<E> retCollection;
         if (collection == null) {
-            switch (collectionType) {
-            case SET:
-                retCollection = new HashSet<>(nElements);
-                break;
-            case QUEUE:
-                retCollection = new ArrayDeque<>(nElements);
-                break;
-            case LIST:
-            case COLLECTION:
-            default:
-                retCollection = new ArrayList<>(nElements);
-                break;
-            }
+            retCollection = switch (collectionType) {
+                case SET -> new HashSet<>(nElements);
+                case QUEUE -> new ArrayDeque<>(nElements);
+                default -> new ArrayList<>(nElements);
+            };
         } else {
             retCollection = collection;
             retCollection.clear();
@@ -596,10 +588,7 @@ public class BinarySerialiser implements IoSerialiser {
             values = getGenericArrayAsBoxedPrimitive(valueDataType);
         }
 
-        // generate new/write into existing Map
-        final Map<K, V> retMap = map == null ? new ConcurrentHashMap<>() : map;
-        if (map != null) {
-            map.clear();
+            return retMap;
         }
         for (int i = 0; i < keys.length; i++) {
             retMap.put(keys[i], values[i]);
@@ -771,18 +760,31 @@ public class BinarySerialiser implements IoSerialiser {
         if (fieldRoot.getParent() == null) {
             parent = lastFieldHeader = fieldRoot;
         }
-        WireDataFieldDescription field;
-        while ((field = getFieldHeader()) != null) {
-            final DataType dataType = field.getDataType();
-            if (dataType == DataType.END_MARKER) {
-                // reached end of (sub-)class - close nested hierarchy
-                break;
+
+        public void parseIoStream(final WireDataFieldDescription fieldRoot, final int recursionDepth) {
+            if (fieldRoot.getParent() == null) {
+                parent = lastFieldHeader = fieldRoot;
             }
 
-            if (dataType == DataType.START_MARKER) {
-                // detected sub-class start marker
-                parseIoStream(field, recursionDepth + 1);
-                continue;
+        @Override
+        public <E> void put(final FieldDescription fieldDescription, final Collection<E> collection, final Type valueType) {
+            final WireDataFieldDescription fieldHeader = putFieldHeader(fieldDescription);
+            final Object[] values = collection.toArray();
+            final int nElements = collection.size();
+            final Class<?> cleanedType = ClassUtils.getRawType(valueType);
+            final DataType valueDataType = DataType.fromClassType(cleanedType);
+            final int entrySize = 17; // as an initial estimate
+            putArraySizeDescriptor(nElements);
+            buffer.putInt(nElements);
+
+            if (collection instanceof Queue) {
+                buffer.putByte(getDataType(DataType.QUEUE));
+            } else if (collection instanceof Set) {
+                buffer.putByte(getDataType(DataType.SET));
+            } else if (collection instanceof List) {
+                buffer.putByte(getDataType(DataType.LIST));
+            } else {
+                buffer.putByte(getDataType(DataType.COLLECTION));
             }
 
             final int dataSize = field.getDataSize();
@@ -848,9 +850,6 @@ public class BinarySerialiser implements IoSerialiser {
         }
         @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
         final Class<? extends Enum<?>> clazz = (Class<? extends Enum<?>>) enumeration.getClass();
-        if (clazz == null) {
-            return;
-        }
         final Enum<?>[] enumConsts = clazz.getEnumConstants();
         if (enumConsts == null) {
             return;
@@ -859,13 +858,8 @@ public class BinarySerialiser implements IoSerialiser {
         final int nElements = 1;
         final int entrySize = 17; // as an initial estimate
 
-        buffer.ensureAdditionalCapacity((nElements * entrySize) + 9);
-        final String typeList = Arrays.stream(clazz.getEnumConstants()).map(Object::toString).collect(Collectors.joining(", ", "[", "]"));
-        buffer.putStringISO8859(clazz.getSimpleName());
-        buffer.putStringISO8859(enumeration.getClass().getName());
-        buffer.putStringISO8859(typeList);
-        buffer.putStringISO8859(enumeration.name());
-        buffer.putInt(enumeration.ordinal());
+            // convert into two linear arrays one of K and the other for V streamer encoding as
+            // <1 (int)><n_map (int)><type K (byte)<type V (byte)> <Length, [K_0,...,K_length]> <Length, [V_..., V_length]>
 
         updateDataEndMarker(fieldHeader);
     }
@@ -1492,38 +1486,20 @@ public class BinarySerialiser implements IoSerialiser {
             buffer.ensureAdditionalCapacity(addCapacity);
             final boolean isScalar = dataType.isScalar();
 
-        // from hereon there are data specific structures
-        buffer.ensureAdditionalCapacity(16); // allocate 16 bytes to account for potential array header (safe-bet)
+            // -- offset 0 vs. field start
+            final int headerStart = buffer.position();
+            buffer.putByte(getDataType(dataType)); // data type ID
+            buffer.putInt(-1); // dataStart offset
+            final int dataSize = isScalar ? dataType.getPrimitiveSize() : -1;
+            buffer.putInt(dataSize); // dataSize (N.B. 'headerStart' + 'dataStart + dataSize' == start of next field header
+            buffer.putStringISO8859(fieldName); // full field name
 
             // this putField method cannot add meta-data use 'putFieldHeader(final FieldDescription fieldDescription)' instead
 
-    @Override
-    public WireDataFieldDescription putFieldHeader(final String fieldName, final DataType dataType) {
-        final int addCapacity = ((fieldName.length() + 18) * FastByteBuffer.SIZE_OF_BYTE) + bufferIncrements + dataType.getPrimitiveSize();
-        buffer.ensureAdditionalCapacity(addCapacity);
-        final boolean isScalar = dataType.isScalar();
-
-        // -- offset 0 vs. field start
-        final int headerStart = buffer.position();
-        buffer.putByte(getDataType(dataType)); // data type ID
-        buffer.putInt(-1); // dataStart offset
-        final int dataSize = isScalar ? dataType.getPrimitiveSize() : -1;
-        buffer.putInt(dataSize); // dataSize (N.B. 'headerStart' + 'dataStart + dataSize' == start of next field header
-        buffer.putStringISO8859(fieldName); // full field name
-
-        // this putField method cannot add meta-data use 'putFieldHeader(final FieldDescription fieldDescription)' instead
-
-        // -- offset dataStart calculations
-        final int fieldHeaderDataStart = buffer.position();
-        final int dataStartOffset = (fieldHeaderDataStart - headerStart);
-        buffer.putInt(headerStart + 1, dataStartOffset); // write offset to dataStart
-
-        // from hereon there are data specific structures
-        buffer.ensureAdditionalCapacity(16); // allocate 16 bytes to account for potential array header (safe-bet)
-
-        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName, dataType, headerStart, dataStartOffset, dataSize);
-        return lastFieldHeader;
-    }
+            // -- offset dataStart calculations
+            final int fieldHeaderDataStart = buffer.position();
+            final int dataStartOffset = (fieldHeaderDataStart - headerStart);
+            buffer.putInt(headerStart + 1, dataStartOffset); // write offset to dataStart
 
     public void putGenericArrayAsPrimitive(final DataType dataType, final Object[] data, final int nToCopy) {
         putArraySizeDescriptor(nToCopy);
@@ -1616,41 +1592,22 @@ public class BinarySerialiser implements IoSerialiser {
         return fieldSerialiserLookupFunction;
     }
 
-    @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
-    protected <E> E[] getGenericArrayAsBoxedPrimitive(final DataType dataType) {
-        final Object[] retVal;
-        getArraySizeDescriptor();
-        switch (dataType) {
-        case BOOL:
-            retVal = GenericsHelper.toObject(buffer.getBooleanArray());
-            break;
-        case BYTE:
-            retVal = GenericsHelper.toObject(buffer.getByteArray());
-            break;
-        case CHAR:
-            retVal = GenericsHelper.toObject(buffer.getCharArray());
-            break;
-        case SHORT:
-            retVal = GenericsHelper.toObject(buffer.getShortArray());
-            break;
-        case INT:
-            retVal = GenericsHelper.toObject(buffer.getIntArray());
-            break;
-        case LONG:
-            retVal = GenericsHelper.toObject(buffer.getLongArray());
-            break;
-        case FLOAT:
-            retVal = GenericsHelper.toObject(buffer.getFloatArray());
-            break;
-        case DOUBLE:
-            retVal = GenericsHelper.toObject(buffer.getDoubleArray());
-            break;
-        case STRING:
-            retVal = buffer.getStringArray();
-            break;
-        default:
-            throw new IllegalArgumentException("type not implemented - " + dataType);
-        }
+        @SuppressWarnings(UNCHECKED_CAST_SUPPRESSION)
+        protected <E> E[] getGenericArrayAsBoxedPrimitive(final DataType dataType) {
+            final Object[] retVal;
+            getArraySizeDescriptor();
+            retVal = switch (dataType) {
+            case BOOL -> GenericsHelper.toObject(buffer.getBooleanArray());
+            case BYTE -> GenericsHelper.toObject(buffer.getByteArray());
+            case CHAR -> GenericsHelper.toObject(buffer.getCharArray());
+            case SHORT -> GenericsHelper.toObject(buffer.getShortArray());
+            case INT -> GenericsHelper.toObject(buffer.getIntArray());
+            case LONG -> GenericsHelper.toObject(buffer.getLongArray());
+            case FLOAT -> GenericsHelper.toObject(buffer.getFloatArray());
+            case DOUBLE -> GenericsHelper.toObject(buffer.getDoubleArray());
+            case STRING -> buffer.getStringArray();
+            default -> throw new IllegalArgumentException("type not implemented - " + dataType);
+        };
         return (E[]) retVal;
     }
 

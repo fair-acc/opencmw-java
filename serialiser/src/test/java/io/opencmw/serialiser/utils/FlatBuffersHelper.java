@@ -304,7 +304,7 @@ public class FlatBuffersHelper {
 
         final FlexBuffers.Map nestedMap = map.get("nestedData").asMap();
 
-        if (nestedMap != null && nestedMap.size() != 0) {
+        if (nestedMap != null && !nestedMap.isEmpty()) {
             deserialiseCustom(map.get("nestedData").asMap(), pojo.nestedData, false);
         }
     }
@@ -339,7 +339,7 @@ public class FlatBuffersHelper {
     }
 
     public static int checkCustomSerialiserIdentity(final TestDataClass inputObject, final TestDataClass outputObject) {
-        //final FlexBuffersBuilder floatBuffersBuilder = new FlexBuffersBuilder(new ArrayReadWriteBuf(rawByteBuffer), FlexBuffersBuilder.BUILDER_FLAG_SHARE_KEYS_AND_STRINGS);
+        // final FlexBuffersBuilder floatBuffersBuilder = new FlexBuffersBuilder(new ArrayReadWriteBuf(rawByteBuffer), FlexBuffersBuilder.BUILDER_FLAG_SHARE_KEYS_AND_STRINGS);
         final FlexBuffersBuilder floatBuffersBuilder = new FlexBuffersBuilder(new ArrayReadWriteBuf(rawByteBuffer), FlexBuffersBuilder.BUILDER_FLAG_NONE);
         final ByteBuffer retVal = FlatBuffersHelper.serialiseCustom(floatBuffersBuilder, inputObject);
         final int nBytesFlatBuffers = retVal.limit();

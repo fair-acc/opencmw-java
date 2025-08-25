@@ -69,7 +69,7 @@ public class TestDataClass {
     public TestDataClass(final int nSizePrimitives, final int nSizeString, final int nestedClassRecursion) {
         if (nestedClassRecursion > 0) {
             nestedData = new TestDataClass(nSizePrimitives, nSizeString, nestedClassRecursion - 1);
-            nestedData.init(nSizePrimitives + 1, nSizeString + 1); //N.B. '+1' to have different sizes for nested classes
+            nestedData.init(nSizePrimitives + 1, nSizeString + 1); // N.B. '+1' to have different sizes for nested classes
         }
 
         init(nSizePrimitives, nSizeString);
@@ -126,11 +126,10 @@ public class TestDataClass {
         if (this == obj) {
             return true;
         }
-        if (!(obj instanceof TestDataClass)) {
+        if (!(obj instanceof TestDataClass other)) {
             LOGGER.atError().addArgument(obj).log("incompatible object type of obj = '{}'");
             return false;
         }
-        final TestDataClass other = (TestDataClass) obj;
         boolean returnState = true;
         if (this.bool1 != other.bool1) {
             LOGGER.atError().addArgument("bool1").addArgument(this.bool1).addArgument(other.bool1) //
@@ -228,12 +227,12 @@ public class TestDataClass {
             LOGGER.atError().addArgument("byteArray").addArgument(e.getMessage()).log("field '{}' does not match '{}'");
             returnState = false;
         }
-        //try {
-        //    assertArrayEquals(this.charArray, other.charArray);
-        //} catch(AssertionFailedError e) {
-        //    LOGGER.atError().addArgument("charArray").addArgument(e.getMessage()).log("field '{}' does not match '{}'");
-        //    returnState = false;
-        //}
+        // try {
+        //     assertArrayEquals(this.charArray, other.charArray);
+        // } catch(AssertionFailedError e) {
+        //     LOGGER.atError().addArgument("charArray").addArgument(e.getMessage()).log("field '{}' does not match '{}'");
+        //     returnState = false;
+        // }
         try {
             assertArrayEquals(this.shortArray, other.shortArray);
         } catch (AssertionFailedError e) {
@@ -290,12 +289,12 @@ public class TestDataClass {
             LOGGER.atError().addArgument("byteNdimArray").addArgument(e.getMessage()).log("field '{}' does not match '{}'");
             returnState = false;
         }
-        //try {
-        //    assertArrayEquals(this.charNdimArray, other.charNdimArray);
-        //} catch(AssertionFailedError e) {
-        //    LOGGER.atError().addArgument("charNdimArray").addArgument(e.getMessage()).log("field '{}' does not match '{}'");
-        //    returnState = false;
-        //}
+        // try {
+        //     assertArrayEquals(this.charNdimArray, other.charNdimArray);
+        // } catch(AssertionFailedError e) {
+        //     LOGGER.atError().addArgument("charNdimArray").addArgument(e.getMessage()).log("field '{}' does not match '{}'");
+        //     returnState = false;
+        // }
         try {
             assertArrayEquals(this.shortNdimArray, other.shortNdimArray);
         } catch (AssertionFailedError e) {

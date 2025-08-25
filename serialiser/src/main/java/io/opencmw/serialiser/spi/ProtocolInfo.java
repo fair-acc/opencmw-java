@@ -20,10 +20,9 @@ public class ProtocolInfo extends WireDataFieldDescription {
 
     @Override
     public boolean equals(final Object obj) {
-        if (!(obj instanceof ProtocolInfo)) {
+        if (!(obj instanceof ProtocolInfo other)) {
             return false;
         }
-        final ProtocolInfo other = (ProtocolInfo) obj;
         return other.isCompatible();
     }
 

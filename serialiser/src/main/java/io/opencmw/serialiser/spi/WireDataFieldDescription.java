@@ -66,10 +66,9 @@ public class WireDataFieldDescription implements FieldDescription {
         if (this == obj) {
             return true;
         }
-        if (!(obj instanceof FieldDescription)) {
+        if (!(obj instanceof FieldDescription other)) {
             return false;
         }
-        FieldDescription other = (FieldDescription) obj;
         if (this.getDataType() != other.getDataType()) {
             return false;
         }
@@ -170,63 +169,35 @@ public class WireDataFieldDescription implements FieldDescription {
      */
     public Object data(DataType... overwriteType) {
         ioSerialiser.setQueryFieldName(fieldName, fieldDataStart);
-        switch (overwriteType.length == 0 ? this.dataType : overwriteType[0]) {
-        case START_MARKER:
-        case END_MARKER:
-            return null;
-        case BOOL:
-            return ioSerialiser.getBoolean();
-        case BYTE:
-            return ioSerialiser.getByte();
-        case SHORT:
-            return ioSerialiser.getShort();
-        case INT:
-            return ioSerialiser.getInt();
-        case LONG:
-            return ioSerialiser.getLong();
-        case FLOAT:
-            return ioSerialiser.getFloat();
-        case DOUBLE:
-            return ioSerialiser.getDouble();
-        case CHAR:
-            return ioSerialiser.getChar();
-        case STRING:
-            return ioSerialiser.getString();
-        case BOOL_ARRAY:
-            return ioSerialiser.getBooleanArray();
-        case BYTE_ARRAY:
-            return ioSerialiser.getByteArray();
-        case SHORT_ARRAY:
-            return ioSerialiser.getShortArray();
-        case INT_ARRAY:
-            return ioSerialiser.getIntArray();
-        case LONG_ARRAY:
-            return ioSerialiser.getLongArray();
-        case FLOAT_ARRAY:
-            return ioSerialiser.getFloatArray();
-        case DOUBLE_ARRAY:
-            return ioSerialiser.getDoubleArray();
-        case CHAR_ARRAY:
-            return ioSerialiser.getCharArray();
-        case STRING_ARRAY:
-            return ioSerialiser.getStringArray();
-        case ENUM:
-            return ioSerialiser.getEnum(null);
-        case LIST:
-            return ioSerialiser.getList(null);
-        case MAP:
-            return ioSerialiser.getMap(null);
-        case QUEUE:
-            return ioSerialiser.getQueue(null);
-        case SET:
-            return ioSerialiser.getSet(null);
-        case COLLECTION:
-            return ioSerialiser.getCollection(null);
-        case OTHER:
-            return ioSerialiser.getCustomData(null);
-        default:
-            throw new IllegalStateException("unknown dataType = " + dataType);
-        }
+        return switch (overwriteType.length == 0 ? this.dataType : overwriteType[0]) {
+            case START_MARKER, END_MARKER -> null;
+            case BOOL -> ioSerialiser.getBoolean();
+            case BYTE -> ioSerialiser.getByte();
+            case SHORT -> ioSerialiser.getShort();
+            case INT -> ioSerialiser.getInt();
+            case LONG -> ioSerialiser.getLong();
+            case FLOAT -> ioSerialiser.getFloat();
+            case DOUBLE -> ioSerialiser.getDouble();
+            case CHAR -> ioSerialiser.getChar();
+            case STRING -> ioSerialiser.getString();
+            case BOOL_ARRAY -> ioSerialiser.getBooleanArray();
+            case BYTE_ARRAY -> ioSerialiser.getByteArray();
+            case SHORT_ARRAY -> ioSerialiser.getShortArray();
+            case INT_ARRAY -> ioSerialiser.getIntArray();
+            case LONG_ARRAY -> ioSerialiser.getLongArray();
+            case FLOAT_ARRAY -> ioSerialiser.getFloatArray();
+            case DOUBLE_ARRAY -> ioSerialiser.getDoubleArray();
+            case CHAR_ARRAY -> ioSerialiser.getCharArray();
+            case STRING_ARRAY -> ioSerialiser.getStringArray();
+            case ENUM -> ioSerialiser.getEnum(null);
+            case LIST -> ioSerialiser.getList(null);
+            case MAP -> ioSerialiser.getMap(null);
+            case QUEUE -> ioSerialiser.getQueue(null);
+            case SET -> ioSerialiser.getSet(null);
+            case COLLECTION -> ioSerialiser.getCollection(null);
+            case OTHER -> ioSerialiser.getCustomData(null);
+            default -> throw new IllegalStateException("unknown dataType = " + dataType);
+        };
     }
 
     /**

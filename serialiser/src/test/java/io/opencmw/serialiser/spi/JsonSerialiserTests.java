@@ -84,7 +84,7 @@ class JsonSerialiserTests {
 
         // header info
         ProtocolInfo headerInfo = ioSerialiser.checkHeaderInfo();
-        assertNotEquals(headerInfo, new Object()); // silly comparison for coverage reasons
+        assertNotEquals(new Object(), headerInfo); // silly comparison for coverage reasons
         assertNotNull(headerInfo);
         assertEquals(JsonSerialiser.class.getCanonicalName(), headerInfo.getProducerName());
         assertEquals(1, headerInfo.getVersionMajor());
@@ -291,9 +291,8 @@ class JsonSerialiserTests {
         public boolean equals(final Object o) {
             if (this == o)
                 return true;
-            if (!(o instanceof SimpleClass))
+            if (!(o instanceof SimpleClass that))
                 return false;
-            final SimpleClass that = (SimpleClass) o;
             return integer == that.integer && Objects.equals(foo, that.foo) && Objects.equals(switches, that.switches);
         }
 
