@@ -15,16 +15,16 @@ on:
 jobs:
   coverityscan:
     name: Static analysis with Coverity
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     environment: coverity # environment needs to be manually triggered only use on demand
     steps:
       - name: Checkout branch on that the Coverity scan was dispatched
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
         if: ${{ github.event_name == 'workflow_run' }}
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 25
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
         if: ${{ github.event_name != 'workflow_run' }}
         with:
           fetch-depth: 25
@@ -33,16 +33,16 @@ jobs:
         with:
           versionPattern: '${{ env.JAVA_REFERENCE_VERSION }}.[0-9]*.[0-9]*'
       - name: Cache the Maven packages to speed up build
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
-      - name: Set up JDK11
-        uses: actions/setup-java@v2.1.0
+      - name: Set up JDK17
+        uses: actions/setup-java@v5
         with:
-          java-version: 11
-          distribution: 'adopt'
+          java-version: 17
+          distribution: 'temurin'
       - name: Download Coverity Build Tool
         run: |
           wget -q https://scan.coverity.com/download/java/Linux --post-data "token=$TOKEN&project=fair-acc/opencmw-java" -O cov-analysis-linux64.tar.gz

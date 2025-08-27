@@ -11,7 +11,7 @@ on:
   release:
     types: [ created ]
 env:
-  JAVA_REFERENCE_VERSION: 11
+  JAVA_REFERENCE_VERSION: 17
 
 jobs:
   test:
@@ -19,13 +19,13 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ] # TODO add: windows-latest, macOS-latest
-        java: [ 11, 16-ea ]
+        java: [ 17, 21 ]
       fail-fast: false
       max-parallel: 6
     name: Test JDK ${{ matrix.java }}, ${{ matrix.os }}
     environment: configure coverage
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 100
     - name: Fetch tags
@@ -34,15 +34,16 @@ jobs:
       uses: ./.github/actions/get-version
       with:
           versionPattern: '${{ env.JAVA_REFERENCE_VERSION }}.[0-9]*.[0-9]*'
-    - uses: actions/cache@v1 # cache maven packages to speed up build
+    - uses: actions/cache@v4 # cache maven packages to speed up build
       with:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2
     - name: Set up JDK ${{matrix.java}}
-      uses: actions/setup-java@v1.4.3
+      uses: actions/setup-java@v5
       with:
         java-version: ${{matrix.java}}
+        distribution: 'temurin'
     - name: Test with Maven
       run: mvn -Dgpg.skip=true --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dsha1=${SHA1} -Dchangelist=${CHANGELIST} package
       env:
@@ -51,10 +52,10 @@ jobs:
         CHANGELIST: ${{ steps.version.outputs.changelist }}
     - name: coverage report - send to Codecov
       if: matrix.java == env.JAVA_REFERENCE_VERSION
-      uses: codecov/codecov-action@v1.2.1
+      uses: codecov/codecov-action@v5
     - name: coverage report - send to Codacy
       if: matrix.java == env.JAVA_REFERENCE_VERSION
-      uses: codacy/codacy-coverage-reporter-action@0.2.0
+      uses: codacy/codacy-coverage-reporter-action@v1.3.0
       with:
         project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
 
@@ -64,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: deploy
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
       - id: version
         uses: ./.github/actions/get-version
         with:
@@ -72,15 +73,16 @@ jobs:
       - name: Fetch tags
         run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - name: Cache the Maven packages to speed up build
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
       - name: Set up JDK ${{ env.JAVA_REFERENCE_VERSION }}
-        uses: actions/setup-java@v1.4.3
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ env.JAVA_REFERENCE_VERSION }}
+          distribution: 'temurin'
           gpg-private-key: ${{ secrets.GPG_KEY }}
           gpg-passphrase: GPG_PASS
       - name: Deploy to Github Packages
@@ -92,9 +94,10 @@ jobs:
           SHA1: ${{ steps.version.outputs.sha1 }}
           CHANGELIST: ${{ steps.version.outputs.changelist }}
       - name: Set up JDK to publish to OSSRH
-        uses: actions/setup-java@v1.4.3
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ env.JAVA_REFERENCE_VERSION }}
+          distribution: 'temurin'
           server-id: ossrh
           server-username: SONATYPE_USER
           server-password: SONATYPE_PASS

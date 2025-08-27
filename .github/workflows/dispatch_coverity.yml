@@ -6,7 +6,7 @@ on: workflow_dispatch
 jobs:
   dispatch_coverity:
     name: Dispatch static analysis with coverity
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - name: Dispatch
         run: echo "Dispatching Coverity run"
