@@ -32,7 +32,6 @@ public class ClassFieldDescription implements FieldDescription {
     private final int hierarchyDepth;
     private final Field field;
     private final String fieldName;
-    private final int fieldNameHashCode;
     private final String fieldNameRelative;
     private final String fieldUnit;
     private final String fieldDescription;
@@ -102,7 +101,6 @@ public class ClassFieldDescription implements FieldDescription {
         if (referenceClass == null) {
             this.field = Objects.requireNonNull(field, "field must not be null");
             classType = field.getType();
-            fieldNameHashCode = field.getName().hashCode();
             fieldName = field.getName().intern();
             fieldNameRelative = this.parent == null ? fieldName : (this.parent.getFieldNameRelative() + "." + fieldName).intern();
 
@@ -111,7 +109,6 @@ public class ClassFieldDescription implements FieldDescription {
         } else {
             this.field = null; // NOPMD it's a root, no field definition available
             classType = referenceClass;
-            fieldNameHashCode = classType.getName().hashCode();
             fieldName = classType.getName().intern();
             fieldNameRelative = fieldName;
 
@@ -201,14 +198,9 @@ public class ClassFieldDescription implements FieldDescription {
         if (this == obj) {
             return true;
         }
-        if (!(obj instanceof FieldDescription)) {
+        if (!(obj instanceof FieldDescription other)) {
             return false;
         }
-        final FieldDescription other = (FieldDescription) obj;
-        if (this.getFieldNameHashCode() != other.getFieldNameHashCode()) {
-            return false;
-        }
-
         if (this.getDataType() != other.getDataType()) {
             return false;
         }
@@ -218,18 +210,9 @@ public class ClassFieldDescription implements FieldDescription {
 
     @Override
     public FieldDescription findChildField(final String fieldName) {
-        return findChildField(fieldName.hashCode(), fieldName);
-    }
-
-    @Override
-    public FieldDescription findChildField(final int fieldNameHashCode, final String fieldName) {
         for (final FieldDescription child : children) {
             final String name = child.getFieldName();
-            //noinspection StringEquality
-            if (name == fieldName) { //NOSONAR NOPMD early return if the same String object reference
-                return child;
-            }
-            if (child.getFieldNameHashCode() == fieldNameHashCode && name.equals(fieldName)) {
+            if (name.equals(fieldName)) { // NOSONAR NOPMD early return if the same String object reference
                 return child;
             }
         }
@@ -329,11 +312,6 @@ public class ClassFieldDescription implements FieldDescription {
     @Override
     public String getFieldName() {
         return fieldName;
-    }
-
-    @Override
-    public int getFieldNameHashCode() {
-        return fieldNameHashCode;
     }
 
     /**
@@ -472,11 +450,6 @@ public class ClassFieldDescription implements FieldDescription {
      */
     public String getTypeNameSimple() {
         return typeNameSimple;
-    }
-
-    @Override
-    public int hashCode() {
-        return fieldNameHashCode;
     }
 
     /**
@@ -662,7 +635,7 @@ public class ClassFieldDescription implements FieldDescription {
 
     protected static void printClassStructure(final ClassFieldDescription field, final boolean fullView, final int recursionLevel) {
         final String enumOrClass = field.isEnum() ? "Enum " : "class ";
-        final String typeCategory = (field.isInterface() ? "interface " : (field.isPrimitive() ? "" : enumOrClass)); //NOSONAR //NOPMD
+        final String typeCategory = (field.isInterface() ? "interface " : (field.isPrimitive() ? "" : enumOrClass)); // NOSONAR //NOPMD
         final String typeName = field.getTypeName() + field.getGenericFieldTypeString();
         final String mspace = spaces(recursionLevel * ClassUtils.getIndentationNumberOfSpace());
         final boolean isSerialisable = field.isSerializable();

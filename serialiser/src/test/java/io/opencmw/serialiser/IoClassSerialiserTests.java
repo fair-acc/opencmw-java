@@ -70,10 +70,9 @@ class IoClassSerialiserTests {
         // provide a writer function
         final FieldSerialiser.TriConsumer writeFunction = (io, obj, field) -> {
             final Object localObj = field == null || field.getField() == null ? obj : field.getField().get(obj);
-            if (!(localObj instanceof CustomClass)) {
+            if (!(localObj instanceof CustomClass customClass)) {
                 throw new IllegalArgumentException("object " + obj + " is not of type CustomClass");
             }
-            CustomClass customClass = (CustomClass) localObj;
             // place custom elements/composites etc. here - N.B. ordering is of paramount importance since
             // these raw fields are not preceded by field headers
             io.getBuffer().putDouble(customClass.testDouble);
@@ -94,10 +93,9 @@ class IoClassSerialiserTests {
             if (sourceField == null) {
                 return new CustomClass(doubleVal, intVal, str);
             } else {
-                if (!(sourceField instanceof CustomClass)) {
+                if (!(sourceField instanceof CustomClass customClass)) {
                     throw new IllegalArgumentException("object " + obj + " is not of type CustomClass");
                 }
-                CustomClass customClass = (CustomClass) sourceField;
                 customClass.testDouble = doubleVal;
                 customClass.testInt = intVal;
                 customClass.testString = str;
@@ -162,7 +160,6 @@ class IoClassSerialiserTests {
 
     @ParameterizedTest(name = "IoBuffer class - {0}")
     @ValueSource(classes = { ByteBuffer.class, FastByteBuffer.class })
-    @SuppressWarnings("unchecked")
     void testGenericSerialiserIdentity(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
         assertNotNull(bufferClass, "bufferClass being not null");
         assertNotNull(bufferClass.getConstructor(int.class), "Constructor(Integer) present");
@@ -243,7 +240,7 @@ class IoClassSerialiserTests {
         assertTrue(destinationClass.dataSetSet.stream().anyMatch(ds -> ds.getName().equals("SetDataSet#1")));
         assertTrue(destinationClass.dataSetSet.stream().anyMatch(ds -> ds.getName().equals("SetDataSet#2")));
 
-        //assertEquals(sourceClass.dataSetQueue, destinationClass.dataSetQueue);
+        // assertEquals(sourceClass.dataSetQueue, destinationClass.dataSetQueue);
         assertTrue(destinationClass.dataSetQueue.stream().anyMatch(ds -> ds.getName().equals("QueueDataSet#1")));
         assertTrue(destinationClass.dataSetQueue.stream().anyMatch(ds -> ds.getName().equals("QueueDataSet#2")));
 
@@ -336,7 +333,6 @@ class IoClassSerialiserTests {
 
     @ParameterizedTest(name = "IoBuffer class - {0}")
     @ValueSource(classes = { ByteBuffer.class, FastByteBuffer.class })
-    @SuppressWarnings("unchecked")
     void testGenericSerialiserIdentityCollectionOfCustomTypes(final Class<? extends IoBuffer> bufferClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
         assertNotNull(bufferClass, "bufferClass being not null");
         assertNotNull(bufferClass.getConstructor(int.class), "Constructor(Integer) present");
@@ -511,9 +507,8 @@ class IoClassSerialiserTests {
         public boolean equals(final Object o) {
             if (this == o)
                 return true;
-            if (!(o instanceof NestedClass))
+            if (!(o instanceof NestedClass that))
                 return false;
-            final NestedClass that = (NestedClass) o;
             return i == that.i && Objects.equals(class1, that.class1) && Objects.equals(class2, that.class2) && Objects.equals(class3, that.class3);
         }
 
@@ -548,9 +543,8 @@ class IoClassSerialiserTests {
             public boolean equals(final Object o) {
                 if (this == o)
                     return true;
-                if (!(o instanceof NonStaticInnerClass))
+                if (!(o instanceof NonStaticInnerClass that))
                     return false;
-                final NonStaticInnerClass that = (NonStaticInnerClass) o;
                 return j == that.j;
             }
 

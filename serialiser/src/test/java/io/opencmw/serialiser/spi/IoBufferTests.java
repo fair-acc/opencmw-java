@@ -27,7 +27,7 @@ class IoBufferTests {
     protected static final double[] doubleTestArray = { Float.MAX_VALUE + 1.1e9, Float.MAX_VALUE + 1.2e9, Float.MAX_VALUE + 1.3e9f, -Float.MAX_VALUE - 1.1e9f, -Float.MAX_VALUE - 1.2e9f, Float.MAX_VALUE - 1.3e9f };
     protected static final char[] charTestArray = { 'a', 'b', 'c', 'd' };
     protected static final String[] stringTestArray = { "Is", "this", "the", "real", "life?", "Is", "this", "just", "fantasy?", "", null };
-    protected static final String[] stringTestArrayNullAsEmpty = Arrays.stream(stringTestArray).map(s -> s == null ? "" : s).toArray(String[]::new);
+    protected static final String[] stringTestArrayNullAsEmpty = Arrays.stream(stringTestArray).map(s -> s == null ? "" : s).toArray(String[] ::new);
     private static final int BUFFER_SIZE = 1000;
 
     @ParameterizedTest(name = "IoBuffer class - {0}")
@@ -166,7 +166,7 @@ class IoBufferTests {
         {
             final char[] chars = Character.toChars(0x1F701);
             final String fourByteCharacter = new String(chars);
-            String utf8TestString = "Γειά σου Κόσμε! - " + fourByteCharacter + " 語 \u00ea \u00f1 \u00fc + some normal ASCII character";
+            String utf8TestString = "Γειά σου Κόσμε! - " + fourByteCharacter + " 語 ê ñ ü + some normal ASCII character";
             buffer.reset();
             assertDoesNotThrow(() -> buffer.putStringArray(stringTestArray, stringTestArray.length));
             assertDoesNotThrow(() -> buffer.putStringArray(stringTestArray, -1));
@@ -221,17 +221,17 @@ class IoBufferTests {
         buffer.flip();
         assertTrue(buffer.getBoolean());
         assertFalse(buffer.getBoolean());
-        assertEquals(buffer.getByte(), (byte) 0xFE);
-        assertEquals(buffer.getShort(), (short) 43);
+        assertEquals((byte) 0xFE, buffer.getByte());
+        assertEquals((short) 43, buffer.getShort());
         assertEquals(1025, buffer.getInt());
-        assertEquals(buffer.getLong(), largeLong);
+        assertEquals(largeLong, buffer.getLong());
         assertEquals(1.3e10f, buffer.getFloat());
         assertEquals(1.3e10f, buffer.getDouble());
         assertEquals('@', buffer.getChar());
         assertEquals((char) 513, buffer.getChar());
         assertEquals("Hello World!", buffer.getStringISO8859());
         assertEquals("Γειά σου Κόσμε!", buffer.getString());
-        assertEquals(buffer.position(), position);
+        assertEquals(position, buffer.position());
     }
 
     @ParameterizedTest(name = "IoBuffer class - {0}")
@@ -253,12 +253,12 @@ class IoBufferTests {
         buffer.reset();
         buffer.putByte((byte) 0xFE);
         buffer.flip();
-        assertEquals(buffer.getByte(), (byte) 0xFE);
+        assertEquals((byte) 0xFE, buffer.getByte());
 
         buffer.reset();
         buffer.putShort((short) 43);
         buffer.flip();
-        assertEquals(buffer.getShort(), (short) 43);
+        assertEquals((short) 43, buffer.getShort());
 
         buffer.reset();
         buffer.putInt(1025);
@@ -269,7 +269,7 @@ class IoBufferTests {
         final long largeLong = (long) Integer.MAX_VALUE + (long) 10;
         buffer.putLong(largeLong);
         buffer.flip();
-        assertEquals(buffer.getLong(), largeLong);
+        assertEquals(largeLong, buffer.getLong());
 
         buffer.reset();
         buffer.putFloat(1.3e10f);
@@ -313,17 +313,17 @@ class IoBufferTests {
         assertFalse(buffer.getBoolean(0));
 
         buffer.putByte(1, (byte) 0xFE);
-        assertEquals(buffer.getByte(1), (byte) 0xFE);
+        assertEquals((byte) 0xFE, buffer.getByte(1));
 
         buffer.putShort(2, (short) 43);
-        assertEquals(buffer.getShort(2), (short) 43);
+        assertEquals((short) 43, buffer.getShort(2));
 
         buffer.putInt(3, 1025);
         assertEquals(1025, buffer.getInt(3));
 
         final long largeLong = (long) Integer.MAX_VALUE + (long) 10;
         buffer.putLong(4, largeLong);
-        assertEquals(buffer.getLong(4), largeLong);
+        assertEquals(largeLong, buffer.getLong(4));
 
         buffer.putFloat(5, 1.3e10f);
         assertEquals(1.3e10f, buffer.getFloat(5));

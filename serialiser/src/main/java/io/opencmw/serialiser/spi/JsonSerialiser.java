@@ -35,7 +35,7 @@ public class JsonSerialiser implements IoSerialiser {
     public static final char QUOTE = '\"';
     private static final String NULL = "null";
     private static final String ASSIGN = ": ";
-    private static final String LINE_BREAK = System.getProperty("line.separator");
+    private static final String LINE_BREAK = System.lineSeparator();
     public static final String UNCHECKED = "unchecked";
     private final StringBuilder builder = new StringBuilder(DEFAULT_INITIAL_CAPACITY); // NOPMD
     private IoBuffer buffer;
@@ -56,10 +56,10 @@ public class JsonSerialiser implements IoSerialiser {
         this.buffer = buffer;
 
         // JsonStream.setIndentionStep(DEFAULT_INDENTATION)
-        // JsonStream.setMode(EncodingMode.REFLECTION_MODE) -- enable as a fall back
-        // JsonIterator.setMode(DecodingMode.REFLECTION_MODE) -- enable as a fall back
-        JsonStream.setMode(EncodingMode.DYNAMIC_MODE);
-        JsonIterator.setMode(DecodingMode.DYNAMIC_MODE_AND_MATCH_FIELD_WITH_HASH);
+        JsonStream.setMode(EncodingMode.REFLECTION_MODE); // enable as a fall-back
+        JsonIterator.setMode(DecodingMode.REFLECTION_MODE); // enable as a fall-back
+        // JsonStream.setMode(EncodingMode.DYNAMIC_MODE);
+        // JsonIterator.setMode(DecodingMode.DYNAMIC_MODE_AND_MATCH_FIELD_WITH_HASH);
 
         try {
             PreciseFloatSupport.enable();
@@ -86,7 +86,7 @@ public class JsonSerialiser implements IoSerialiser {
             throw new IllegalStateException(NOT_A_JSON_COMPATIBLE_PROTOCOL, e);
         }
 
-        final WireDataFieldDescription headerStartField = new WireDataFieldDescription(this, null, JSON_ROOT.hashCode(), JSON_ROOT, DataType.OTHER, buffer.position(), count - 1, -1);
+        final WireDataFieldDescription headerStartField = new WireDataFieldDescription(this, null, JSON_ROOT, DataType.OTHER, buffer.position(), count - 1, -1);
         final ProtocolInfo header = new ProtocolInfo(this, headerStartField, JsonSerialiser.class.getCanonicalName(), (byte) 1, (byte) 0, (byte) 0);
         parent = lastFieldHeader = headerStartField;
         queryFieldName = JSON_ROOT;
@@ -271,7 +271,7 @@ public class JsonSerialiser implements IoSerialiser {
             iter.reset(buffer.elements(), 0, buffer.limit());
             tempRoot = root = iter.readAny();
 
-            final WireDataFieldDescription fieldRoot = new WireDataFieldDescription(this, null, "ROOT".hashCode(), "ROOT", DataType.OTHER, buffer.position(), -1, -1);
+            final WireDataFieldDescription fieldRoot = new WireDataFieldDescription(this, null, "ROOT", DataType.OTHER, buffer.position(), -1, -1);
             parseIoStream(fieldRoot, tempRoot, "");
 
             return fieldRoot;
@@ -795,14 +795,14 @@ public class JsonSerialiser implements IoSerialiser {
 
     @Override
     public WireDataFieldDescription putFieldHeader(final String fieldName, final DataType dataType) {
-        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName.hashCode(), fieldName, dataType, -1, 1, -1);
+        lastFieldHeader = new WireDataFieldDescription(this, parent, fieldName, dataType, -1, 1, -1);
         queryFieldName = fieldName;
         return lastFieldHeader;
     }
 
     @Override
     public void putHeaderInfo(final FieldDescription... field) {
-        if (builder.length() > 0) {
+        if (!builder.isEmpty()) {
             final byte[] outputStrBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
             buffer.ensureAdditionalCapacity(outputStrBytes.length);
             System.arraycopy(outputStrBytes, 0, buffer.elements(), buffer.position(), outputStrBytes.length);
@@ -829,7 +829,7 @@ public class JsonSerialiser implements IoSerialiser {
     }
 
     public void serialiseObject(final Object obj) {
-        if (builder.length() > 0) {
+        if (!builder.isEmpty()) {
             final byte[] outputStrBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
             buffer.ensureAdditionalCapacity(outputStrBytes.length);
             System.arraycopy(outputStrBytes, 0, buffer.elements(), buffer.position(), outputStrBytes.length);
@@ -906,7 +906,7 @@ public class JsonSerialiser implements IoSerialiser {
         }
 
         final Map<String, Any> map = any.asMap();
-        final WireDataFieldDescription putStartMarker = new WireDataFieldDescription(this, fieldRoot, fieldName.hashCode(), fieldName, DataType.START_MARKER, 0, -1, -1);
+        final WireDataFieldDescription putStartMarker = new WireDataFieldDescription(this, fieldRoot, fieldName, DataType.START_MARKER, 0, -1, -1);
         for (Map.Entry<String, Any> child : map.entrySet()) {
             final String childName = child.getKey();
             final Any childAny = map.get(childName);
@@ -914,7 +914,7 @@ public class JsonSerialiser implements IoSerialiser {
             if (data instanceof Map) {
                 parseIoStream(putStartMarker, childAny, childName);
             } else if (data != null) {
-                new WireDataFieldDescription(this, putStartMarker, childName.hashCode(), childName, DataType.fromClassType(data.getClass()), 0, -1, -1); // NOPMD - necessary to allocate inside loop
+                new WireDataFieldDescription(this, putStartMarker, childName, DataType.fromClassType(data.getClass()), 0, -1, -1); // NOPMD - necessary to allocate inside loop
             }
         }
         // add if necessary:

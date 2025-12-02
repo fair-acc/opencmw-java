@@ -121,7 +121,7 @@ class SystemPropertiesTest {
     }
 
     @AutoService(Settings.class)
-    private static class TestOptionClass {
+    private static class TestOptionClass implements Settings {
         public static final String TEST_OPTION_DOC = "TestOptionClass.TEST_OPTION=<int>";
         @MetaInfo(unit = "int", description = "test option documentation")
         public static final Integer TEST_OPTION = 0;

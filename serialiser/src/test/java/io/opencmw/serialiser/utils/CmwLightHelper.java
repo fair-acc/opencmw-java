@@ -312,7 +312,7 @@ public class CmwLightHelper {
         // 1D-arrays
         ioSerialiser.put("boolArray", pojo.boolArray, pojo.boolArray.length);
         ioSerialiser.put("byteArray", pojo.byteArray, pojo.byteArray.length);
-        //ioSerialiser.put("charArray", pojo.charArray, pojo.charArray.length); // not supported by CMW
+        // ioSerialiser.put("charArray", pojo.charArray, pojo.charArray.length); // not supported by CMW
         ioSerialiser.put("shortArray", pojo.shortArray, pojo.shortArray.length);
         ioSerialiser.put("intArray", pojo.intArray, pojo.intArray.length);
         ioSerialiser.put("longArray", pojo.longArray, pojo.longArray.length);
@@ -324,7 +324,7 @@ public class CmwLightHelper {
         ioSerialiser.put("nDimensions", pojo.nDimensions, pojo.nDimensions.length);
         ioSerialiser.put("boolNdimArray", pojo.boolNdimArray, pojo.nDimensions);
         ioSerialiser.put("byteNdimArray", pojo.byteNdimArray, pojo.nDimensions);
-        //ioSerialiser.put("charNdimArray", pojo.nDimensions); // not supported by CMW
+        // ioSerialiser.put("charNdimArray", pojo.nDimensions); // not supported by CMW
         ioSerialiser.put("shortNdimArray", pojo.shortNdimArray, pojo.nDimensions);
         ioSerialiser.put("intNdimArray", pojo.intNdimArray, pojo.nDimensions);
         ioSerialiser.put("longNdimArray", pojo.longNdimArray, pojo.nDimensions);
@@ -333,7 +333,7 @@ public class CmwLightHelper {
 
         if (pojo.nestedData != null) {
             final String dataStartMarkerName = "nestedData";
-            final WireDataFieldDescription nestedDataMarker = new WireDataFieldDescription(ioSerialiser, null, dataStartMarkerName.hashCode(), dataStartMarkerName, DataType.START_MARKER, -1, -1, -1);
+            final WireDataFieldDescription nestedDataMarker = new WireDataFieldDescription(ioSerialiser, null, dataStartMarkerName, DataType.START_MARKER, -1, -1, -1);
             ioSerialiser.putStartMarker(nestedDataMarker);
             serialiseCustom(ioSerialiser, pojo.nestedData, false);
             ioSerialiser.putEndMarker(nestedDataMarker);
@@ -341,7 +341,7 @@ public class CmwLightHelper {
 
         if (header) {
             final String dataEndMarkerName = "OBJ_ROOT_END";
-            final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName.hashCode(), dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
+            final WireDataFieldDescription dataEndMarker = new WireDataFieldDescription(ioSerialiser, null, dataEndMarkerName, DataType.START_MARKER, -1, -1, -1);
             ioSerialiser.putEndMarker(dataEndMarker);
         }
     }

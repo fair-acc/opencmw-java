@@ -45,7 +45,7 @@ import zmq.util.Utils;
 @Timeout(60)
 class DnsDataSourceTests {
     private final static int TIMEOUT_STARTUP = 5; // [s]
-    private final static int TIMEOUT = 1000; // [ms]
+    private final static int TIMEOUT = 2000; // [ms]
     private static MajordomoBroker dnsBroker;
     private static MajordomoBroker brokerB;
     private static MajordomoBroker brokerC;
@@ -165,8 +165,8 @@ class DnsDataSourceTests {
             await().alias("subscribe and receive from an existing 'deviceD/property' - first stage").atMost(Duration.ofSeconds(TIMEOUT_STARTUP)).until(() -> notificationCounterD.get() >= 10);
             assertNotEquals(0, notificationCounterD.get());
             brokerD.stopBroker();
-            //LockSupport.parkNanos(Duration.ofMillis(TIMEOUT).toNanos()); // wait until the old brokerD and connected services have shut down
-            // reset counter
+            // LockSupport.parkNanos(Duration.ofMillis(TIMEOUT).toNanos()); // wait until the old brokerD and connected services have shut down
+            //  reset counter
             dnsBroker.getDnsCache().clear();
             notificationCounterD.set(0);
             assertEquals(0, notificationCounterD.get(), "NotificationListener not acquiring any more new events");

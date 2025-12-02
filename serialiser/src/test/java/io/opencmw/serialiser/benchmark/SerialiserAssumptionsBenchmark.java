@@ -18,7 +18,7 @@ import sun.misc.Unsafe;
 
 /**
  * Benchmark to compare, test and rationalise some assumptions that went into the serialiser refactoring
- *
+ * <p>
  * last test output (openjdk 11.0.7 2020-04-14, took ~1:15h):
  Benchmark                                                                 Mode  Cnt          Score          Error  Units
  SerialiserAssumptionsBenchmark.fluentDesignVoid                          thrpt   10  471049302.874 ± 38950975.384  ops/s

@@ -14,13 +14,12 @@ import io.opencmw.serialiser.utils.ClassUtils;
 
 /**
  * Field header descriptor
- * 
+ *
  * @author rstein
  */
 public class WireDataFieldDescription implements FieldDescription {
     private static final Logger LOGGER = LoggerFactory.getLogger(WireDataFieldDescription.class);
     private final String fieldName;
-    private final int fieldNameHashCode;
     private final DataType dataType;
     private final List<FieldDescription> children = new ArrayList<>();
     private final FieldDescription parent;
@@ -40,20 +39,16 @@ public class WireDataFieldDescription implements FieldDescription {
      *
      * @param source the referenced IoBuffer (if any)
      * @param parent the optional parent field header (for cascaded objects)
-     * @param fieldNameHashCode the fairly-unique hash-code of the field name,
-     *                         N.B. checked during 1st iteration against fieldName, if no collisions are present then
-     *                         this check is being suppressed
      * @param fieldName the clear text field name description
      * @param dataType the data type of that field
      * @param fieldStart the absolute buffer position from which the field header can be parsed
      * @param dataStartOffset the position from which the actual data can be parsed onwards
      * @param dataSize the expected number of bytes to skip the data block
      */
-    public WireDataFieldDescription(final IoSerialiser source, final FieldDescription parent, final int fieldNameHashCode, final String fieldName, final DataType dataType, //
+    public WireDataFieldDescription(final IoSerialiser source, final FieldDescription parent, final String fieldName, final DataType dataType, //
             final int fieldStart, final int dataStartOffset, final int dataSize) {
         ioSerialiser = source;
         this.parent = parent;
-        this.fieldNameHashCode = fieldNameHashCode;
         this.fieldName = fieldName;
         this.dataType = dataType;
         this.fieldStart = fieldStart;
@@ -71,14 +66,9 @@ public class WireDataFieldDescription implements FieldDescription {
         if (this == obj) {
             return true;
         }
-        if (!(obj instanceof FieldDescription)) {
+        if (!(obj instanceof FieldDescription other)) {
             return false;
         }
-        FieldDescription other = (FieldDescription) obj;
-        if (this.getFieldNameHashCode() != other.getFieldNameHashCode()) {
-            return false;
-        }
-
         if (this.getDataType() != other.getDataType()) {
             return false;
         }
@@ -88,18 +78,10 @@ public class WireDataFieldDescription implements FieldDescription {
 
     @Override
     public FieldDescription findChildField(final String fieldName) {
-        return findChildField(fieldName.hashCode(), fieldName);
-    }
-
-    @Override
-    public FieldDescription findChildField(final int fieldNameHashCode, final String fieldName) {
-        for (final FieldDescription field : children) { //NOSONAR
-            final String name = field.getFieldName();
-            if (name == fieldName) { // NOSONAR NOPMD early return if the same String object reference
-                return field;
-            }
-            if (field.hashCode() == fieldNameHashCode && name.equals(fieldName)) {
-                return field;
+        for (final FieldDescription child : children) {
+            final String name = child.getFieldName();
+            if (name.equals(fieldName)) { // NOSONAR NOPMD early return if the same String object reference
+                return child;
             }
         }
         return null;
@@ -167,11 +149,6 @@ public class WireDataFieldDescription implements FieldDescription {
     }
 
     @Override
-    public int getFieldNameHashCode() {
-        return fieldNameHashCode;
-    }
-
-    @Override
     public int getFieldStart() {
         return fieldStart;
     }
@@ -192,63 +169,35 @@ public class WireDataFieldDescription implements FieldDescription {
      */
     public Object data(DataType... overwriteType) {
         ioSerialiser.setQueryFieldName(fieldName, fieldDataStart);
-        switch (overwriteType.length == 0 ? this.dataType : overwriteType[0]) {
-        case START_MARKER:
-        case END_MARKER:
-            return null;
-        case BOOL:
-            return ioSerialiser.getBoolean();
-        case BYTE:
-            return ioSerialiser.getByte();
-        case SHORT:
-            return ioSerialiser.getShort();
-        case INT:
-            return ioSerialiser.getInt();
-        case LONG:
-            return ioSerialiser.getLong();
-        case FLOAT:
-            return ioSerialiser.getFloat();
-        case DOUBLE:
-            return ioSerialiser.getDouble();
-        case CHAR:
-            return ioSerialiser.getChar();
-        case STRING:
-            return ioSerialiser.getString();
-        case BOOL_ARRAY:
-            return ioSerialiser.getBooleanArray();
-        case BYTE_ARRAY:
-            return ioSerialiser.getByteArray();
-        case SHORT_ARRAY:
-            return ioSerialiser.getShortArray();
-        case INT_ARRAY:
-            return ioSerialiser.getIntArray();
-        case LONG_ARRAY:
-            return ioSerialiser.getLongArray();
-        case FLOAT_ARRAY:
-            return ioSerialiser.getFloatArray();
-        case DOUBLE_ARRAY:
-            return ioSerialiser.getDoubleArray();
-        case CHAR_ARRAY:
-            return ioSerialiser.getCharArray();
-        case STRING_ARRAY:
-            return ioSerialiser.getStringArray();
-        case ENUM:
-            return ioSerialiser.getEnum(null);
-        case LIST:
-            return ioSerialiser.getList(null);
-        case MAP:
-            return ioSerialiser.getMap(null);
-        case QUEUE:
-            return ioSerialiser.getQueue(null);
-        case SET:
-            return ioSerialiser.getSet(null);
-        case COLLECTION:
-            return ioSerialiser.getCollection(null);
-        case OTHER:
-            return ioSerialiser.getCustomData(null);
-        default:
-            throw new IllegalStateException("unknown dataType = " + dataType);
-        }
+        return switch (overwriteType.length == 0 ? this.dataType : overwriteType[0]) {
+            case START_MARKER, END_MARKER -> null;
+            case BOOL -> ioSerialiser.getBoolean();
+            case BYTE -> ioSerialiser.getByte();
+            case SHORT -> ioSerialiser.getShort();
+            case INT -> ioSerialiser.getInt();
+            case LONG -> ioSerialiser.getLong();
+            case FLOAT -> ioSerialiser.getFloat();
+            case DOUBLE -> ioSerialiser.getDouble();
+            case CHAR -> ioSerialiser.getChar();
+            case STRING -> ioSerialiser.getString();
+            case BOOL_ARRAY -> ioSerialiser.getBooleanArray();
+            case BYTE_ARRAY -> ioSerialiser.getByteArray();
+            case SHORT_ARRAY -> ioSerialiser.getShortArray();
+            case INT_ARRAY -> ioSerialiser.getIntArray();
+            case LONG_ARRAY -> ioSerialiser.getLongArray();
+            case FLOAT_ARRAY -> ioSerialiser.getFloatArray();
+            case DOUBLE_ARRAY -> ioSerialiser.getDoubleArray();
+            case CHAR_ARRAY -> ioSerialiser.getCharArray();
+            case STRING_ARRAY -> ioSerialiser.getStringArray();
+            case ENUM -> ioSerialiser.getEnum(null);
+            case LIST -> ioSerialiser.getList(null);
+            case MAP -> ioSerialiser.getMap(null);
+            case QUEUE -> ioSerialiser.getQueue(null);
+            case SET -> ioSerialiser.getSet(null);
+            case COLLECTION -> ioSerialiser.getCollection(null);
+            case OTHER -> ioSerialiser.getCustomData(null);
+            default -> throw new IllegalStateException("unknown dataType = " + dataType);
+        };
     }
 
     /**
@@ -266,11 +215,6 @@ public class WireDataFieldDescription implements FieldDescription {
     @Override
     public Class<?> getType() {
         return dataType.getClassTypes().get(0);
-    }
-
-    @Override
-    public int hashCode() {
-        return fieldNameHashCode;
     }
 
     @Override

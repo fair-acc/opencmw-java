@@ -10,7 +10,7 @@ public class ProtocolInfo extends WireDataFieldDescription {
     private final byte versionMicro;
 
     public ProtocolInfo(final IoSerialiser source, final WireDataFieldDescription fieldDescription, final String producer, final byte major, final byte minor, final byte micro) {
-        super(source, null, fieldDescription.hashCode(), fieldDescription.getFieldName(), fieldDescription.getDataType(), fieldDescription.getFieldStart(), fieldDescription.getDataStartOffset(), fieldDescription.getDataSize());
+        super(source, null, fieldDescription.getFieldName(), fieldDescription.getDataType(), fieldDescription.getFieldStart(), fieldDescription.getDataStartOffset(), fieldDescription.getDataSize());
         this.fieldHeader = fieldDescription;
         producerName = producer;
         versionMajor = major;
@@ -20,10 +20,9 @@ public class ProtocolInfo extends WireDataFieldDescription {
 
     @Override
     public boolean equals(final Object obj) {
-        if (!(obj instanceof ProtocolInfo)) {
+        if (!(obj instanceof ProtocolInfo other)) {
             return false;
         }
-        final ProtocolInfo other = (ProtocolInfo) obj;
         return other.isCompatible();
     }
 

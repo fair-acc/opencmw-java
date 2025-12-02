@@ -26,10 +26,10 @@ import com.jsoniter.spi.DecodingMode;
 /**
  * simple benchmark to evaluate various JSON libraries.
  * N.B. This is not intended as a complete JSON serialiser evaluation but to indicate some rough trends.
- *
+ * <p>
  * testClassId 1: being a string-heavy test data class
  * testClassId 2: being a numeric-data-heavy test data class
- *
+ * <p>
  * Benchmark                                   (testClassId)   Mode  Cnt      Score     Error  Units
  * JsonSelectionBenchmark.pojoFastJson          string-heavy  thrpt   10  12857.850 ± 109.050  ops/s
  * JsonSelectionBenchmark.pojoFastJson         numeric-heavy  thrpt   10     91.458 ±   0.437  ops/s
@@ -41,7 +41,7 @@ import com.jsoniter.spi.DecodingMode;
  * JsonSelectionBenchmark.pojoJsonIter         numeric-heavy  thrpt   10     86.629 ±   1.122  ops/s
  * JsonSelectionBenchmark.pojoJsonIterCodeGen   string-heavy  thrpt   10  41048.034 ± 396.628  ops/s
  * JsonSelectionBenchmark.pojoJsonIterCodeGen  numeric-heavy  thrpt   10    377.412 ±   9.755  ops/s
- *
+ * <p>
  * Process finished with exit code 0
  */
 @State(Scope.Benchmark)
