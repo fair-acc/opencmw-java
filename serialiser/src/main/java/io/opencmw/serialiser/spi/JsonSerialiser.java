@@ -56,10 +56,10 @@ public class JsonSerialiser implements IoSerialiser {
         this.buffer = buffer;
 
         // JsonStream.setIndentionStep(DEFAULT_INDENTATION)
-        // JsonStream.setMode(EncodingMode.REFLECTION_MODE) -- enable as a fall back
-        // JsonIterator.setMode(DecodingMode.REFLECTION_MODE) -- enable as a fall back
-        JsonStream.setMode(EncodingMode.DYNAMIC_MODE);
-        JsonIterator.setMode(DecodingMode.DYNAMIC_MODE_AND_MATCH_FIELD_WITH_HASH);
+        JsonStream.setMode(EncodingMode.REFLECTION_MODE); // enable as a fall-back
+        JsonIterator.setMode(DecodingMode.REFLECTION_MODE); // enable as a fall-back
+        // JsonStream.setMode(EncodingMode.DYNAMIC_MODE);
+        // JsonIterator.setMode(DecodingMode.DYNAMIC_MODE_AND_MATCH_FIELD_WITH_HASH);
 
         try {
             PreciseFloatSupport.enable();

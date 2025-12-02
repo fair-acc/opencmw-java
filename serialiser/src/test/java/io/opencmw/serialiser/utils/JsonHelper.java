@@ -24,7 +24,7 @@ import com.jsoniter.spi.DecodingMode;
 import com.jsoniter.spi.JsonException;
 
 public final class JsonHelper {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SerialiserQuickBenchmark.class); // N.B. SerialiserQuickBenchmark reference on purpose
+    private static final Logger LOGGER = LoggerFactory.getLogger(JsonHelper.class); // N.B. SerialiserQuickBenchmark reference on purpose
     private static final IoBuffer byteBuffer = new FastByteBuffer(1000000);
     // private static final IoBuffer byteBuffer = new ByteBuffer(20000);
     private static final JsonSerialiser jsonSerialiser = new JsonSerialiser(byteBuffer);
@@ -53,11 +53,11 @@ public final class JsonHelper {
         outputObject.clear();
         // JsonIterator.setMode(DecodingMode.DYNAMIC_MODE_AND_MATCH_FIELD_WITH_HASH);
         // JsonStream.setMode(EncodingMode.DYNAMIC_MODE);
-        // JsonIterator.setMode(DecodingMode.REFLECTION_MODE);
+        JsonIterator.setMode(DecodingMode.REFLECTION_MODE);
         // JsonStream.setIndentionStep(2); // sets line-breaks and indentation (more human readable)
         // Base64Support.enable();
         // Base64FloatSupport.enableEncodersAndDecoders();
-        JsonStream.setMode(EncodingMode.DYNAMIC_MODE);
+        JsonStream.setMode(EncodingMode.REFLECTION_MODE);
 
         try {
             PreciseFloatSupport.enable();

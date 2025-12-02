@@ -186,6 +186,7 @@
                         --add-opens io.opencmw.client/io.opencmw.client.cmwlight=ALL-UNNAMED
                         --add-opens io.opencmw.concepts/io.opencmw.concepts.cmwlight=ALL-UNNAMED
                         --add-opens io.opencmw.concepts/io.opencmw.concepts.aggregate=ALL-UNNAMED
+                        --add-opens java.base/java.lang=ALL-UNNAMED
                         -Duser.language=en -Duser.country=US
                         -Xms256m -Xmx2048m -XX:G1HeapRegionSize=32m
                         -Djava.awt.headless=true -Dtestfx.robot=glass -Dtestfx.headless=true -Dprism.order=sw
