@@ -86,7 +86,7 @@ class QueryParameterParserTest {
         assertNotNull(result);
         assertTrue(result.contains(ctx.param1));
         assertTrue(result.contains("" + ctx.param2));
-        assertEquals("param1=Hello&param2=42&mimeType=HTML&specialClass=&unknownClass=&ctx=FAIR.SELECTOR.C%3D2", result);
+        assertEquals("param1=Hello&param2=42&mimeType=text/html&specialClass=&unknownClass=&ctx=FAIR.SELECTOR.C%3D2", result);
     }
 
     @Test

@@ -103,7 +103,7 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
         CLASS_TO_STRING_CONVERTER.put(Object.class, objToString);
         CLASS_TO_STRING_CONVERTER.put(MimeType.class, (obj, field) -> {
             final Object ret = field.getField().get(obj);
-            return ret == null || ret.getClass().equals(Object.class) ? "" : ((MimeType) ret).name();
+            return ret == null || ret.getClass().equals(Object.class) ? "" : ((MimeType) ret).getMediaType();
         });
         CLASS_TO_STRING_CONVERTER.put(TimingCtx.class, (obj, field) -> {
             final Object ctx = field.getField().get(obj);
