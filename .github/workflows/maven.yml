@@ -44,6 +44,11 @@ jobs:
       with:
         java-version: ${{matrix.java}}
         distribution: 'temurin'
+    - name: Get binary for testing cross-compatibility with opencmw-cpp
+      env:
+        GH_TOKEN: ${{ github.token }}
+      continue-on-error: true
+      run: gh release download -R fair-acc/opencmw-cpp compatiblity-test-util -p CompatibilityTest -D .
     - name: Test with Maven
       run: mvn -Dgpg.skip=true --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dsha1=${SHA1} -Dchangelist=${CHANGELIST} package
       env:
