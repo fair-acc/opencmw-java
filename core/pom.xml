@@ -50,6 +50,11 @@
             <artifactId>docopt</artifactId>
             <version>${version.docopt}</version>
         </dependency>
+        <dependency>
+            <groupId>com.jsoniter</groupId>
+            <artifactId>jsoniter</artifactId>
+            <version>${version.jsoniter}</version>
+        </dependency>
     </dependencies>
 
 </project>
