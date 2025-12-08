@@ -60,7 +60,7 @@ import io.opencmw.serialiser.utils.ClassUtils;
 @SuppressWarnings({ "PMD.GodClass", "PMD.ExcessiveImports", "PMD.TooManyStaticImports", "PMD.DoNotUseThreads", "PMD.TooManyFields", "PMD.TooManyMethods" }) // makes the code more readable/shorter lines
 public class BasicMdpWorker extends Thread implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(BasicMdpWorker.class);
-    protected static final byte[] RBAC = {}; //TODO: implement RBAC between Majordomo and Worker
+    protected static final byte[] RBAC = {}; // TODO: implement RBAC between Majordomo and Worker
     protected static final AtomicInteger WORKER_COUNTER = new AtomicInteger();
     protected final BiPredicate<URI, URI> subscriptionMatcher = new SubscriptionMatcher(); // <notify topic, subscribe topic>
 
@@ -156,7 +156,7 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
     }
 
     /**
-   * Sends pre-defined message to subscriber (provided there is any that matches the published topic)
+     * Sends pre-defined message to subscriber (provided there is any that matches the published topic)
      * @param notifyMessage the message that is supposed to be broadcast
      * @return {@code false} in case message has not been sent (e.g. due to no pending subscriptions
      */
@@ -184,9 +184,9 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
     }
 
     /**
-   * primary run loop
-   * Send reply, if any, to broker and wait for next request.
-   */
+     * primary run loop
+     * Send reply, if any, to broker and wait for next request.
+     */
     @Override
     public void run() {
         shallRun.set(true);
@@ -328,7 +328,7 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
         if (LOGGER.isDebugEnabled() && (subscriptionTopic.toString().isBlank() || subscriptionTopic.toString().contains(getServiceName()))) {
             LOGGER.atDebug().addArgument(getServiceName()).addArgument(topicBytes[0]).addArgument(subscriptionTopic).log("Service '{}' received subscription request: {} to '{}'");
         }
-        if (!subscriptionTopic.toString().isBlank() && !subscriptionTopic.getPath().startsWith(getServiceName())) {
+        if (!subscriptionTopic.toString().isBlank() && !subscriptionTopic.getPath().startsWith('/' + getServiceName())) {
             // subscription topic for another service
             return false;
         }
@@ -363,7 +363,7 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
             final PrintWriter pw = new PrintWriter(sw);
             e.printStackTrace(pw);
             final String exceptionMsg = ANSI_RED + getClass().getName() + " caught exception for service '" + getServiceName()
-                                        + "'\nrequest msg: " + request + "\nexception: " + sw.toString() + ANSI_RESET;
+                                      + "'\nrequest msg: " + request + "\nexception: " + sw.toString() + ANSI_RESET;
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.atError().addArgument(exceptionMsg).log("could not processRequest(MdpMessage) - exception thrown:\n{}");
             }
@@ -372,8 +372,8 @@ public class BasicMdpWorker extends Thread implements AutoCloseable {
     }
 
     /**
-   * Connect or reconnect to broker
-   */
+     * Connect or reconnect to broker
+     */
     protected void reconnectToBroker() {
         if (ctx == null || ctx.isClosed()) {
             return;

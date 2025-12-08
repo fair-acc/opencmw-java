@@ -103,11 +103,11 @@ public class MajordomoTestClientSubscription<T> extends Thread {
     }
 
     public void subscribe(final @NotNull String topic) {
-        clientSocket.subscribe(topic);
+        clientSocket.subscribe("/" + topic + "#");
     }
 
     public void unsubscribe(final @NotNull String topic) {
-        clientSocket.unsubscribe(topic);
+        clientSocket.unsubscribe("/" + topic + "#");
     }
 
     private void handleReceivedMessage(final MdpMessage msg) {

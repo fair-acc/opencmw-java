@@ -81,7 +81,7 @@ public class MajordomoTestClientAsync {
      * @param rbacToken optional RBAC-token
      */
     public boolean subscribe(final byte[] service, final byte[]... rbacToken) {
-        final String topic = new String(service, StandardCharsets.UTF_8);
+        final String topic = "/" + new String(service, StandardCharsets.UTF_8) + "#";
         final byte[] rbacTokenByte = rbacToken.length > 0 ? rbacToken[0] : null;
         return new OpenCmwProtocol.MdpMessage(null, PROT_CLIENT, SUBSCRIBE, service, "requestID".getBytes(StandardCharsets.UTF_8), URI.create(topic), EMPTY_FRAME, "", rbacTokenByte).send(clientSocket);
     }
@@ -93,7 +93,7 @@ public class MajordomoTestClientAsync {
      * @param rbacToken optional RBAC-token
      */
     public boolean unsubscribe(final byte[] service, final byte[]... rbacToken) {
-        final String topic = new String(service, StandardCharsets.UTF_8);
+        final String topic = "/" + new String(service, StandardCharsets.UTF_8) + "#";
         final byte[] rbacTokenByte = rbacToken.length > 0 ? rbacToken[0] : null;
         return new OpenCmwProtocol.MdpMessage(null, PROT_CLIENT, UNSUBSCRIBE, service, "requestID".getBytes(StandardCharsets.UTF_8), URI.create(topic), EMPTY_FRAME, "", rbacTokenByte).send(clientSocket);
     }

@@ -268,7 +268,7 @@ class MajordomoWorkerTests {
             try (ZMQ.Socket sub = broker.getContext().createSocket(SocketType.SUB)) {
                 setDefaultSocketParameters(sub);
                 sub.connect(MajordomoBroker.INTERNAL_ADDRESS_PUBLISHER);
-                sub.subscribe(TEST_SERVICE_NAME);
+                sub.subscribe("/" + TEST_SERVICE_NAME + "#");
                 while (run.get() && !Thread.interrupted()) {
                     startedSubscriber.set(true);
                     final MdpMessage rawReply = MdpMessage.receive(sub, false);
@@ -287,7 +287,7 @@ class MajordomoWorkerTests {
                     assertEquals(1, testValues.size(), "test query parameter number - " + testValues + " - " + rawReply.topic.getQuery());
                     assertEquals("notify" + iteration, testValues.get(0), "test query parameter name");
                 }
-                sub.unsubscribe(TEST_SERVICE_NAME);
+                sub.unsubscribe("/" + TEST_SERVICE_NAME + "#");
             }
         });
         subscriptionThread.start();
