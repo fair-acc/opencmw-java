@@ -148,7 +148,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
 
         newSseClientHandler = (client, state) -> {
             final String queryString = client.ctx.queryString() == null ? "" : ("?" + client.ctx.queryString());
-            final String subService = StringUtils.stripEnd(StringUtils.stripStart(client.ctx.path(), "/"), "/") + queryString;
+            final String subService = StringUtils.stripEnd(client.ctx.path(), "/") + queryString + "#";
             LOGGER.atDebug().addArgument(state).addArgument(subService).addArgument(subscriptionCount.computeIfAbsent(subService, s -> new AtomicInteger()).get()).log("RestPlugin {} to '{}' - existing subscriber count: {}");
             if (state == CONNECTED && subscriptionCount.computeIfAbsent(subService, s -> new AtomicInteger()).incrementAndGet() == 1) {
                 subSocket.subscribe(subService);
@@ -421,7 +421,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 openApi.body(outClass).json("200", outClass); // JSON definition
                 openApi.html("200").result("demo output"); // HTML definition
 
-                //TODO: continue here -- work in progress
+                // TODO: continue here -- work in progress
             }
 
         } catch (Exception e) { // NOPMD
@@ -492,7 +492,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
             }
 
             try {
-                final var replyMessage = reply.get(); //TODO: add max time-out -- only if not long-polling (to be checked)
+                final var replyMessage = reply.get(); // TODO: add max time-out -- only if not long-polling (to be checked)
                 var replyMimeType = QueryParameterParser.getMimeType(replyMessage.topic.getQuery());
                 replyMimeType = replyMimeType == MimeType.UNKNOWN ? acceptMimeType : replyMimeType;
 

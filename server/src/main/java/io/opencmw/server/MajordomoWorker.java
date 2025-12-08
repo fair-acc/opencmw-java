@@ -150,7 +150,7 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
     }
 
     public void notify(final @NotNull String path, final @NotNull C replyCtx, final @NotNull O reply) throws Exception { // NOPMD part of message signature
-        final URI notifyTopic = URI.create(serviceName + path);
+        final URI notifyTopic = URI.create('/' + serviceName + path);
         final List<URI> subTopics = new ArrayList<>(activeSubscriptions); // copy for decoupling/performance reasons
         final MdpMessage reqCtx = new MdpMessage(null, PROT_CLIENT, SUBSCRIBE, serviceName.getBytes(UTF_8), "notify".getBytes(UTF_8), EMPTY_URI, EMPTY_FRAME, "", RBAC);
         final OpenCmwProtocol.Context rawCtx = new OpenCmwProtocol.Context(reqCtx);

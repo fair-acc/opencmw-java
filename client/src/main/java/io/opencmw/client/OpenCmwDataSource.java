@@ -119,7 +119,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         this.executorService = executorService;
         this.clientId = clientId;
         this.sourceName = OpenCmwDataSource.class.getSimpleName() + "(ID: " + INSTANCE_COUNT.getAndIncrement() + ", endpoint: " + endpoint + ", clientId: " + clientId + ")";
-        //this.serverUri = URI.create(endpoint.getScheme() + "://" + endpoint.getAuthority() + '/'); // cannot fail without 'endpoint' having failed first due to URI syntax failure
+        // this.serverUri = URI.create(endpoint.getScheme() + "://" + endpoint.getAuthority() + '/'); // cannot fail without 'endpoint' having failed first due to URI syntax failure
         try {
             this.serverUri = new URI(endpoint.getScheme(), endpoint.getAuthority(), "/", null, null);
         } catch (URISyntaxException e) {
@@ -135,7 +135,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
             break;
         case MDR:
             throw new UnsupportedOperationException("RADIO-DISH pattern is not yet implemented"); // well yes, but not released by the JeroMQ folks
-            //this.socket = context.createSocket(SocketType.DISH)
+            // this.socket = context.createSocket(SocketType.DISH)
         default:
             throw new UnsupportedOperationException("Unsupported protocol type " + endpoint.getScheme()); // can only be reached if someone fiddles with the factory method
         }
@@ -288,7 +288,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
     @Override
     public void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken) {
         subscriptions.put(reqId, endpoint);
-        final byte[] serviceId = endpoint.getPath().substring(1).getBytes(UTF_8);
+        final byte[] serviceId = endpoint.getPath().getBytes(UTF_8);
         if (socket.getSocketType() == SocketType.DEALER) { // mpd
             // only tcp fallback?
             final var msg = new MdpMessage(null, PROT_CLIENT, SUBSCRIBE, serviceId, reqId.getBytes(UTF_8), endpoint, EMPTY_FRAME, "", rbacToken);
@@ -296,7 +296,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
                 LOGGER.atError().addArgument(reqId).addArgument(endpoint).log("subscription error (reqId: {}) for endpoint: {}");
             }
         } else { // mds
-            final String id = endpoint.getPath().substring(1) + '?' + endpoint.getQuery();
+            final String id = endpoint.getPath() + '?' + endpoint.getQuery() + '#';
             socket.subscribe(id.getBytes(UTF_8));
         }
     }
@@ -356,7 +356,13 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
             }
             // for subscriptions the request id is missing and has to be recovered from the endpoint url
             final Optional<String> reqId = subscriptions.entrySet().stream() //
-                                                   .filter(e -> subscriptionMatcher.test(serverUri.relativize(msg.topic), serverUri.relativize(e.getValue()))) //
+                                                   .filter(e -> {
+                                                       try {
+                                                           return subscriptionMatcher.test(new URI(serverUri.relativize(msg.topic).toString().substring(1)), serverUri.relativize(e.getValue()));
+                                                       } catch (URISyntaxException ex) {
+                                                           return false;
+                                                       }
+                                                   }) //
                                                    .map(Map.Entry::getKey)
                                                    .findFirst();
             if (reqId.isPresent()) {

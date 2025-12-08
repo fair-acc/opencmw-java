@@ -142,7 +142,7 @@ class OpenCmwDataSourceTest {
             LOGGER.atDebug().log("Sending notification update");
             worker.notify(new TestContext("FAIR.SELECTOR.C=2"), new TestObject("update", 1337));
             LockSupport.parkNanos(Duration.ofMillis(10).toNanos());
-            LOGGER.atDebug().addArgument(updates).addArgument("Making certain that update was not received: {}");
+            LOGGER.atDebug().addArgument(updates).log("Making certain that update was not received: {}");
             LockSupport.parkNanos(Duration.ofMillis(10).toNanos());
             assertEquals(4, updates.size());
             assertThat(updates, Matchers.not(Matchers.contains(new TestObject("update", 1337))));
@@ -229,7 +229,7 @@ class OpenCmwDataSourceTest {
         final Exception exception = assertThrows(Exception.class, () -> assertNull(future.get(1000, TimeUnit.MILLISECONDS)));
         assertThat(exception.getMessage(), Matchers.containsString(TEST_EXCEPTION_MSG));
 
-        //eventStore.stop();
+        // eventStore.stop();
         dataSourcePublisher.stop();
     }
 

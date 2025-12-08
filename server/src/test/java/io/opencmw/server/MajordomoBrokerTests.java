@@ -399,7 +399,7 @@ class MajordomoBrokerTests {
         internal.registerHandler(ctx -> ctx.rep.data = ctx.req.data); //  output = input : echo service is complex :-)
         internal.start();
 
-        final MdpMessage testMessage = new MdpMessage(null, PROT_WORKER, FINAL, testServiceBytes, "clientRequestID".getBytes(UTF_8), URI.create(new String(testServiceBytes)), DEFAULT_REQUEST_MESSAGE_BYTES, "", new byte[0]);
+        final MdpMessage testMessage = new MdpMessage(null, PROT_WORKER, FINAL, testServiceBytes, "clientRequestID".getBytes(UTF_8), URI.create("/" + new String(testServiceBytes) + "#"), DEFAULT_REQUEST_MESSAGE_BYTES, "", new byte[0]);
 
         final AtomicInteger counter = new AtomicInteger(0);
         final AtomicBoolean run = new AtomicBoolean(true);
@@ -442,9 +442,9 @@ class MajordomoBrokerTests {
             final ZMQ.Socket sub = broker.getContext().createSocket(SocketType.SUB);
             setDefaultSocketParameters(sub);
             sub.connect(replaceScheme(brokerPubAddress, SCHEME_TCP).toString());
-            sub.subscribe("device/property");
-            sub.subscribe("device/otherProperty");
-            sub.unsubscribe("device/otherProperty");
+            sub.subscribe("/device/property#");
+            sub.subscribe("/device/otherProperty#");
+            sub.unsubscribe("/device/otherProperty#");
             while (run.get() && !Thread.interrupted()) {
                 started2.set(true);
                 final ZMsg msg = ZMsg.recvMsg(sub, false);
@@ -454,7 +454,7 @@ class MajordomoBrokerTests {
                 }
                 subCounter.getAndIncrement();
             }
-            sub.unsubscribe("device/property");
+            sub.unsubscribe("/device/property#");
         });
         subscriptionThread.start();
 
