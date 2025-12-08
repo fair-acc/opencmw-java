@@ -86,19 +86,19 @@ class QueryParameterParserTest {
         assertNotNull(result);
         assertTrue(result.contains(ctx.param1));
         assertTrue(result.contains("" + ctx.param2));
-        assertEquals("param1=Hello&param2=42&mimeType=text/html&specialClass=&unknownClass=&ctx=FAIR.SELECTOR.C%3D2", result);
+        assertEquals("param1=Hello&param2=42&mimeType=text/html&specialClass=&unknownClass=&ctx=FAIR.SELECTOR.C=2", result);
     }
 
     @Test
     void testClassToStringFunctions() throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         final String testString = "dummyBoolean=true;dummyBoxedBoolean=true;"
-                                  + "dummyByte=2&dummyBoxedByte=2;"
-                                  + "dummyShort=3&dummyBoxedShort=3;"
-                                  + "dummyInt=4&dummyBoxedInt=4;"
-                                  + "dummyLong=5&dummyBoxedLong=5;"
-                                  + "dummyFloat=6.&dummyBoxedFloat=6.0;"
-                                  + "dummyDouble=7.0&dummyBoxedDouble=7.0;"
-                                  + "dummyString1=TestA;dummyString2=\"TestA \";dummyString=;dummyString4=\"equation =%3D5\"";
+                                + "dummyByte=2&dummyBoxedByte=2;"
+                                + "dummyShort=3&dummyBoxedShort=3;"
+                                + "dummyInt=4&dummyBoxedInt=4;"
+                                + "dummyLong=5&dummyBoxedLong=5;"
+                                + "dummyFloat=6.&dummyBoxedFloat=6.0;"
+                                + "dummyDouble=7.0&dummyBoxedDouble=7.0;"
+                                + "dummyString1=TestA;dummyString2=\"TestA \";dummyString=;dummyString4=\"equation =%3D5\"";
         final TestQueryClass2 ctx = QueryParameterParser.parseQueryParameter(TestQueryClass2.class, testString);
         assertTrue(ctx.dummyBoolean);
         assertTrue(ctx.dummyBoxedBoolean);

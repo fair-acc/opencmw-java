@@ -128,7 +128,7 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
      * @return queryString a <a href="https://tools.ietf.org/html/rfc3986">rfc3986</a> query parameter string
      */
     @SuppressWarnings("PMD")
-    public static String generateQueryParameter(final Map<String, ?> queryParameterMap) { //NOSONAR - complexity justified
+    public static String generateQueryParameter(final Map<String, ?> queryParameterMap) { // NOSONAR - complexity justified
         final StringBuilder builder = new StringBuilder();
 
         final Set<? extends Map.Entry<String, ?>> entrySet = queryParameterMap.entrySet();
@@ -187,7 +187,7 @@ public final class QueryParameterParser { // NOPMD - nomen est omen
             }
             @SuppressWarnings("SuspiciousMethodCalls") // default shall be used in case of type-mismatch and/or class key being absent
             final String keyValue = filterKeyMap.getOrDefault(field.getType(), field.getFieldName());
-            builder.append(keyValue).append('=').append(str == null ? "" : URLEncoder.encode(str, UTF_8));
+            builder.append(keyValue).append('=').append(str == null ? "" : str);
             if (index != children.size() - 1) {
                 builder.append('&');
             }
