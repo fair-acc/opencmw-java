@@ -154,6 +154,13 @@ class OpenCmwDataSourceTest {
     }
 
     @Test
+    void testTopicNormalisation() throws Exception {
+        assertEquals("/asdf/test#", OpenCmwDataSource.getZMQTopicFromURI(new URI("/asdf/test")));
+        assertEquals("/test/abc?answer=42&foo=bar#", OpenCmwDataSource.getZMQTopicFromURI(new URI("https://example.com/test/abc?foo=bar&answer=42")));
+        assertEquals("/asdf/test?alt=300%25&type=a%2Fb#", OpenCmwDataSource.getZMQTopicFromURI(new URI("/asdf/test?type=a/b&alt=300%25")));
+    }
+
+    @Test
     void testSubscription() throws Exception {
         final Map<String, TestObject> updates = new ConcurrentHashMap<>();
         eventStore.register((event, seq, last) -> {

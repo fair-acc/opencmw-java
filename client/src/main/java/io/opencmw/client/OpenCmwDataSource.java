@@ -20,6 +20,8 @@ import static io.opencmw.utils.AnsiDefs.ANSI_RESET;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -285,6 +287,32 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         return now + heartbeatInterval;
     }
 
+    /***
+     * Creates a zeroMQ subscription topic from the path and query part of a URI.
+     * Since different URIs can represent the same endpoint (encoding, parameter ordering), we need to normalise the URI.
+     * Otherwise, subscriptions cannot work reliably across different implementations.
+     * This implementation ensures:
+     * - path and each query key and value are individually encoded by encoding all special characters even if not mandated by the URI RFC
+     * - the individual key-value pairs are sorted alphabetically by key
+     * The java URI implementation
+     */
+    public static String getZMQTopicFromURI(final URI uri) {
+        if (uri.getRawQuery() == null) {
+            return URLEncoder.encode(uri.getPath(), UTF_8).replace("+", "%20").replace("%2F", "/") + "#";
+        } // no query parameters
+        Map<String, String> queryParameters = new TreeMap<>();
+        Arrays.stream(uri.getRawQuery().split("&"))
+                .map(s -> s.split("=", 2))
+                .forEach(a -> queryParameters.put(URLEncoder.encode(URLDecoder.decode(a[0], UTF_8), UTF_8).replace("+", "%20"), URLEncoder.encode(URLDecoder.decode(a[1], UTF_8), UTF_8).replace("+", "%20")));
+        StringBuilder sb = new StringBuilder(URLEncoder.encode(uri.getPath(), UTF_8).replace("+", "%20").replace("%2F", "/") + "?");
+        queryParameters.forEach((k, v) -> {
+            sb.append(k).append('=').append(v).append('&');
+        });
+        sb.setLength(sb.length() - 1);
+        sb.append('#');
+        return sb.toString();
+    }
+
     @Override
     public void subscribe(final String reqId, final URI endpoint, final byte[] rbacToken) {
         subscriptions.put(reqId, endpoint);
@@ -296,7 +324,7 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
                 LOGGER.atError().addArgument(reqId).addArgument(endpoint).log("subscription error (reqId: {}) for endpoint: {}");
             }
         } else { // mds
-            final String id = endpoint.getPath() + '?' + endpoint.getQuery() + '#';
+            final String id = getZMQTopicFromURI(endpoint);
             socket.subscribe(id.getBytes(UTF_8));
         }
     }
@@ -311,7 +339,8 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
                 LOGGER.atError().addArgument(reqId).addArgument(endpoint).log("unsubscribe error (reqId: {}) for endpoint: {}");
             }
         } else { // mds
-            socket.unsubscribe(serviceId);
+            final String id = getZMQTopicFromURI(endpoint);
+            socket.unsubscribe(id.getBytes(UTF_8));
         }
     }
 
