@@ -329,7 +329,7 @@ class MajordomoWorkerTests {
         }
     }
 
-    @MetaInfo(description = "request type class description", direction = "IN")
+    @MetaInfo(description = "request type class description")
     public static class RequestDataType {
         @MetaInfo(description = " RequestDataType name to show up in the OpenAPI docs")
         public String name;
@@ -367,11 +367,11 @@ class MajordomoWorkerTests {
         }
     }
 
-    @MetaInfo(description = "reply type class description", direction = "OUT")
+    @MetaInfo(description = "reply type class description")
     public static class ReplyDataType {
         @MetaInfo(description = "ReplyDataType name to show up in the OpenAPI docs")
         public String name;
-        @MetaInfo(description = "a return value", unit = "A", direction = "OUT", groups = { "A", "B" })
+        @MetaInfo(description = "a return value", unit = "A")
         public int returnValue;
         public ReplyDataType() {
             // needs default constructor
