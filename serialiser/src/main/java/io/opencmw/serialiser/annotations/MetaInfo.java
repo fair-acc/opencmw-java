@@ -10,6 +10,5 @@ import java.lang.annotation.Target;
 public @interface MetaInfo {
     String unit() default "";
     String description() default "";
-    String direction() default "";
-    String[] groups() default "";
+    byte modifier() default 0;
 }

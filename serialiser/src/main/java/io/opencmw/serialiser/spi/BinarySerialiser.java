@@ -426,11 +426,7 @@ public class BinarySerialiser implements IoSerialiser {
                     lastFieldHeader.setFieldDescription(buffer.getString());
                 }
                 if (buffer.position() < dataStartPosition) {
-                    lastFieldHeader.setFieldDirection(buffer.getString());
-                }
-                if (buffer.position() < dataStartPosition) {
-                    final String[] fieldGroups = buffer.getStringArray();
-                    lastFieldHeader.setFieldGroups(fieldGroups == null ? Collections.emptyList() : Arrays.asList(fieldGroups));
+                    lastFieldHeader.setFieldModifier(buffer.getByte());
                 }
             } else {
                 buffer.position(dataStartPosition);
@@ -1461,9 +1457,7 @@ public class BinarySerialiser implements IoSerialiser {
             if (isPutFieldMetaData() && fieldDescription.isAnnotationPresent() && dataType != DataType.END_MARKER) {
                 buffer.putString(fieldDescription.getFieldUnit());
                 buffer.putString(fieldDescription.getFieldDescription());
-                buffer.putString(fieldDescription.getFieldDirection());
-                final String[] groups = fieldDescription.getFieldGroups().toArray(new String[0]);
-                buffer.putStringArray(groups, groups.length);
+                buffer.putByte(fieldDescription.getFieldModifier());
             }
 
             // -- offset dataStart calculations
@@ -1477,8 +1471,7 @@ public class BinarySerialiser implements IoSerialiser {
             if (isPutFieldMetaData() && fieldDescription.isAnnotationPresent()) {
                 lastFieldHeader.setFieldUnit(fieldDescription.getFieldUnit());
                 lastFieldHeader.setFieldDescription(fieldDescription.getFieldDescription());
-                lastFieldHeader.setFieldDirection(fieldDescription.getFieldDirection());
-                lastFieldHeader.setFieldGroups(fieldDescription.getFieldGroups());
+                lastFieldHeader.setFieldModifier(fieldDescription.getFieldModifier());
             }
             return lastFieldHeader;
         }
