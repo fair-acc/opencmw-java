@@ -5,23 +5,23 @@ import io.opencmw.serialiser.annotations.MetaInfo;
 
 import de.gsi.dataset.spi.utils.MultiArray;
 
-@MetaInfo(description = "reply type class description", direction = "OUT")
+@MetaInfo(description = "reply type class description")
 public class ReplyDataType {
     @MetaInfo(description = "ReplyDataType name to show up in the OpenAPI docs")
     public String name;
     public boolean booleanReturnType;
     public byte byteReturnType;
     public short shortReturnType;
-    @MetaInfo(description = "a return value", unit = "A", direction = "OUT", groups = { "A", "B" })
+    @MetaInfo(description = "a return value", unit = "A")
     public int intReturnValue;
     public long longReturnValue;
     public byte[] byteArray;
     public MultiArray<double[]> multiArray = MultiArray.wrap(new double[] { 1.0, 2.0, 3.0 }, 0, new int[] { 1 });
-    @MetaInfo(description = "WR timing context", direction = "OUT", groups = { "A", "B" })
+    @MetaInfo(description = "WR timing context")
     public TimingCtx timingCtx;
-    @MetaInfo(description = "LSA timing context", direction = "OUT", groups = { "A", "B" })
+    @MetaInfo(description = "LSA timing context")
     public String lsaContext = "";
-    @MetaInfo(description = "custom enum reply option", direction = "OUT", groups = { "A", "B" })
+    @MetaInfo(description = "custom enum reply option")
     public ReplyOption replyOption = ReplyOption.REPLY_OPTION2;
 
     public ReplyDataType() {
