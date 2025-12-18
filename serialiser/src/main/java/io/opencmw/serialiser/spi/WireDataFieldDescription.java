@@ -30,8 +30,7 @@ public class WireDataFieldDescription implements FieldDescription {
     private final IoSerialiser ioSerialiser;
     private String fieldUnit;
     private String fieldDescription;
-    private String fieldDirection;
-    private List<String> fieldGroups;
+    private byte fieldModifier;
     private int dataSize;
 
     /**
@@ -125,22 +124,13 @@ public class WireDataFieldDescription implements FieldDescription {
         this.fieldDescription = fieldDescription;
     }
 
-    @Override
-    public String getFieldDirection() {
-        return fieldDirection;
-    }
-
-    public void setFieldDirection(final String fieldDirection) {
-        this.fieldDirection = fieldDirection;
+    public void setFieldModifier(byte modifier) {
+        this.fieldModifier = modifier;
     }
 
     @Override
-    public List<String> getFieldGroups() {
-        return fieldGroups;
-    }
-
-    public void setFieldGroups(final List<String> fieldGroups) {
-        this.fieldGroups = fieldGroups;
+    public byte getFieldModifier() {
+        return this.fieldModifier;
     }
 
     @Override
@@ -219,7 +209,7 @@ public class WireDataFieldDescription implements FieldDescription {
 
     @Override
     public boolean isAnnotationPresent() {
-        return fieldUnit != null || fieldDescription != null || fieldDirection != null || (fieldGroups != null && !fieldGroups.isEmpty());
+        return fieldUnit != null || fieldDescription != null;
     }
 
     @Override
@@ -245,9 +235,8 @@ public class WireDataFieldDescription implements FieldDescription {
             LOGGER.atInfo().addArgument(mspace) //
                     .addArgument(field.getFieldUnit())
                     .addArgument(field.getFieldDescription())
-                    .addArgument(field.getFieldDirection())
-                    .addArgument(field.getFieldGroups())
-                    .log("{}     <meta-info: unit:'{}' description:'{}' direction:'{}' groups:'{}'>");
+                    .addArgument(field.getFieldModifier())
+                    .log("{}     <meta-info: unit:'{}' description:'{}' modifier:'{}'>");
         }
         field.getChildren().forEach(f -> printFieldStructure(f, recursionLevel + 1));
     }

@@ -7,6 +7,6 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD, ElementType.TYPE })
-public @interface Groups {
-    String[] value() default "";
+public @interface Modifier {
+    byte value() default 0;
 }

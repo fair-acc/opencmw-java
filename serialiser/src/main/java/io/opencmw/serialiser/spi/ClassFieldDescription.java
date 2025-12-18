@@ -16,11 +16,8 @@ import org.slf4j.LoggerFactory;
 import io.opencmw.serialiser.DataType;
 import io.opencmw.serialiser.FieldDescription;
 import io.opencmw.serialiser.FieldSerialiser;
-import io.opencmw.serialiser.annotations.Description;
-import io.opencmw.serialiser.annotations.Direction;
-import io.opencmw.serialiser.annotations.Groups;
-import io.opencmw.serialiser.annotations.MetaInfo;
-import io.opencmw.serialiser.annotations.Unit;
+import io.opencmw.serialiser.annotations.*;
+import io.opencmw.serialiser.annotations.Modifier;
 import io.opencmw.serialiser.utils.ClassUtils;
 
 /**
@@ -35,8 +32,7 @@ public class ClassFieldDescription implements FieldDescription {
     private final String fieldNameRelative;
     private final String fieldUnit;
     private final String fieldDescription;
-    private final String fieldDirection;
-    private final List<String> fieldGroups;
+    private final byte fieldModifier;
     private final boolean annotationPresent;
     private final ClassFieldDescription parent;
     private final List<FieldDescription> children = new ArrayList<>();
@@ -120,27 +116,26 @@ public class ClassFieldDescription implements FieldDescription {
         AnnotatedElement annotatedElement = field == null ? referenceClass : field;
         fieldUnit = getFieldUnit(annotatedElement);
         fieldDescription = getFieldDescription(annotatedElement);
-        fieldDirection = getFieldDirection(annotatedElement);
-        fieldGroups = getFieldGroups(annotatedElement);
+        fieldModifier = getFieldModifier(annotatedElement);
 
-        annotationPresent = fieldUnit != null || fieldDescription != null || fieldDirection != null || !fieldGroups.isEmpty();
+        annotationPresent = fieldUnit != null || fieldDescription != null;
 
         typeName = ClassUtils.translateClassName(classType.getTypeName()).intern();
         final int lastDot = typeName.lastIndexOf('.');
         typeNameSimple = typeName.substring(lastDot < 0 ? 0 : lastDot + 1);
 
-        modPublic = Modifier.isPublic(modifierID);
-        modProtected = Modifier.isProtected(modifierID);
-        modPrivate = Modifier.isPrivate(modifierID);
+        modPublic = java.lang.reflect.Modifier.isPublic(modifierID);
+        modProtected = java.lang.reflect.Modifier.isProtected(modifierID);
+        modPrivate = java.lang.reflect.Modifier.isPrivate(modifierID);
 
-        modAbstract = Modifier.isAbstract(modifierID);
-        modStatic = Modifier.isStatic(modifierID);
-        modFinal = Modifier.isFinal(modifierID);
-        modTransient = Modifier.isTransient(modifierID);
-        modVolatile = Modifier.isVolatile(modifierID);
-        modSynchronized = Modifier.isSynchronized(modifierID);
-        modNative = Modifier.isNative(modifierID);
-        modStrict = Modifier.isStrict(modifierID);
+        modAbstract = java.lang.reflect.Modifier.isAbstract(modifierID);
+        modStatic = java.lang.reflect.Modifier.isStatic(modifierID);
+        modFinal = java.lang.reflect.Modifier.isFinal(modifierID);
+        modTransient = java.lang.reflect.Modifier.isTransient(modifierID);
+        modVolatile = java.lang.reflect.Modifier.isVolatile(modifierID);
+        modSynchronized = java.lang.reflect.Modifier.isSynchronized(modifierID);
+        modNative = java.lang.reflect.Modifier.isNative(modifierID);
+        modStrict = java.lang.reflect.Modifier.isStrict(modifierID);
         modInterface = classType.isInterface();
 
         // additional fields
@@ -177,7 +172,7 @@ public class ClassFieldDescription implements FieldDescription {
         try {
             // need to allocate new class object
             final Object newFieldObj;
-            if (this.classType.getDeclaringClass() == null || Modifier.isStatic(this.classType.getModifiers())) {
+            if (this.classType.getDeclaringClass() == null || java.lang.reflect.Modifier.isStatic(this.classType.getModifiers())) {
                 final Constructor<?> constr = this.classType.getDeclaredConstructor();
                 newFieldObj = constr.newInstance();
             } else {
@@ -297,13 +292,8 @@ public class ClassFieldDescription implements FieldDescription {
     }
 
     @Override
-    public String getFieldDirection() {
-        return fieldDirection;
-    }
-
-    @Override
-    public List<String> getFieldGroups() {
-        return fieldGroups;
+    public byte getFieldModifier() {
+        return fieldModifier;
     }
 
     /**
@@ -401,7 +391,7 @@ public class ClassFieldDescription implements FieldDescription {
         if (modifierStr == null) {
             // initialise only on a need to basis
             // for performance reasons
-            modifierStr = Modifier.toString(modifierID).intern();
+            modifierStr = java.lang.reflect.Modifier.toString(modifierID).intern();
         }
         return modifierStr;
     }
@@ -651,9 +641,8 @@ public class ClassFieldDescription implements FieldDescription {
                 LOGGER.atInfo().addArgument(mspace).addArgument(isSerialisable ? "  " : "//") //
                         .addArgument(field.getFieldUnit())
                         .addArgument(field.getFieldDescription())
-                        .addArgument(field.getFieldDirection())
-                        .addArgument(field.getFieldGroups())
-                        .log("{} {}         <meta-info: unit:'{}' description:'{}' direction:'{}' groups:'{}'>");
+                        .addArgument(field.getFieldModifier())
+                        .log("{} {}         <meta-info: unit:'{}' description:'{}' modifier:'{}'>");
             }
 
             field.getChildren().forEach(f -> printClassStructure((ClassFieldDescription) f, fullView, recursionLevel + 1));
@@ -662,51 +651,35 @@ public class ClassFieldDescription implements FieldDescription {
 
     private static String getFieldDescription(final AnnotatedElement annotatedElement) {
         final MetaInfo[] annotationMeta = annotatedElement.getAnnotationsByType(MetaInfo.class);
-        if (annotationMeta != null && annotationMeta.length > 0) {
+        if (annotationMeta.length > 0) {
             return annotationMeta[0].description().intern();
         }
         final Description[] annotationDescription = annotatedElement.getAnnotationsByType(Description.class);
-        if (annotationDescription != null && annotationDescription.length > 0) {
+        if (annotationDescription.length > 0) {
             return annotationDescription[0].value().intern();
         }
         return null;
     }
 
-    private static String getFieldDirection(final AnnotatedElement annotatedElement) {
+    private static byte getFieldModifier(final AnnotatedElement annotatedElement) {
         final MetaInfo[] annotationMeta = annotatedElement.getAnnotationsByType(MetaInfo.class);
-        if (annotationMeta != null && annotationMeta.length > 0) {
-            return annotationMeta[0].direction().intern();
+        if (annotationMeta.length > 0) {
+            return annotationMeta[0].modifier();
         }
-        final Direction[] annotationDirection = annotatedElement.getAnnotationsByType(Direction.class);
-        if (annotationDirection != null && annotationDirection.length > 0) {
-            return annotationDirection[0].value().intern();
+        final Modifier[] annotationModifier = annotatedElement.getAnnotationsByType(Modifier.class);
+        if (annotationModifier.length > 0) {
+            return annotationModifier[0].value();
         }
-        return null;
-    }
-
-    private static List<String> getFieldGroups(final AnnotatedElement annotatedElement) {
-        final MetaInfo[] annotationMeta = annotatedElement.getAnnotationsByType(MetaInfo.class);
-        if (annotationMeta != null && annotationMeta.length > 0) {
-            return Arrays.asList(annotationMeta[0].groups());
-        }
-        final Groups[] annotationGroups = annotatedElement.getAnnotationsByType(Groups.class);
-        if (annotationGroups != null && annotationGroups.length > 0) {
-            final List<String> ret = new ArrayList<>(annotationGroups[0].value().length);
-            for (int i = 0; i < annotationGroups[0].value().length; i++) {
-                ret.add(annotationGroups[0].value()[i].intern());
-            }
-            return ret;
-        }
-        return Collections.emptyList();
+        return 0;
     }
 
     private static String getFieldUnit(final AnnotatedElement annotatedElement) {
         final MetaInfo[] annotationMeta = annotatedElement.getAnnotationsByType(MetaInfo.class);
-        if (annotationMeta != null && annotationMeta.length > 0) {
+        if (annotationMeta.length > 0) {
             return annotationMeta[0].unit().intern();
         }
         final Unit[] annotationUnit = annotatedElement.getAnnotationsByType(Unit.class);
-        if (annotationUnit != null && annotationUnit.length > 0) {
+        if (annotationUnit.length > 0) {
             return annotationUnit[0].value().intern();
         }
         return null;
