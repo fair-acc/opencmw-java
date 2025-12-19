@@ -69,13 +69,13 @@ public class BasicSample {
         }
     }
 
-    @MetaInfo(description = "arbitrary request domain context object", direction = "IN")
+    @MetaInfo(description = "arbitrary request domain context object")
     public static class BasicRequestCtx {
         @MetaInfo(description = " optional 'name' OpenAPI documentation")
         public String name;
     }
 
-    @MetaInfo(description = "arbitrary reply domain object", direction = "OUT")
+    @MetaInfo(description = "arbitrary reply domain object")
     public static class ReplyData {
         @MetaInfo(description = " optional 'returnValue' OpenAPI documentation", unit = "a string")
         public String returnValue;

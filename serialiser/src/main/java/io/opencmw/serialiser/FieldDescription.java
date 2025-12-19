@@ -38,20 +38,7 @@ public interface FieldDescription {
      */
     String getFieldDescription();
 
-    /**
-     * Return optional meta data tag describing the 'direction' of this data field.
-     * The information encodes the source servicedevelopers intend to the receiving user whether the field can be, for example,
-     * modified (get/set), set-only, or read-only, or attach any other similar information. Encoding/interpretation is
-     * left ad-lib to the source service developer.
-     *
-     * @return optional meta data (N.B. can be empty String).
-     */
-    String getFieldDirection();
-
-    /**
-     * @return optional meta data describing the group/set this data field belongs to (N.B. empty String corresponds to 'all')
-     */
-    List<String> getFieldGroups();
+    byte getFieldModifier();
 
     /**
      * @return the data field's name
@@ -68,6 +55,11 @@ public interface FieldDescription {
      * @return optional meta data tag describing the field's SI unit or similar (N.B. can be empty String)
      */
     String getFieldUnit();
+
+    /**
+     * @return optional meta data tag describing the field's quantity or similar (N.B. can be empty String)
+     */
+    String getFieldQuantity();
 
     /**
      * @return for a hierarchical/nested data structure refers to the parent this field belongs to (N.B. can be null if there isn't a parent, e.g. for a root element)

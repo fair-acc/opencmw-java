@@ -32,20 +32,16 @@ class SerialiserAnnotationTests {
         final FieldDescription energyField = classFieldDescription.findChildField("energy");
         assertNotNull(energyField);
         assertEquals("GeV/u", energyField.getFieldUnit());
+        assertEquals("energy", energyField.getFieldQuantity());
         assertEquals("energy description", energyField.getFieldDescription());
-        assertEquals("OUT", energyField.getFieldDirection());
-        assertFalse(energyField.getFieldGroups().isEmpty());
-        assertEquals("A", energyField.getFieldGroups().get(0));
+        assertEquals(0, energyField.getFieldModifier());
 
         final FieldDescription temperatureField = classFieldDescription.findChildField("temperature");
         assertNotNull(temperatureField);
         assertEquals("°C", temperatureField.getFieldUnit());
+        assertEquals("temperature", temperatureField.getFieldQuantity());
         assertEquals("important temperature reading", temperatureField.getFieldDescription());
-        assertEquals("OUT", temperatureField.getFieldDirection());
-        assertFalse(temperatureField.getFieldGroups().isEmpty());
-        assertEquals(2, temperatureField.getFieldGroups().size());
-        assertEquals("A", temperatureField.getFieldGroups().get(0));
-        assertEquals("B", temperatureField.getFieldGroups().get(1));
+        assertEquals(0, temperatureField.getFieldModifier());
     }
 
     @DisplayName("basic custom serialisation/deserialisation identity")
@@ -70,36 +66,33 @@ class SerialiserAnnotationTests {
         final FieldDescription energyField = serialiserFieldDescriptions.findChildField("energy");
         assertNotNull(energyField);
         assertEquals("GeV/u", energyField.getFieldUnit());
+        assertEquals("energy", energyField.getFieldQuantity());
         assertEquals("energy description", energyField.getFieldDescription());
-        assertEquals("OUT", energyField.getFieldDirection());
-        assertFalse(energyField.getFieldGroups().isEmpty());
-        assertEquals("A", energyField.getFieldGroups().get(0));
+        assertEquals(0, energyField.getFieldModifier());
 
         final FieldDescription temperatureField = serialiserFieldDescriptions.findChildField("temperature");
         assertNotNull(temperatureField);
         assertEquals("°C", temperatureField.getFieldUnit());
+        assertEquals("temperature", temperatureField.getFieldQuantity());
         assertEquals("important temperature reading", temperatureField.getFieldDescription());
-        assertEquals("OUT", temperatureField.getFieldDirection());
-        assertFalse(temperatureField.getFieldGroups().isEmpty());
-        assertEquals(2, temperatureField.getFieldGroups().size());
-        assertEquals("A", temperatureField.getFieldGroups().get(0));
-        assertEquals("B", temperatureField.getFieldGroups().get(1));
+        assertEquals(0, temperatureField.getFieldModifier());
     }
 
     @Description("this class is used to test field annotation")
     public static class AnnotatedDataClass {
-        @MetaInfo(unit = "GeV/u", description = "energy description", direction = "OUT", groups = "A")
+        @MetaInfo(unit = "GeV/u", quantity = "energy", description = "energy description", modifier = 0)
         public double energy;
 
         @Unit("°C")
+        @Quantity("temperature")
         @Description("important temperature reading")
-        @Direction("OUT")
-        @Groups({ "A", "B" })
+        @Modifier(0)
         public double temperature;
 
         @Unit("V")
+        @Quantity("voltage")
         @Description("control variable")
-        @Direction("IN/OUT")
+        @Modifier(1)
         public double controlVariable;
     }
 }

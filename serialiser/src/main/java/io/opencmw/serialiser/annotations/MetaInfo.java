@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
 @Target({ ElementType.FIELD, ElementType.TYPE })
 public @interface MetaInfo {
     String unit() default "";
+    String quantity() default "";
     String description() default "";
-    String direction() default "";
-    String[] groups() default "";
+    byte modifier() default 0;
 }
