@@ -423,6 +423,9 @@ public class BinarySerialiser implements IoSerialiser {
                     lastFieldHeader.setFieldUnit(buffer.getString());
                 }
                 if (buffer.position() < dataStartPosition) {
+                    lastFieldHeader.setFieldQuantity(buffer.getString());
+                }
+                if (buffer.position() < dataStartPosition) {
                     lastFieldHeader.setFieldDescription(buffer.getString());
                 }
                 if (buffer.position() < dataStartPosition) {
@@ -1456,6 +1459,7 @@ public class BinarySerialiser implements IoSerialiser {
 
             if (isPutFieldMetaData() && fieldDescription.isAnnotationPresent() && dataType != DataType.END_MARKER) {
                 buffer.putString(fieldDescription.getFieldUnit());
+                buffer.putString(fieldDescription.getFieldQuantity());
                 buffer.putString(fieldDescription.getFieldDescription());
                 buffer.putByte(fieldDescription.getFieldModifier());
             }
@@ -1470,6 +1474,7 @@ public class BinarySerialiser implements IoSerialiser {
             lastFieldHeader = new WireDataFieldDescription(this, parent, fieldDescription.getFieldName(), dataType, headerStart, dataStartOffset, dataSize);
             if (isPutFieldMetaData() && fieldDescription.isAnnotationPresent()) {
                 lastFieldHeader.setFieldUnit(fieldDescription.getFieldUnit());
+                lastFieldHeader.setFieldQuantity(fieldDescription.getFieldQuantity());
                 lastFieldHeader.setFieldDescription(fieldDescription.getFieldDescription());
                 lastFieldHeader.setFieldModifier(fieldDescription.getFieldModifier());
             }

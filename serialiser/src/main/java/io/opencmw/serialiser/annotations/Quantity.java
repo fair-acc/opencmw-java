@@ -7,9 +7,6 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD, ElementType.TYPE })
-public @interface MetaInfo {
-    String unit() default "";
-    String quantity() default "";
-    String description() default "";
-    byte modifier() default 0;
+public @interface Quantity {
+    String value() default "";
 }

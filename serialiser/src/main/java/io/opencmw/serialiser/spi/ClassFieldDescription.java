@@ -31,6 +31,7 @@ public class ClassFieldDescription implements FieldDescription {
     private final String fieldName;
     private final String fieldNameRelative;
     private final String fieldUnit;
+    private final String fieldQuantity;
     private final String fieldDescription;
     private final byte fieldModifier;
     private final boolean annotationPresent;
@@ -115,10 +116,11 @@ public class ClassFieldDescription implements FieldDescription {
         // read annotation values
         AnnotatedElement annotatedElement = field == null ? referenceClass : field;
         fieldUnit = getFieldUnit(annotatedElement);
+        fieldQuantity = getFieldQuantity(annotatedElement);
         fieldDescription = getFieldDescription(annotatedElement);
         fieldModifier = getFieldModifier(annotatedElement);
 
-        annotationPresent = fieldUnit != null || fieldDescription != null;
+        annotationPresent = fieldUnit != null || fieldQuantity != null || fieldDescription != null;
 
         typeName = ClassUtils.translateClassName(classType.getTypeName()).intern();
         final int lastDot = typeName.lastIndexOf('.');
@@ -323,6 +325,11 @@ public class ClassFieldDescription implements FieldDescription {
     @Override
     public String getFieldUnit() {
         return fieldUnit;
+    }
+
+    @Override
+    public String getFieldQuantity() {
+        return fieldQuantity;
     }
 
     /**
@@ -640,9 +647,10 @@ public class ClassFieldDescription implements FieldDescription {
             if (field.isAnnotationPresent()) {
                 LOGGER.atInfo().addArgument(mspace).addArgument(isSerialisable ? "  " : "//") //
                         .addArgument(field.getFieldUnit())
+                        .addArgument(field.getFieldQuantity())
                         .addArgument(field.getFieldDescription())
                         .addArgument(field.getFieldModifier())
-                        .log("{} {}         <meta-info: unit:'{}' description:'{}' modifier:'{}'>");
+                        .log("{} {}         <meta-info: unit:'{}' quantity:'{}' description:'{}' modifier:'{}'>");
             }
 
             field.getChildren().forEach(f -> printClassStructure((ClassFieldDescription) f, fullView, recursionLevel + 1));
@@ -681,6 +689,18 @@ public class ClassFieldDescription implements FieldDescription {
         final Unit[] annotationUnit = annotatedElement.getAnnotationsByType(Unit.class);
         if (annotationUnit.length > 0) {
             return annotationUnit[0].value().intern();
+        }
+        return null;
+    }
+
+    private static String getFieldQuantity(final AnnotatedElement annotatedElement) {
+        final MetaInfo[] annotationMeta = annotatedElement.getAnnotationsByType(MetaInfo.class);
+        if (annotationMeta.length > 0) {
+            return annotationMeta[0].quantity().intern();
+        }
+        final Quantity[] annotationQuantity = annotatedElement.getAnnotationsByType(Quantity.class);
+        if (annotationQuantity.length > 0) {
+            return annotationQuantity[0].value().intern();
         }
         return null;
     }
