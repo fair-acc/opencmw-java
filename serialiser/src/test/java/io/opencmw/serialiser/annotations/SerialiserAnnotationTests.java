@@ -32,12 +32,14 @@ class SerialiserAnnotationTests {
         final FieldDescription energyField = classFieldDescription.findChildField("energy");
         assertNotNull(energyField);
         assertEquals("GeV/u", energyField.getFieldUnit());
+        assertEquals("energy", energyField.getFieldQuantity());
         assertEquals("energy description", energyField.getFieldDescription());
         assertEquals(0, energyField.getFieldModifier());
 
         final FieldDescription temperatureField = classFieldDescription.findChildField("temperature");
         assertNotNull(temperatureField);
         assertEquals("°C", temperatureField.getFieldUnit());
+        assertEquals("temperature", temperatureField.getFieldQuantity());
         assertEquals("important temperature reading", temperatureField.getFieldDescription());
         assertEquals(0, temperatureField.getFieldModifier());
     }
@@ -64,27 +66,31 @@ class SerialiserAnnotationTests {
         final FieldDescription energyField = serialiserFieldDescriptions.findChildField("energy");
         assertNotNull(energyField);
         assertEquals("GeV/u", energyField.getFieldUnit());
+        assertEquals("energy", energyField.getFieldQuantity());
         assertEquals("energy description", energyField.getFieldDescription());
         assertEquals(0, energyField.getFieldModifier());
 
         final FieldDescription temperatureField = serialiserFieldDescriptions.findChildField("temperature");
         assertNotNull(temperatureField);
         assertEquals("°C", temperatureField.getFieldUnit());
+        assertEquals("temperature", temperatureField.getFieldQuantity());
         assertEquals("important temperature reading", temperatureField.getFieldDescription());
         assertEquals(0, temperatureField.getFieldModifier());
     }
 
     @Description("this class is used to test field annotation")
     public static class AnnotatedDataClass {
-        @MetaInfo(unit = "GeV/u", description = "energy description", modifier = 0)
+        @MetaInfo(unit = "GeV/u", quantity = "energy", description = "energy description", modifier = 0)
         public double energy;
 
         @Unit("°C")
+        @Quantity("temperature")
         @Description("important temperature reading")
         @Modifier(0)
         public double temperature;
 
         @Unit("V")
+        @Quantity("voltage")
         @Description("control variable")
         @Modifier(1)
         public double controlVariable;

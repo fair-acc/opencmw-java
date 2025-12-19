@@ -29,6 +29,7 @@ public class WireDataFieldDescription implements FieldDescription {
     // local references to source buffer needed for parsing
     private final IoSerialiser ioSerialiser;
     private String fieldUnit;
+    private String fieldQuantity;
     private String fieldDescription;
     private byte fieldModifier;
     private int dataSize;
@@ -152,6 +153,15 @@ public class WireDataFieldDescription implements FieldDescription {
         this.fieldUnit = fieldUnit;
     }
 
+    @Override
+    public String getFieldQuantity() {
+        return fieldQuantity;
+    }
+
+    public void setFieldQuantity(final String fieldQuantity) {
+        this.fieldQuantity = fieldQuantity;
+    }
+
     /**
      * @return raw ioSerialiser reference this field was retrieved with the position in the underlying IoBuffer at the to be read field
      * N.B. this is a safe convenience method and not performance optimised
@@ -209,7 +219,7 @@ public class WireDataFieldDescription implements FieldDescription {
 
     @Override
     public boolean isAnnotationPresent() {
-        return fieldUnit != null || fieldDescription != null;
+        return fieldUnit != null || fieldQuantity != null || fieldDescription != null;
     }
 
     @Override
@@ -234,9 +244,10 @@ public class WireDataFieldDescription implements FieldDescription {
         if (field.isAnnotationPresent()) {
             LOGGER.atInfo().addArgument(mspace) //
                     .addArgument(field.getFieldUnit())
+                    .addArgument(field.getFieldQuantity())
                     .addArgument(field.getFieldDescription())
                     .addArgument(field.getFieldModifier())
-                    .log("{}     <meta-info: unit:'{}' description:'{}' modifier:'{}'>");
+                    .log("{}     <meta-info: unit:'{}' quantity='{}' description:'{}' modifier:'{}'>");
         }
         field.getChildren().forEach(f -> printFieldStructure(f, recursionLevel + 1));
     }
