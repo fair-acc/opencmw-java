@@ -57,6 +57,11 @@ public interface FieldDescription {
     String getFieldUnit();
 
     /**
+     * @return optional meta data tag describing the field's quantity or similar (N.B. can be empty String)
+     */
+    String getFieldQuantity();
+
+    /**
      * @return for a hierarchical/nested data structure refers to the parent this field belongs to (N.B. can be null if there isn't a parent, e.g. for a root element)
      */
     FieldDescription getParent();
