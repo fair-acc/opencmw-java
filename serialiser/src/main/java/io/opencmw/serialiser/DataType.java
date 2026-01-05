@@ -21,12 +21,12 @@ import de.gsi.dataset.spi.utils.MultiArrayObject;
 import de.gsi.dataset.spi.utils.MultiArrayShort;
 
 /**
- * Enum definition for data primitives in the context of serialisation and includes definitions for: 
+ * Enum definition for data primitives in the context of serialisation and includes definitions for:
  * <ul>
- * <li> primitives (byte, short, ..., float, double, and String), and 
- * <li> arrays thereof (ie. byte[], short[], ..., float[], double[], and String[]), as well as 
+ * <li> primitives (byte, short, ..., float, double, and String), and
+ * <li> arrays thereof (ie. byte[], short[], ..., float[], double[], and String[]), as well as
  * <li> complex objects implementing Collections (ie. Set, List, Queues), Enums or Maps.
- * </ul> 
+ * </ul>
  * Any other complex data objects can be stored/extended using the {@link DataType#OTHER OTHER} sub-type.
  *
  * <p>
@@ -50,7 +50,7 @@ public enum DataType {
     LONG(5, "long", "long", 8, Cat.SINGLE_VALUE, long.class, Long.class),
     FLOAT(6, "float", "float", 4, Cat.SINGLE_VALUE, float.class, Float.class),
     DOUBLE(7, "double", "double", 8, Cat.SINGLE_VALUE, double.class, Double.class),
-    CHAR(8, "char", "char", 2, Cat.SINGLE_VALUE, char.class, Character.class),
+    CHAR(8, "char", "char", 1, Cat.SINGLE_VALUE, char.class, Character.class),
     STRING(9, "string", "java.lang.String", 1, Cat.ARRAY, String.class, URI.class),
 
     // array of primitive types
@@ -61,7 +61,7 @@ public enum DataType {
     LONG_ARRAY(105, "long_array", "[J", 8, Cat.ARRAY, long[].class, Long[].class, MultiArrayLong.class),
     FLOAT_ARRAY(106, "float_array", "[F", 4, Cat.ARRAY, float[].class, Float[].class, MultiArrayFloat.class),
     DOUBLE_ARRAY(107, "double_array", "[D", 8, Cat.ARRAY, double[].class, Double[].class, MultiArrayDouble.class),
-    CHAR_ARRAY(108, "char_array", "[C", 2, Cat.ARRAY, char[].class, Character[].class, MultiArrayChar.class),
+    CHAR_ARRAY(108, "char_array", "[C", 1, Cat.ARRAY, char[].class, Character[].class, MultiArrayChar.class),
     STRING_ARRAY(109, "string_array", "[java.lang.String", 1, Cat.ARRAY, String[].class, String[].class, MultiArrayObject.class),
 
     // complex objects

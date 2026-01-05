@@ -14,7 +14,7 @@ public class ByteBuffer implements IoBuffer {
     public static final int SIZE_OF_BOOLEAN = 1;
     public static final int SIZE_OF_BYTE = 1;
     public static final int SIZE_OF_SHORT = 2;
-    public static final int SIZE_OF_CHAR = 2;
+    public static final int SIZE_OF_CHAR = 1;
     public static final int SIZE_OF_INT = 4;
     public static final int SIZE_OF_LONG = 8;
     public static final int SIZE_OF_FLOAT = 4;
@@ -119,12 +119,12 @@ public class ByteBuffer implements IoBuffer {
 
     @Override
     public char getChar() {
-        return nioByteBuffer.getChar();
+        return (char) (nioByteBuffer.get() & 0xFF);
     }
 
     @Override
     public char getChar(final int position) {
-        return nioByteBuffer.getChar(position);
+        return (char) (nioByteBuffer.get(position) & 0xFF);
     }
 
     @Override
@@ -374,12 +374,12 @@ public class ByteBuffer implements IoBuffer {
 
     @Override
     public void putChar(final char value) {
-        nioByteBuffer.putChar(value);
+        nioByteBuffer.put((byte) value);
     }
 
     @Override
     public void putChar(final int position, final char value) {
-        nioByteBuffer.putChar(position, value);
+        nioByteBuffer.put(position, (byte) value);
     }
 
     @Override
@@ -392,7 +392,7 @@ public class ByteBuffer implements IoBuffer {
             return;
         }
         for (int i = 0; i < nElements; i++) {
-            nioByteBuffer.putChar(src[i]);
+            nioByteBuffer.put((byte) (src[i] & 0xFF));
         }
     }
 
