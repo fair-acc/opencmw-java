@@ -4,7 +4,7 @@ import io.opencmw.MimeType;
 import io.opencmw.filter.TimingCtx;
 import io.opencmw.serialiser.annotations.MetaInfo;
 
-@MetaInfo(description = "request type class description", direction = "IN")
+@MetaInfo(description = "request type class description")
 public class RequestDataType {
     @MetaInfo(description = " RequestDataType name to show up in the OpenAPI docs")
     public String name = "";

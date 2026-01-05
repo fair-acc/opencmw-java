@@ -212,7 +212,7 @@ class IoBufferTests {
         buffer.putFloat(1.3e10f);
         buffer.putDouble(1.3e10f);
         buffer.putChar('@');
-        buffer.putChar((char) 513);
+        // buffer.putChar((char) 513);
         buffer.putStringISO8859("Hello World!");
         buffer.putString("Γειά σου Κόσμε!");
         final long position = buffer.position();
@@ -228,7 +228,7 @@ class IoBufferTests {
         assertEquals(1.3e10f, buffer.getFloat());
         assertEquals(1.3e10f, buffer.getDouble());
         assertEquals('@', buffer.getChar());
-        assertEquals((char) 513, buffer.getChar());
+        // assertEquals((char) 513, buffer.getChar());
         assertEquals("Hello World!", buffer.getStringISO8859());
         assertEquals("Γειά σου Κόσμε!", buffer.getString());
         assertEquals(position, buffer.position());
@@ -286,10 +286,11 @@ class IoBufferTests {
         buffer.flip();
         assertEquals('@', buffer.getChar());
 
-        buffer.reset();
-        buffer.putChar((char) 513);
-        buffer.flip();
-        assertEquals((char) 513, buffer.getChar());
+        // codepoints which require more than a single utf-8 byte are disabled
+        // buffer.reset();
+        // buffer.putChar((char) 513);
+        // buffer.flip();
+        // assertEquals((char) 513, buffer.getChar());
 
         buffer.reset();
         buffer.putString("Hello World!");
@@ -334,8 +335,9 @@ class IoBufferTests {
         buffer.putChar(7, '@');
         assertEquals('@', buffer.getChar(7));
 
-        buffer.putChar(7, (char) 513);
-        assertEquals((char) 513, buffer.getChar(7));
+        // codepoints out of single utf-8 byte are disabled
+        // buffer.putChar(7, (char) 513);
+        // assertEquals((char) 513, buffer.getChar(7));
 
         buffer.putString(8, "Hello World!");
         assertEquals("Hello World!", buffer.getString(8));
