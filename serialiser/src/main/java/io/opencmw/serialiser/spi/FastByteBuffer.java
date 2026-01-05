@@ -3,6 +3,7 @@ package io.opencmw.serialiser.spi;
 import static sun.misc.Unsafe.*; // NOSONAR NOPMD not an issue: contained and performance-related use
 
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -40,7 +41,7 @@ public class FastByteBuffer implements IoBuffer {
     public static final int SIZE_OF_BOOLEAN = 1;
     public static final int SIZE_OF_BYTE = 1;
     public static final int SIZE_OF_SHORT = 2;
-    public static final int SIZE_OF_CHAR = 2;
+    public static final int SIZE_OF_CHAR = 1;
     public static final int SIZE_OF_INT = 4;
     public static final int SIZE_OF_LONG = 8;
     public static final int SIZE_OF_FLOAT = 4;
@@ -276,7 +277,7 @@ public class FastByteBuffer implements IoBuffer {
     @Override
     public char getChar() {
         checkAvailable(SIZE_OF_CHAR);
-        final char value = unsafe.getChar(buffer, (long) ARRAY_CHAR_BASE_OFFSET + intPos);
+        final char value = (char) (unsafe.getByte(buffer, (long) ARRAY_CHAR_BASE_OFFSET + intPos) & 0xFF);
         intPos += SIZE_OF_CHAR;
 
         return value;
@@ -285,7 +286,7 @@ public class FastByteBuffer implements IoBuffer {
     @Override
     public char getChar(final int position) {
         checkAvailableAbsolute(position + SIZE_OF_CHAR);
-        return unsafe.getChar(buffer, (long) ARRAY_BYTE_BASE_OFFSET + position);
+        return (char) (unsafe.getByte(buffer, (long) ARRAY_BYTE_BASE_OFFSET + position) & 0xFF);
     }
 
     @Override
@@ -296,8 +297,9 @@ public class FastByteBuffer implements IoBuffer {
 
         final int bytesToCopy = arraySize * SIZE_OF_CHAR;
         checkAvailable(bytesToCopy);
-        copyMemory(buffer, ARRAY_BYTE_BASE_OFFSET + intPos, values, ARRAY_SHORT_BASE_OFFSET, bytesToCopy);
-        intPos += bytesToCopy;
+        for (int i = 0; i < bytesToCopy; ++i) {
+            values[i] = getChar();
+        }
 
         return values;
     }
@@ -600,14 +602,19 @@ public class FastByteBuffer implements IoBuffer {
     @Override
     public void putChar(final char value) {
         ensureAdditionalCapacity(SIZE_OF_CHAR);
-        unsafe.putChar(buffer, (long) ARRAY_BYTE_BASE_OFFSET + intPos, value);
+        unsafe.putByte(buffer, (long) ARRAY_BYTE_BASE_OFFSET + intPos, (byte) value);
         intPos += SIZE_OF_CHAR;
     }
 
     @Override
     public void putChar(final int position, final char value) {
         ensureCapacity(position + SIZE_OF_CHAR);
-        unsafe.putChar(buffer, (long) ARRAY_BYTE_BASE_OFFSET + position, value);
+        byte[] bytes = String.valueOf(value).getBytes(StandardCharsets.UTF_8);
+        if (bytes.length != 1) {
+            throw new IllegalArgumentException("encountered non-ascii character, which would have to be represented by multiple bytes");
+        }
+        unsafe.putByte(buffer, (long) ARRAY_BYTE_BASE_OFFSET + position, bytes[0]);
+        intPos += SIZE_OF_CHAR;
     }
 
     @Override
@@ -618,8 +625,9 @@ public class FastByteBuffer implements IoBuffer {
         final int bytesToCopy = nElements * SIZE_OF_CHAR;
         ensureAdditionalCapacity(bytesToCopy + SIZE_OF_INT);
         putInt(nElements); // strided-array size
-        copyMemory(values, arrayOffset, buffer, arrayOffset + intPos, bytesToCopy);
-        intPos += bytesToCopy;
+        for (int i = 0; i < nElements; i++) { // individually copy chars as java uses 2 bytes per char and c++ just a single char
+            putChar(values[i]);
+        }
     }
 
     @Override
