@@ -48,7 +48,9 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       continue-on-error: true
-      run: gh release download -R fair-acc/opencmw-cpp compatiblity-test-util -p CompatibilityTest -D .
+      run: |
+        gh release download -R fair-acc/opencmw-cpp compatiblity-test-util -p CompatibilityTest -D .
+        chmod +x ./CompatibilityTest
     - name: Test with Maven
       run: mvn -Dgpg.skip=true --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dsha1=${SHA1} -Dchangelist=${CHANGELIST} package
       env:
