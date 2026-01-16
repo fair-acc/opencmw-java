@@ -11,6 +11,7 @@
     </parent>
 
     <artifactId>core</artifactId>
+    <name>opencmw-core</name>
 
     <description>
         ZeroMQ and REST-based micro-service implementation.

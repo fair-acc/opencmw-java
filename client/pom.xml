@@ -11,6 +11,7 @@
     </parent>
 
     <artifactId>client</artifactId>
+    <name>opencmw-client</name>
 
     <description>
         OpenCmw, CmwLight, and RESTful client implementations.
