@@ -75,8 +75,6 @@ jobs:
       - uses: actions/checkout@v6
       - id: version
         uses: ./.github/actions/get-version
-        with:
-          versionPattern: '${{ env.JAVA_REFERENCE_VERSION }}.[0-9]*.[0-9]*'
       - name: Fetch tags
         run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - name: Cache the Maven packages to speed up build
@@ -100,7 +98,7 @@ jobs:
           REVISION: ${{ steps.version.outputs.revision }}
           SHA1: ${{ steps.version.outputs.sha1 }}
           CHANGELIST: ${{ steps.version.outputs.changelist }}
-      - name: Set up JDK to publish to OSSRH
+      - name: Set up JDK to publish to maven central
         uses: actions/setup-java@v5
         with:
           java-version: ${{ env.JAVA_REFERENCE_VERSION }}
@@ -110,6 +108,8 @@ jobs:
           server-password: SONATYPE_PASS
           # gpg-private-key: ${{ secrets.GPG_KEY }} # gpg key was already added in the first java-setup phase, will fail the cleanup if added again
           gpg-passphrase: GPG_PASS
+      - name: Print contents of ~/.m2/settings.xml
+        run: cat ~/.m2/settings.xml
       - name: Deploy to Maven Central
         run: mvn -DskipTests --no-transfer-progress --batch-mode -Drevision=${REVISION} -Dsha1=${SHA1} -Dchangelist=${CHANGELIST} -Drelease=central deploy
         env:
