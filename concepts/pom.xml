@@ -11,6 +11,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>concepts</artifactId>
+    <name>opencmw-concepts</name>
     <description>
         Module for experimental features which will be moved to more appropriate modules once they become stable.
     </description>

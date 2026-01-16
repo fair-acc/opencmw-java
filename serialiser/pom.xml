@@ -11,6 +11,7 @@
     </parent>
 
     <artifactId>serialiser</artifactId>
+    <name>opencmw-serialiser</name>
 
     <description>
         Efficient reflection based serialisers.

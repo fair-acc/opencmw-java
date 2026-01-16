@@ -12,6 +12,7 @@
     </parent>
 
     <artifactId>server-rest</artifactId>
+    <name>opencmw-server-rest</name>
 
     <description>
         OpenCMW RESTful plugin extension to micro-service implementation.
