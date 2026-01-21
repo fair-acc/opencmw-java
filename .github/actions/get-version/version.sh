@@ -25,8 +25,8 @@ else
   export sha1=-$(git rev-parse --short HEAD)
   export changelist="-SNAPSHOT"
 fi
-echo "::set-output name=revision::$rev"
-echo "::set-output name=sha1::$sha1"
-echo "::set-output name=changelist::$changelist"
+echo "revision=$rev" >> "$GITHUB_OUTPUT"
+echo "sha1=$sha1" >> "$GITHUB_OUTPUT"
+echo "changelist=$changelist" >> "$GITHUB_OUTPUT"
 echo "Version will be:"
 echo "${rev}${sha1}${changelist}"

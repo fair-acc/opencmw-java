@@ -32,8 +32,6 @@ jobs:
       run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
     - id: version
       uses: ./.github/actions/get-version
-      with:
-          versionPattern: '${{ env.JAVA_REFERENCE_VERSION }}.[0-9]*.[0-9]*'
     - uses: actions/cache@v4 # cache maven packages to speed up build
       with:
         path: ~/.m2
