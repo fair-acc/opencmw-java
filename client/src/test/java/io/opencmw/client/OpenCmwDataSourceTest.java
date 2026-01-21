@@ -8,6 +8,7 @@ import static io.opencmw.OpenCmwProtocol.EMPTY_FRAME;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
@@ -257,7 +258,7 @@ class OpenCmwDataSourceTest {
         // get request
         final URI requestURI = URI.create(brokerAddress + "/testWorker?ctx=FAIR.SELECTOR.C=3&contentType=application/octet-stream");
         LOGGER.atDebug().addArgument(requestURI).log("requesting GET from endpoint: {}");
-        final Future<TestObject> future;
+        final DataSourcePublisher.ThePromisedFuture<TestObject, Map<String, List<String>>> future;
         try (final DataSourcePublisher.Client client = dataSourcePublisher.getClient()) {
             future = client.get(requestURI, null, TestObject.class); // uri_without_query oder serviceName + resolver, requestContext, type
         }
@@ -265,10 +266,13 @@ class OpenCmwDataSourceTest {
         // assert result
         final TestObject result = future.get(1000, TimeUnit.MILLISECONDS);
         assertEquals(referenceObject, result);
+        final Map<String, List<String>> context = future.getReplyContext();
+        assertEquals("FAIR.SELECTOR.C=3:P=5", context.get("ctx").get(0));
 
         eventStore.stop();
         dataSourcePublisher.stop();
     }
+
     @Test
     void testGetRequestWithContext() throws InterruptedException, ExecutionException, TimeoutException {
         final TestObject referenceObject = new TestObject("asdf", 42);

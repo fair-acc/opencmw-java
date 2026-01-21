@@ -92,18 +92,18 @@ public class CustomFuture<T> implements Future<T> {
      * @throws IllegalStateException in case this method has been already called or Future has been cancelled
      */
     public void setReply(final T newValue) {
+        this.reply = newValue;
         if (done.getAndSet(true)) {
             throw new IllegalStateException("future is not running anymore (either cancelled or already notified)");
         }
-        this.reply = newValue;
         notifyListener();
     }
 
     public void setException(final Throwable exception) {
+        this.exception = exception;
         if (done.getAndSet(true)) {
             throw new IllegalStateException("future is not running anymore (either cancelled or already notified)");
         }
-        this.exception = exception;
         notifyListener();
     }
 

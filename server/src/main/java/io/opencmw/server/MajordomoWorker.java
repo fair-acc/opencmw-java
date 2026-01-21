@@ -214,9 +214,7 @@ public class MajordomoWorker<C, I, O> extends BasicMdpWorker {
             final URI reqTopic = rawCtx.req.topic;
             rawCtx.rep.topic = new URI(reqTopic.getScheme(), reqTopic.getAuthority(), reqTopic.getPath(), replyQuery, reqTopic.getFragment());
         } else {
-            final String oldQuery = rawCtx.rep.topic.getQuery();
-            final String newQuery = oldQuery == null || oldQuery.isBlank() ? replyQuery : (oldQuery + "&" + replyQuery);
-            rawCtx.rep.topic = new URI(rawCtx.rep.topic.getScheme(), rawCtx.rep.topic.getAuthority(), rawCtx.rep.topic.getPath(), newQuery, null);
+            rawCtx.rep.topic = new URI(rawCtx.rep.topic.getScheme(), rawCtx.rep.topic.getAuthority(), rawCtx.rep.topic.getPath(), replyQuery, null);
         }
         final MimeType replyMimeType = QueryParameterParser.getMimeType(replyQuery);
         // no MIME type given -> stick with the one specified in the request (if it exists) or keep default: copy of raw binary data
