@@ -20,10 +20,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -317,9 +314,9 @@ public class DataSourcePublisher implements Runnable, AutoCloseable, Closeable {
         return dataAvailable;
     }
 
-    protected <R> ThePromisedFuture<R, ?> newRequestFuture(final URI endpoint, final Class<R> requestedDomainObjType, final Command requestType, final String requestId) {
+    protected <R, C> ThePromisedFuture<R, C> newRequestFuture(final URI endpoint, final Class<R> requestedDomainObjType, final Command requestType, final String requestId) {
         FilterRegistry.checkClassForNewFilters(requestedDomainObjType);
-        final ThePromisedFuture<R, ?> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, null, requestType, requestId, null);
+        final ThePromisedFuture<R, C> requestFuture = new ThePromisedFuture<>(endpoint, requestedDomainObjType, null, requestType, requestId, null);
         final Object oldEntry = requests.put(requestId, requestFuture);
         assert oldEntry == null : "requestID '" + requestId + "' already present in requestFutureMap";
         return requestFuture;
@@ -367,18 +364,18 @@ public class DataSourcePublisher implements Runnable, AutoCloseable, Closeable {
                     replyDomainObject = ioClassSerialiser.deserialiseObject(reqClassType);
                     ioClassSerialiser.setDataBuffer(byteBuffer); // allow received byte array to be released
                 }
-                if (notifyFuture) {
-                    domainObject.future.castAndSetReply(replyDomainObject); // notify callback
+                final Object contextObject;
+                if (domainObject.future.contextType == null || domainObject.future.contextType.equals(Map.class)) {
+                    contextObject = QueryParameterParser.getMap(endpointURI.getQuery());
+                } else {
+                    contextObject = QueryParameterParser.parseQueryParameter(domainObject.future.contextType, endpointURI.getQuery());
                 }
                 if (domainObject.future.listener != null) {
                     final var finalDomainObj = replyDomainObject;
-                    final Object contextObject;
-                    if (domainObject.future.contextType == null) {
-                        contextObject = QueryParameterParser.getMap(endpointURI.getQuery());
-                    } else {
-                        contextObject = QueryParameterParser.parseQueryParameter(domainObject.future.contextType, endpointURI.getQuery());
-                    }
                     executor.submit(() -> domainObject.future.notifyListener(finalDomainObj, contextObject)); // NOPMD - threads are ok, not a webapp
+                }
+                if (notifyFuture) {
+                    domainObject.future.castAndSetReplyWithContext(replyDomainObject, contextObject); // notify callback
                 }
             } catch (Exception e) { // NOPMD: exception is forwarded to client
                 final var sw = new StringWriter();
@@ -453,18 +450,18 @@ public class DataSourcePublisher implements Runnable, AutoCloseable, Closeable {
             clientSocket.connect(inprocCtrl);
         }
 
-        public <R, C> Future<R> get(URI endpoint, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
+        public <R, C> ThePromisedFuture<R, C> get(URI endpoint, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
             final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
             final URI endpointQuery = getEndpointQuery(endpoint, requestContext);
-            final ThePromisedFuture<R, ?> rThePromisedFuture = newRequestFuture(endpointQuery, requestedDomainObjType, Command.GET_REQUEST, requestId);
+            final ThePromisedFuture<R, C> rThePromisedFuture = newRequestFuture(endpointQuery, requestedDomainObjType, Command.GET_REQUEST, requestId);
             request(requestId, Command.GET_REQUEST, endpointQuery, null, requestContext, rbacProvider);
             return rThePromisedFuture;
         }
 
-        public <R, C> Future<R> set(final URI endpoint, final R requestBody, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
+        public <R, C> ThePromisedFuture<R, C> set(final URI endpoint, final R requestBody, final C requestContext, final Class<R> requestedDomainObjType, final RbacProvider... rbacProvider) {
             final String requestId = clientId + internalReqIdGenerator.incrementAndGet();
             final URI endpointQuery = getEndpointQuery(endpoint, requestContext);
-            final ThePromisedFuture<R, ?> rThePromisedFuture = newRequestFuture(endpointQuery, requestedDomainObjType, Command.SET_REQUEST, requestId);
+            final ThePromisedFuture<R, C> rThePromisedFuture = newRequestFuture(endpointQuery, requestedDomainObjType, Command.SET_REQUEST, requestId);
             request(requestId, Command.SET_REQUEST, endpointQuery, requestBody, requestContext, rbacProvider);
             return rThePromisedFuture;
         }
@@ -551,8 +548,9 @@ public class DataSourcePublisher implements Runnable, AutoCloseable, Closeable {
         }
     }
 
-    protected static class ThePromisedFuture<R, C> extends CustomFuture<R> { // NOPMD - no need for setters/getters here
+    public static class ThePromisedFuture<R, C> extends CustomFuture<R> { // NOPMD - no need for setters/getters here
         private final URI endpoint;
+        private C replyContext;
         private final Class<R> requestedDomainObjType;
         private final Class<C> contextType;
         private final Command requestType;
@@ -586,10 +584,12 @@ public class DataSourcePublisher implements Runnable, AutoCloseable, Closeable {
         }
 
         public void notifyListener(final Object obj, final Object contextObject) {
-            if (obj == null || !requestedDomainObjType.isAssignableFrom(obj.getClass()) || !contextType.isAssignableFrom(contextObject.getClass())) {
+            if (obj == null || !requestedDomainObjType.isAssignableFrom(obj.getClass())) {
                 LOGGER.atError().addArgument(requestedDomainObjType.getName()).addArgument(obj == null ? "null" : obj.getClass().getName()).log("Got wrong type for notification, got {} expected {}");
+            } else if (contextType != null && !contextType.isAssignableFrom(contextObject.getClass())) {
+                LOGGER.atError().addArgument(contextObject.getClass().getName()).addArgument(contextType.getName()).log("Got wrong context type for notification, got {} expected {}");
             } else {
-                //noinspection unchecked - cast is checked dynamically
+                // noinspection unchecked - cast is checked dynamically
                 listener.dataUpdate((R) obj, (C) contextObject); // NOPMD NOSONAR - cast is checked before implicitly
             }
         }
@@ -597,6 +597,17 @@ public class DataSourcePublisher implements Runnable, AutoCloseable, Closeable {
         @SuppressWarnings("unchecked")
         protected void castAndSetReply(final Object newValue) {
             this.setReply((R) newValue);
+        }
+
+        @SuppressWarnings("unchecked")
+        protected void castAndSetReplyWithContext(final Object newValue, final Object contextObject) {
+            this.replyContext = (C) contextObject;
+            this.setReply((R) newValue);
+        }
+
+        public C getReplyContext() throws ExecutionException, InterruptedException {
+            super.get();
+            return this.replyContext;
         }
     }
 
