@@ -526,6 +526,8 @@ public class DataSourcePublisher implements Runnable, AutoCloseable, Closeable {
             msg.add(endpoint.toString());
             if (requestBody == null) {
                 msg.add(EMPTY_ZFRAME);
+            } else if (requestBody instanceof BinaryData binaryData) {
+                msg.add(Arrays.copyOfRange(binaryData.data, 0, binaryData.dataSize > 0 ? binaryData.dataSize : binaryData.data.length));
             } else {
                 final Class<? extends IoSerialiser> matchingSerialiser = DataSource.getFactory(endpoint).getMatchingSerialiserType(endpoint);
                 final IoClassSerialiser serialiser = getSerialiser(); // lazily initialize IoClassSerialiser
