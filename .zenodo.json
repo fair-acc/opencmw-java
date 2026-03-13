@@ -1,0 +1,34 @@
+{
+  "title": "OpenCMW Java",
+  "description": "OpenCMW Java — an open common middle-ware library for equipment access and data serialisation.",
+  "license": {
+    "id": "LGPL-3.0-only"
+  },
+  "upload_type": "software",
+  "creators": [
+    {
+      "name": "Krimm, Alexander",
+      "affiliation": "GSI Helmholtzzentrum für Schwerionenforschung",
+      "orcid": "0000-0003-0804-756X"
+    },
+    {
+      "name": "Steinhagen, Ralph J.",
+      "affiliation": "GSI Helmholtzzentrum für Schwerionenforschung / FAIR",
+      "orcid": "0009-0009-8537-7029"
+    }
+  ],
+  "keywords": [
+    "middle-ware",
+    "equipment access",
+    "data serialisation",
+    "Java",
+    "accelerator controls"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/fair-acc/opencmw-java",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}
