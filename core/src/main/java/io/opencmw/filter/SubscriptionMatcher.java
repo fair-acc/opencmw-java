@@ -28,6 +28,21 @@ public class SubscriptionMatcher implements BiPredicate<URI, URI> {
         FilterRegistry.registerNewFilter(filterConfig);
     }
 
+    private SubscriptionMatcher(final boolean pathOnly) {
+        isPathOnly = pathOnly;
+    }
+
+    /**
+     * Matcher that compares path and context, discriminating on whichever filters are registered in
+     * the global {@link FilterRegistry} when a match is evaluated. Use this when the filters are
+     * registered elsewhere, rather than naming them here.
+     *
+     * @return context-aware matcher that registers no filters of its own
+     */
+    public static SubscriptionMatcher pathAndContext() {
+        return new SubscriptionMatcher(false);
+    }
+
     @Override
     public boolean test(final @NotNull URI notified, final @NotNull URI subscriber) {
         return isPathOnly ? testPathOnly(notified, subscriber) : testPathAndContext(notified, subscriber);

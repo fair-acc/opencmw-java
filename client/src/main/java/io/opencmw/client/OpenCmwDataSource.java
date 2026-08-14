@@ -96,7 +96,10 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
     private final ZMonitor socketMonitor;
     private final Map<String, URI> subscriptions = new HashMap<>(); // NOPMD: not accessed concurrently
     private final URI serverUri;
-    private final BiPredicate<URI, URI> subscriptionMatcher = new SubscriptionMatcher(); // <notify topic, subscribe topic>
+    // <notify topic, subscribe topic>
+    // Context matching differentiates subscriptions to the same path by the context keys whose Filter
+    // implementations are registered in FilterRegistry; keys without one are ignored.
+    private final BiPredicate<URI, URI> subscriptionMatcher = SubscriptionMatcher.pathAndContext();
     private final long heartbeatInterval;
     private Future<URI> dnsWorkerResult;
     private long nextReconnectAttemptTimeStamp;

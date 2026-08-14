@@ -75,6 +75,25 @@ class SubscriptionMatcherTest {
         test(matcher, false, "property?ctx=FAIR.SELECTOR.ALL", "property?ctx=FAIR.SELECTOR.C=2&contentType=text/html");
     }
 
+    @Test
+    void testMatcherPathAndContextFactory() {
+        // filters registered elsewhere, none named at construction
+        FilterRegistry.registerNewFilter(TestFilter1.class);
+
+        final BiPredicate<URI, URI> matcher = SubscriptionMatcher.pathAndContext();
+
+        // subscriptions to the same path differing only by a registered context key must not cross-match
+        test(matcher, false, "property/A?testKey1=41", "property/A?testKey1=42");
+        test(matcher, false, "property/A?testKey1=42", "property/A?testKey1=41");
+        test(matcher, true, "property/A?testKey1=42", "property/A?testKey1=42");
+
+        // unregistered context keys keep their existing 'ignore' semantics on either side
+        test(matcher, true, "property/A?testKey1=42&unknownKey=x", "property/A?testKey1=42");
+        test(matcher, true, "property/A?testKey1=42", "property/A?testKey1=42&unknownKey=x");
+        test(matcher, true, "property/A?testKey1=42", "property/A*");
+        test(matcher, false, "property/A?testKey1=42", "property/B?testKey1=42");
+    }
+
     private static void test(final BiPredicate<URI, URI> matcher, final boolean expected, final String notify, final String subscription) throws AssertionFailedError {
         final boolean actual = matcher.test(URI.create(notify), URI.create(subscription));
         if (actual != expected) {
