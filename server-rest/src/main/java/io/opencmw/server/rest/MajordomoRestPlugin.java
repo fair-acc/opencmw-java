@@ -115,6 +115,10 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     private static final String TAG_NOTIFY_ID = "notifyID";
     private static final AtomicLong REQUEST_COUNTER = new AtomicLong();
     private static final AtomicLong NOTIFY_COUNTER = new AtomicLong();
+    // Javalin's route table is not thread-safe, and RestServer.getInstance() is a single JVM-wide Javalin
+    // instance shared by every MajordomoRestPlugin instance - static, deliberately, to serialise route
+    // registration across all of them, not just de-duplicate per key like 'registeredEndpoints' does.
+    private static final Object ROUTE_REGISTRATION_LOCK = new Object();
     private final transient Javalin restInstance = RestServer.getInstance(); // NOSONAR NOPMD -- transient is necessary
 
     static {
@@ -333,7 +337,7 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
     }
 
     protected void registerEndPoint(final String endpoint) {
-        // needs to be synchronised since Javalin get(..), put(..) seem to be not thread safe (usually initialised during startup)
+        // 'registeredEndpoints' de-duplicates repeated registration of the same endpoint
         registeredEndpoints.computeIfAbsent(endpoint, ep -> {
             final var requestMsg = new MdpMessage(null, PROT_CLIENT, GET_REQUEST, INTERNAL_SERVICE_OPENAPI.getBytes(UTF_8), EMPTY_FRAME, URI.create(INTERNAL_SERVICE_OPENAPI), ep.getBytes(UTF_8), "", RBAC);
             final CustomFuture<MdpMessage> openApiReply = dispatchRequest(requestMsg);
@@ -348,19 +352,21 @@ public class MajordomoRestPlugin extends BasicMdpWorker {
                 var openApi = getOpenApiDocumentation(handlerClassName);
 
                 final Set<Role> accessRoles = RestServer.getDefaultRole();
-                restInstance.routes(() -> {
-                    ApiBuilder.before(ep, restCtx -> {
-                        // for some strange reason this needs to be executed to be able to read 'restCtx.formParamMap()'
-                        if ("POST".equals(restCtx.method())) {
-                            final Map<String, List<String>> map = restCtx.formParamMap();
-                            if (map.size() == 0) {
-                                LOGGER.atDebug().addArgument(restCtx.req.getPathInfo()).log("{} called without form data");
+                synchronized (ROUTE_REGISTRATION_LOCK) {
+                    restInstance.routes(() -> {
+                        ApiBuilder.before(ep, restCtx -> {
+                            // for some strange reason this needs to be executed to be able to read 'restCtx.formParamMap()'
+                            if ("POST".equals(restCtx.method())) {
+                                final Map<String, List<String>> map = restCtx.formParamMap();
+                                if (map.isEmpty()) {
+                                    LOGGER.atDebug().addArgument(restCtx.req.getPathInfo()).log("{} called without form data");
+                                }
                             }
-                        }
+                        });
+                        post(ep + "*", OpenApiBuilder.documented(openApi, getDefaultServiceRestHandler(ep)), accessRoles);
+                        get(ep + "*", OpenApiBuilder.documented(openApi, getDefaultServiceRestHandler(ep)), accessRoles);
                     });
-                    post(ep + "*", OpenApiBuilder.documented(openApi, getDefaultServiceRestHandler(ep)), accessRoles);
-                    get(ep + "*", OpenApiBuilder.documented(openApi, getDefaultServiceRestHandler(ep)), accessRoles);
-                });
+                }
 
                 return openApi;
             } catch (final Exception e) { // NOSONAR NOPMD -- erroneous worker replies shall not stop the broker
