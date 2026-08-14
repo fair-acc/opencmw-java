@@ -28,7 +28,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
-        <version.slf4j>2.0.17</version.slf4j>
+        <version.slf4j>2.0.18</version.slf4j>
         <version.auto-service>1.1.1</version.auto-service>
         <version.jetbrains.annotations>26.0.2</version.jetbrains.annotations>
         <version.jeromq>0.5.2</version.jeromq>
