@@ -50,6 +50,9 @@ public class FastByteBuffer implements IoBuffer {
     private static final int DEFAULT_INITIAL_CAPACITY = 1 << 10;
     private static final int DEFAULT_MIN_CAPACITY_INCREASE = 1 << 10;
     private static final int DEFAULT_MAX_CAPACITY_INCREASE = 100 * (1 << 10);
+    private static final int SMALL_BUFFER_THRESHOLD = 1 << 13; // 8 KiB: below this, double (with min floor)
+    private static final int LARGE_BUFFER_THRESHOLD = 1 << 23; // 8 MiB: at/above this, use multiplicative-capped growth
+    private static final int LARGE_BUFFER_MAX_INCREASE = 1 << 24; // 16 MiB cap on a single grow step
     private static final Unsafe unsafe; // NOPMD
     static {
         // get an instance of the otherwise private 'Unsafe' class
@@ -179,8 +182,18 @@ public class FastByteBuffer implements IoBuffer {
         if (!autoResize) {
             throw new IndexOutOfBoundsException("required capacity: " + newCapacity + " out of bounds: " + capacity() + " and autoResize is disabled");
         }
-        // TODO: add smarter enlarging algorithm (ie. increase fast for small arrays, + n% for medium sized arrays, byte-by-byte for large arrays)
-        final int addCapacity = Math.min(Math.max(DEFAULT_MIN_CAPACITY_INCREASE, newCapacity >> 3), DEFAULT_MAX_CAPACITY_INCREASE); // min, +12.5%, max
+        // tiered growth: avoid O(n^2) reallocation cost at both ends of the size spectrum
+        //  - small   (<  8 KiB): double (with absolute 1 KiB floor) -- amortise repeated grows from tiny initial sizes
+        //  - medium  (<  8 MiB): +12.5%                              -- unchanged, well-balanced for typical message sizes
+        //  - large   (>= 8 MiB): +50% capped at 16 MiB               -- multiplicative growth to avoid the previous linear regime
+        final int addCapacity;
+        if (newCapacity < SMALL_BUFFER_THRESHOLD) {
+            addCapacity = Math.max(DEFAULT_MIN_CAPACITY_INCREASE, newCapacity);
+        } else if (newCapacity < LARGE_BUFFER_THRESHOLD) {
+            addCapacity = newCapacity >> 3;
+        } else {
+            addCapacity = Math.min(newCapacity >> 1, LARGE_BUFFER_MAX_INCREASE);
+        }
         // if we are reading, limit() marks valid data, when writing, position() marks end of valid data, limit() is safe bet because position <= limit
         forceCapacity(newCapacity + addCapacity, limit());
     }

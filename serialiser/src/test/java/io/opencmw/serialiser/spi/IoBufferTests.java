@@ -466,6 +466,41 @@ class IoBufferTests {
     }
 
     @Test
+    void testFastByteBufferGrowSmallTier() {
+        // below 1 KiB floor: grow by the floor (preserves prior behaviour for tiny buffers)
+        final FastByteBuffer tiny = new FastByteBuffer(100, true, null);
+        tiny.ensureCapacity(200);
+        assertEquals(200 + 1024, tiny.capacity(), "small tier (< floor) should add the 1 KiB floor");
+
+        // between floor (1 KiB) and small threshold (8 KiB): double
+        final FastByteBuffer small = new FastByteBuffer(2048, true, null);
+        small.ensureCapacity(3000);
+        assertEquals(3000 + 3000, small.capacity(), "small tier (> floor) should double");
+    }
+
+    @Test
+    void testFastByteBufferGrowMediumTier() {
+        // medium tier (8 KiB .. 8 MiB): +12.5% (unchanged from previous policy)
+        final FastByteBuffer buffer = new FastByteBuffer(16 * 1024, true, null);
+        buffer.ensureCapacity(20 * 1024);
+        final int expectedAdd = (20 * 1024) >> 3; // 2560
+        assertEquals(20 * 1024 + expectedAdd, buffer.capacity(), "medium tier should add +12.5%");
+    }
+
+    @Test
+    void testFastByteBufferGrowLargeTier() {
+        // large tier (>= 8 MiB): +50% capped at 16 MiB.
+        // Under the previous policy, addCapacity was clamped to 100 KiB here,
+        // which produced linear (O(n^2)) growth for large buffers.
+        final int eightMiB = 8 * 1024 * 1024;
+        final FastByteBuffer buffer = new FastByteBuffer(eightMiB, true, null);
+        buffer.ensureCapacity(eightMiB + 1);
+        final int expectedAdd = (eightMiB + 1) >> 1; // ~4 MiB, well under the 16 MiB cap
+        assertEquals(eightMiB + 1 + expectedAdd, buffer.capacity(), "large tier should add +50% (multiplicative)");
+        assertThat("large-tier grow must exceed the previous 100 KiB cap", buffer.capacity() - (eightMiB + 1), Matchers.greaterThan(100 * 1024));
+    }
+
+    @Test
     void testFastByteBufferOutOfBounds() {
         final FastByteBuffer buffer = FastByteBuffer.wrap(new byte[50]);
         // test single getters
