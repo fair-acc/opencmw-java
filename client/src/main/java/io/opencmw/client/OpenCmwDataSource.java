@@ -334,12 +334,12 @@ public class OpenCmwDataSource extends DataSource implements AutoCloseable {
         final URI subscriptionEndpoint = subscriptions.remove(reqId);
         final byte[] serviceId = subscriptionEndpoint.getPath().substring(1).getBytes(UTF_8);
         if (socket.getSocketType() == SocketType.DEALER) { // mdp
-            final var msg = new MdpMessage(clientId.getBytes(UTF_8), PROT_CLIENT, UNSUBSCRIBE, serviceId, reqId.getBytes(UTF_8), endpoint, EMPTY_FRAME, "", null);
+            final var msg = new MdpMessage(clientId.getBytes(UTF_8), PROT_CLIENT, UNSUBSCRIBE, serviceId, reqId.getBytes(UTF_8), subscriptionEndpoint, EMPTY_FRAME, "", null);
             if (!msg.send(socket)) {
-                LOGGER.atError().addArgument(reqId).addArgument(endpoint).log("unsubscribe error (reqId: {}) for endpoint: {}");
+                LOGGER.atError().addArgument(reqId).addArgument(subscriptionEndpoint).log("unsubscribe error (reqId: {}) for endpoint: {}");
             }
         } else { // mds
-            final String id = getZMQTopicFromURI(endpoint);
+            final String id = getZMQTopicFromURI(subscriptionEndpoint);
             socket.unsubscribe(id.getBytes(UTF_8));
         }
     }
